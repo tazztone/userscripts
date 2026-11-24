@@ -14,6 +14,7 @@ import {
 } from './category-tree-model.js';
 import { syncCategoryTreeIgnoredState } from './category-tree.js';
 import { fetchWithTimeout } from '../state/net.js';
+import { logActivity } from '../state/activity-log.js';
 
 let ignoredBarObserver = null;
 
@@ -128,7 +129,7 @@ export async function refreshProductFeed(doc = (typeof document !== 'undefined' 
       }
     }
   } catch (err) {
-    console.error('[Toppreise-Suite] Feed refresh error:', err);
+    logActivity('error', 'category-tree', 'Feed refresh error', err?.message || String(err));
   }
 }
 
@@ -212,7 +213,7 @@ async function postCategoryAction(ajaxUrl, body, bar, activeDoc, contextName) {
     }
     return false;
   } catch (err) {
-    console.error(`[Toppreise-Suite] ${contextName} error:`, err);
+    logActivity('error', 'category-tree', `${contextName} error`, err?.message || String(err));
     return false;
   }
 }

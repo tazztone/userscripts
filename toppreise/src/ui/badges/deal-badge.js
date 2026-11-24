@@ -15,6 +15,7 @@ import { getCachedPriceStats, hasUsablePriceStats, bumpCacheGeneration } from '.
 import { isShippingPriceActive, triggerProcessListings } from '../../page/adapter.js';
 import { markFreshVerified, armFreshDismiss } from '../fresh-dismiss.js';
 import { scanState, isScanningPid } from '../../state/store.js';
+import { logActivity } from '../../state/activity-log.js';
 import { setHtmlIfChanged } from './dom-helpers.js';
 
 // Single-product verify flow. Reads price at click time and re-verifies it
@@ -147,8 +148,8 @@ export function renderHeat(ctx) {
   } else if (card.dataset.tpAppliedHeat || card.classList.contains('tp-heat-blend') || card.querySelector('.badge-dif, [class*="badge-dif"]')?.style.background) {
     // Tripwire: heat stripped while the badge still claims a verified % means
     // a stats regression slipped through — enable DEBUG to catch it live.
-    if (CONFIG.DEBUG && CONFIG.HEATMAP_ENABLED === true && card.querySelector('.tp-deal-alltime-low, .tp-deal-new-record')) {
-      console.warn('[Toppreise Suite] heat removed with verified badge present',
+    if (CONFIG.HEATMAP_ENABLED === true && card.querySelector('.tp-deal-alltime-low, .tp-deal-new-record')) {
+      logActivity('warn', 'deal-badge', 'heat removed with verified badge present',
         { pid, median: stats?.medianPrice ?? null, tiefstpreis: stats?.tiefstpreis ?? null });
     }
     delete card.dataset.tpAppliedHeat;

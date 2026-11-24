@@ -48,7 +48,7 @@ Requires a userscript manager browser extension:
 - [Violentmonkey](https://violentmonkey.github.io/) (recommended: [Firefox](https://addons.mozilla.org/en-US/firefox/addon/violentmonkey/) · [Chrome / Brave](https://chromewebstore.google.com/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag))
 - [Tampermonkey](https://www.tampermonkey.net/)
 
-### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.561)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
+### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.562)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
 
 > [!NOTE]
 > The userscript includes embedded `@updateURL` and `@downloadURL` metadata headers. Your userscript manager will automatically check GitHub in the background and keep your installation up to date.
@@ -195,7 +195,7 @@ The userscript dynamically tailors its UI to the current page type:
 
 ## ⚙️ Configuration & Modal Settings
 
-Click the floating **gear icon (`⚙️`)** in the bottom-right corner to open the Shadow DOM settings dialog (`#tp-root`). Elevated via native HTML5 `<dialog>` (`showModal()`) to the browser Top Layer, it avoids z-index collisions with host site elements. Hold `⚙️` (600ms) or `Shift+Click` to open the **Dev-Diagnose-Log** (`#tp-diag-dialog`) with live state and redacted network/scanner logs. Split into Core and Advanced views for legibility:
+Click the floating **gear icon (`⚙️`)** in the bottom-right corner to open the Shadow DOM settings dialog (`#tp-root`). Elevated via native HTML5 `<dialog>` (`showModal()`) to the browser Top Layer, it avoids z-index collisions with host site elements. Hold `⚙️` (600ms) or `Shift+Click` to open the **Dev-Diagnose-Log** (`#tp-diag-dialog`) with live state, redacted session logs (`Sitzung`), and persistent cross-session warning/error history (`Langzeit (N)`, max 300 coalesced entries). Split into Core and Advanced views for legibility:
 
 ### Core Settings (Sections 1–5: Display, Deals & Sorting, Filtering, Web Search, Price Alarm)
 
@@ -236,7 +236,7 @@ Click the floating **gear icon (`⚙️`)** in the bottom-right corner to open t
 * **Two-Layer Persistence:** Preferences and negative filters use a resilient 2-layer storage architecture (`GM_setValue` / `GM_getValue` with domain `localStorage` auto-healing backup) that survives userscript reinstalls.
 * **Secrets Confidentiality:** Your `DISCORD_WEBHOOK_URL`, `TAVILY_API_KEY`, and `OPENROUTER_API_KEY` are saved exclusively in private userscript manager storage (`GM_setValue`). They are **never** mirrored to page-accessible `localStorage` and are automatically stripped from JSON configuration exports.
 * **Granted Permissions:**
-  * `GM_getValue` / `GM_setValue` / `GM_deleteValue`: Isolated persistent configuration storage.
+  * `GM_getValue` / `GM_setValue` / `GM_deleteValue`: Isolated persistent configuration storage and long-term warning/error log (`DIAG_PERSISTENT_LOG`).
   * `GM_xmlhttpRequest` (`@connect toppreise.ch`, `@connect discord.com`, `@connect api.tavily.com`, `@connect openrouter.ai`, `@connect graph.keepa.com`, `@connect keepa.com`): Used to fetch product images for Discord attachments, dispatch deal payloads to Discord webhooks, retrieve Amazon Keepa price history charts, and request OpenRouter/Tavily search summaries.
   * `GM_openInTab`: Opens batch product/dealer/Google-AI tabs in the background without popup-blocker interference.
 

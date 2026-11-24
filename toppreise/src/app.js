@@ -45,7 +45,7 @@ import { showToast, getLastToastMessage } from './ui/toast.js';
 import { uiShadowRoot } from './ui/shell.js';
 import { closeSparklinePopout } from './ui/sparkline.js';
 import { cancelFeedRefresh, getFeedRefreshState } from './page/feed-refresh.js';
-import { logActivity, getActivityLog, subscribeActivityLog } from './state/activity-log.js';
+import { logActivity, getActivityLog, getPersistentActivityLog, clearPersistentActivityLog, subscribeActivityLog } from './state/activity-log.js';
 import { closeAiPopover } from './ui/badges/card-ai-popover.js';
 import {
   CONFIG,
@@ -72,7 +72,7 @@ import { enhanceCategorySidebar, disconnectCategoryObservers } from './features/
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.561
+// @version      2.18.562
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -235,6 +235,7 @@ import { enhanceCategorySidebar, disconnectCategoryObservers } from './features/
       scan: { active: scanState.isBatchChecking, progress: scanState.progress },
       refresh: getFeedRefreshState(),
       recentLog: getActivityLog().slice(-10),
+      persistentWarnCount: getPersistentActivityLog().length,
       ts: Date.now()
     }));
   }
@@ -434,7 +435,7 @@ import { enhanceCategorySidebar, disconnectCategoryObservers } from './features/
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.561';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.562';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
@@ -472,6 +473,8 @@ import { enhanceCategorySidebar, disconnectCategoryObservers } from './features/
         showToast,
         openDiagLog: () => openDiagModal(uiShadowRoot),
         getActivityLog,
+        getPersistentActivityLog,
+        clearPersistentActivityLog,
         lastToast: getLastToastMessage
       };
     } else {

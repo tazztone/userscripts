@@ -236,7 +236,7 @@ Klick auf das **Zahnrad-Symbol (`⚙️`)** unten rechts öffnet das Einstellung
 * **2-Ebenen-Persistenz:** Einstellungen und Negativfilter nutzen ein ausfallsicheres System (`GM_setValue` / `GM_getValue` mit automatischem `localStorage`-Backup), das Skript-Neuinstallationen übersteht.
 * **Sicherheit vertraulicher Keys:** Webhook-URL, OpenRouter- und Tavily-API-Key werden ausschliesslich im privaten Userscript-Manager-Speicher (`GM_setValue`) gehalten. Sie gelangen **niemals** in das seitenlesbare `localStorage` und werden bei JSON-Exporten automatisch entfernt.
 * **Erforderliche Berechtigungen:**
-  * `GM_getValue` / `GM_setValue` / `GM_deleteValue`: Isolierte Speicherung der Einstellungen.
+  * `GM_getValue` / `GM_setValue` / `GM_deleteValue`: Isolierte Speicherung der Einstellungen sowie des Langzeit-Diagnose-Logs (`DIAG_PERSISTENT_LOG`, max. 300 Warn/Err-Einträge).
   * `GM_xmlhttpRequest` (`@connect toppreise.ch`, `@connect discord.com`, `@connect api.tavily.com`, `@connect openrouter.ai`, `@connect graph.keepa.com`, `@connect keepa.com`): Für Produktbilder, Discord-Webhooks, Amazon-Keepa-Preisverläufe und OpenRouter/Tavily Web-Synthese.
   * `GM_openInTab`: Öffnet Batch-Tabs (Produkt/Händler/Google AI) im Hintergrund ohne Popup-Blocker.
 

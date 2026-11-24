@@ -6,6 +6,8 @@ import {
   logActivity,
   getActivityLog,
   clearActivityLog,
+  getPersistentActivityLog,
+  clearPersistentActivityLog,
   subscribeActivityLog,
   formatActivityLogText,
 } from '../../src/state/activity-log.js';
@@ -53,6 +55,122 @@ describe('activity-log', () => {
     logActivity('warn', 'net', 'slow', '1200ms');
     const txt = formatActivityLogText();
     assert.ok(txt.includes('WARN [net] slow | 1200ms'));
+  });
+});
+
+describe('persistent activity-log', () => {
+  let gmStore;
+  let lsStore;
+  let origGmGet;
+  let origGmSet;
+  let origGmDel;
+  let origLs;
+
+  beforeEach(() => {
+    gmStore = new Map();
+    lsStore = new Map();
+    origGmGet = globalThis.GM_getValue;
+    origGmSet = globalThis.GM_setValue;
+    origGmDel = globalThis.GM_deleteValue;
+    origLs = globalThis.localStorage;
+
+    globalThis.GM_getValue = (k, def) => (gmStore.has(k) ? gmStore.get(k) : def);
+    globalThis.GM_setValue = (k, v) => { gmStore.set(k, v); };
+    globalThis.GM_deleteValue = (k) => { gmStore.delete(k); };
+    globalThis.localStorage = {
+      getItem: (k) => (lsStore.has(k) ? lsStore.get(k) : null),
+      setItem: (k, v) => { lsStore.set(k, String(v)); },
+      removeItem: (k) => { lsStore.delete(k); },
+    };
+    clearActivityLog();
+    clearPersistentActivityLog();
+  });
+
+  afterEach(() => {
+    if (origGmGet === undefined) delete globalThis.GM_getValue; else globalThis.GM_getValue = origGmGet;
+    if (origGmSet === undefined) delete globalThis.GM_setValue; else globalThis.GM_setValue = origGmSet;
+    if (origGmDel === undefined) delete globalThis.GM_deleteValue; else globalThis.GM_deleteValue = origGmDel;
+    if (origLs === undefined) delete globalThis.localStorage; else globalThis.localStorage = origLs;
+  });
+
+  it('persists only warn and error entries, excluding info', () => {
+    logActivity('info', 'app', 'ignored-info');
+    logActivity('warn', 'net', 'persisted-warn');
+    logActivity('error', 'scan', 'persisted-error');
+
+    const persistent = getPersistentActivityLog();
+    assert.equal(persistent.length, 2);
+    assert.equal(persistent[0].message, 'persisted-warn');
+    assert.equal(persistent[1].message, 'persisted-error');
+  });
+
+  it('redacts secrets before persisting', () => {
+    logActivity('error', 'discord', 'https://discord.com/api/webhooks/123/secretTok', 'Bearer myJwt');
+    const persistent = getPersistentActivityLog();
+    assert.equal(persistent.length, 1);
+    assert.ok(!persistent[0].message.includes('secretTok'));
+    assert.ok(!persistent[0].detail.includes('myJwt'));
+    assert.ok(persistent[0].message.includes('/api/webhooks/123/[REDACTED]'));
+    assert.ok(persistent[0].detail.includes('Bearer [REDACTED]'));
+  });
+
+  it('coalesces consecutive identical warn/error entries', () => {
+    logActivity('warn', 'net', 'timeout', '5000ms');
+    logActivity('warn', 'net', 'timeout', '5000ms');
+    logActivity('warn', 'net', 'timeout', '5000ms');
+
+    const persistent = getPersistentActivityLog();
+    assert.equal(persistent.length, 1);
+    assert.equal(persistent[0].count, 3);
+  });
+
+  it('caps persistent buffer at 300 entries', () => {
+    for (let i = 1; i <= 310; i++) {
+      logActivity('warn', 'bulk', `warn-${i}`);
+    }
+    const persistent = getPersistentActivityLog();
+    assert.equal(persistent.length, 300);
+    assert.equal(persistent[0].message, 'warn-11');
+    assert.equal(persistent[299].message, 'warn-310');
+  });
+
+  it('clearActivityLog keeps persistent storage intact; clearPersistentActivityLog wipes it', () => {
+    logActivity('error', 'app', 'boom');
+    clearActivityLog();
+    assert.equal(getActivityLog().length, 0);
+    assert.equal(getPersistentActivityLog().length, 1);
+
+    clearPersistentActivityLog();
+    assert.equal(getPersistentActivityLog().length, 0);
+  });
+
+  it('handles corrupt stored data safely without throwing', () => {
+    gmStore.set('DIAG_PERSISTENT_LOG', '{not-valid-json');
+    assert.deepEqual(getPersistentActivityLog(), []);
+
+    gmStore.set('DIAG_PERSISTENT_LOG', { bad: true });
+    assert.deepEqual(getPersistentActivityLog(), []);
+
+    delete globalThis.GM_getValue;
+    delete globalThis.GM_setValue;
+    lsStore.set('tp_suite_v2_DIAG_PERSISTENT_LOG', 'corrupt[');
+    assert.deepEqual(getPersistentActivityLog(), []);
+  });
+
+  it('formatActivityLogText with includeDate includes date, version, page, and multiplier', () => {
+    const txt = formatActivityLogText([
+      {
+        ts: Date.UTC(2026, 10, 24, 12, 34, 56, 789),
+        level: 'warn',
+        source: 'net',
+        message: 'slow',
+        detail: '1200ms',
+        ver: '2.5.0',
+        page: '/de/search',
+        count: 4,
+      },
+    ], { includeDate: true });
+    assert.ok(txt.includes('[2026-11-24 12:34:56.789] WARN [net] (v2.5.0 /de/search) [×4] slow | 1200ms'));
   });
 });
 

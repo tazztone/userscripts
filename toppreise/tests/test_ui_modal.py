@@ -790,6 +790,54 @@ def test_diag_modal_shift_click_and_controls(page: Page):
     diag.wait_for(state='hidden')
 
 
+def test_diag_modal_persistent_log_survives_reload(page: Page):
+    page.evaluate("""() => {
+        window.ToppreiseSuite.clearPersistentActivityLog();
+        localStorage.setItem('tp_suite_v2_DIAG_PERSISTENT_LOG', JSON.stringify([{
+            ts: Date.UTC(2026, 10, 24, 12, 0, 0, 0),
+            level: 'warn',
+            source: 'net',
+            message: 'persisted-reload-warn',
+            detail: 'timeout',
+            ver: 'dev',
+            page: '/mock',
+            count: 2
+        }]));
+    }""")
+
+    page.reload()
+    page.add_script_tag(path='toppreise/toppreise.user.js')
+    page.locator('#tp-root >> #tp-settings-fab').wait_for(state='visible')
+
+    fab = page.locator('#tp-root >> #tp-settings-fab')
+    fab.click(modifiers=['Shift'])
+    diag = page.locator('#tp-root >> #tp-diag-dialog')
+    diag.wait_for(state='visible')
+
+    persistent_tab = page.locator('#tp-root >> #tp-diag-tab-persistent')
+    assert 'Langzeit (1)' in (persistent_tab.text_content() or '')
+
+    # Clear in Sitzung keeps Langzeit intact
+    page.click('#tp-root >> #tp-diag-clear-btn')
+    assert 'Langzeit (1)' in (persistent_tab.text_content() or '')
+
+    # Switch to Langzeit tab
+    persistent_tab.click()
+    pre_text = page.locator('#tp-root >> #tp-diag-log-pre').text_content() or ''
+    assert '2026-11-24 12:00:00.000' in pre_text
+    assert 'persisted-reload-warn' in pre_text
+    assert '[×2]' in pre_text
+
+    # Clear in Langzeit with confirm dialog
+    page.once('dialog', lambda d: d.accept())
+    page.click('#tp-root >> #tp-diag-clear-btn')
+    assert (page.locator('#tp-root >> #tp-diag-log-pre').text_content() or '') == '(keine Einträge)'
+    assert 'Langzeit (0)' in (persistent_tab.text_content() or '')
+
+    page.click('#tp-root >> #tp-diag-close-btn')
+    diag.wait_for(state='hidden')
+
+
 def test_diag_modal_long_press(page: Page):
     fab = page.locator('#tp-root >> #tp-settings-fab')
     fab.dispatch_event('pointerdown', {'button': 0, 'pointerType': 'mouse', 'clientX': 10, 'clientY': 10})

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.561
+// @version      2.18.562
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -3872,6 +3872,8 @@ const SHADOW_MODAL_STYLES = `
   #tp-diag-dialog:not([open]) { display: none; }
   #tp-diag-dialog::backdrop { background: rgba(15, 23, 42, 0.55); }
   .tp-diag-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 10px; flex-shrink: 0; }
+  .tp-diag-tabs { display: flex; gap: 6px; margin-top: 10px; flex-shrink: 0; }
+  .tp-diag-tab.tp-diag-tab-active { background: var(--tp-accent); color: #fff; border-color: var(--tp-accent); }
   .tp-diag-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 10px 0; font-size: 12px; flex-shrink: 0; }
   #tp-diag-snapshot { flex-shrink: 0; }
   #tp-diag-snapshot, #tp-diag-log-pre {
@@ -6546,12 +6548,16 @@ const SHADOW_MODAL_STYLES = `
 
   // ─── MODULE: src/state/activity-log.js ──────────────────────────────────────
   /**
-   * Pure in-memory 200-entry activity log ring buffer with secret redaction.
-   * Zero localStorage / GM_setValue writes.
+   * 200-entry in-memory activity log ring buffer + persistent 300-entry warn/error
+   * ring buffer (GM_getValue/GM_setValue/GM_deleteValue with localStorage fallback
+   * when GM_* APIs are unavailable) with secret redaction.
    */
 
 
   const ACTIVITY_LOG_MAX = 200;
+  const PERSISTENT_LOG_KEY = 'DIAG_PERSISTENT_LOG';
+  const PERSISTENT_LS_KEY = 'tp_suite_v2_DIAG_PERSISTENT_LOG';
+  const PERSISTENT_LOG_MAX = 300;
   const activityBuffer = [];
   const activityListeners = new Set();
   let activitySeq = 0;
@@ -6582,6 +6588,110 @@ const SHADOW_MODAL_STYLES = `
     }
   }
 
+  function getScriptVersion() {
+    return (typeof GM_info !== 'undefined' && GM_info?.script?.version) || 'dev';
+  }
+
+  function getSafePagePath() {
+    return (typeof location !== 'undefined' && location?.pathname) ? redactSecrets(location.pathname) : '';
+  }
+
+  function sanitizePersistentList(raw) {
+    let parsed = raw;
+    if (typeof parsed === 'string') {
+      try {
+        parsed = JSON.parse(parsed);
+      } catch {
+        return [];
+      }
+    }
+    if (!Array.isArray(parsed)) return [];
+    const out = [];
+    for (const item of parsed) {
+      if (!item || typeof item !== 'object') continue;
+      const level = item.level === 'error' ? 'error' : item.level === 'warn' ? 'warn' : null;
+      if (!level) continue;
+      out.push({
+        ts: Number(item.ts) || 0,
+        level,
+        source: String(item.source || 'app'),
+        message: redactSecrets(item.message || ''),
+        detail: item.detail == null ? null : redactSecrets(item.detail),
+        ver: String(item.ver || 'dev'),
+        page: String(item.page || ''),
+        count: Number(item.count) > 0 ? Number(item.count) : 1,
+      });
+    }
+    if (out.length > PERSISTENT_LOG_MAX) {
+      out.splice(0, out.length - PERSISTENT_LOG_MAX);
+    }
+    return out;
+  }
+
+  function readPersistentBuffer() {
+    try {
+      if (typeof GM_getValue === 'function') {
+        return sanitizePersistentList(GM_getValue(PERSISTENT_LOG_KEY, []));
+      }
+    } catch {}
+    try {
+      if (typeof localStorage !== 'undefined') {
+        const raw = localStorage.getItem(PERSISTENT_LS_KEY);
+        return raw ? sanitizePersistentList(raw) : [];
+      }
+    } catch {}
+    return [];
+  }
+
+  function writePersistentBuffer(entries) {
+    const trimmed = Array.isArray(entries) ? entries.slice(-PERSISTENT_LOG_MAX) : [];
+    try {
+      if (typeof GM_setValue === 'function') {
+        GM_setValue(PERSISTENT_LOG_KEY, trimmed);
+        return;
+      }
+    } catch {}
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(PERSISTENT_LS_KEY, JSON.stringify(trimmed));
+      }
+    } catch {}
+  }
+
+  function appendPersistentEntry(entry) {
+    if (entry.level !== 'warn' && entry.level !== 'error') return;
+    const list = readPersistentBuffer();
+    const next = {
+      ts: entry.ts,
+      level: entry.level,
+      source: entry.source,
+      message: entry.message,
+      detail: entry.detail,
+      ver: getScriptVersion(),
+      page: getSafePagePath(),
+      count: 1,
+    };
+    const last = list[list.length - 1];
+    if (
+      last &&
+      last.level === next.level &&
+      last.source === next.source &&
+      last.message === next.message &&
+      last.detail === next.detail &&
+      last.page === next.page &&
+      last.ver === next.ver
+    ) {
+      last.ts = next.ts;
+      last.count = (Number(last.count) > 0 ? Number(last.count) : 1) + 1;
+    } else {
+      list.push(next);
+    }
+    if (list.length > PERSISTENT_LOG_MAX) {
+      list.splice(0, list.length - PERSISTENT_LOG_MAX);
+    }
+    writePersistentBuffer(list);
+  }
+
   function logActivity(level, source, message, detail = null) {
     const entry = {
       seq: ++activitySeq,
@@ -6596,6 +6706,8 @@ const SHADOW_MODAL_STYLES = `
     if (activityBuffer.length > ACTIVITY_LOG_MAX) {
       activityBuffer.splice(0, activityBuffer.length - ACTIVITY_LOG_MAX);
     }
+
+    appendPersistentEntry(entry);
 
     if (entry.level === 'error') {
       console.error(`[TP:${entry.source}] ${entry.message}`, entry.detail || '');
@@ -6613,8 +6725,34 @@ const SHADOW_MODAL_STYLES = `
     return activityBuffer.slice();
   }
 
+  function getPersistentActivityLog() {
+    return readPersistentBuffer().slice();
+  }
+
   function clearActivityLog() {
     activityBuffer.length = 0;
+    notifyActivityListeners(null);
+  }
+
+  function clearPersistentActivityLog() {
+    try {
+      if (typeof GM_deleteValue === 'function') {
+        GM_deleteValue(PERSISTENT_LOG_KEY);
+      } else if (typeof GM_setValue === 'function') {
+        GM_setValue(PERSISTENT_LOG_KEY, []);
+      }
+    } catch {
+      try {
+        if (typeof GM_setValue === 'function') {
+          GM_setValue(PERSISTENT_LOG_KEY, []);
+        }
+      } catch {}
+    }
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem(PERSISTENT_LS_KEY);
+      }
+    } catch {}
     notifyActivityListeners(null);
   }
 
@@ -6626,12 +6764,22 @@ const SHADOW_MODAL_STYLES = `
     };
   }
 
-  function formatActivityLogText(snapshot = null) {
+  function formatActivityLogText(snapshot = null, opts = {}) {
     const rows = Array.isArray(snapshot) ? snapshot : activityBuffer;
+    const includeDate = Boolean(opts && opts.includeDate);
     return rows.map((e) => {
-      const time = new Date(e.ts).toISOString().slice(11, 23);
+      const iso = new Date(e.ts || 0).toISOString();
+      const time = includeDate ? `${iso.slice(0, 10)} ${iso.slice(11, 23)}` : iso.slice(11, 23);
       const det = e.detail ? ` | ${e.detail}` : '';
-      return `[${time}] ${e.level.toUpperCase()} [${e.source}] ${e.message}${det}`;
+      if (!includeDate) {
+        return `[${time}] ${String(e.level || 'info').toUpperCase()} [${e.source}] ${e.message}${det}`;
+      }
+      const ctxParts = [];
+      if (e.ver) ctxParts.push(`v${e.ver}`);
+      if (e.page) ctxParts.push(e.page);
+      const ctx = ctxParts.length ? ` (${ctxParts.join(' ')})` : '';
+      const mult = Number(e.count) > 1 ? ` [×${Number(e.count)}]` : '';
+      return `[${time}] ${String(e.level || 'info').toUpperCase()} [${e.source}]${ctx}${mult} ${e.message}${det}`;
     }).join('\n');
   }
 
@@ -8865,7 +9013,7 @@ const SHADOW_MODAL_STYLES = `
         }
       }
     } catch (err) {
-      console.error('[Toppreise-Suite] Feed refresh error:', err);
+      logActivity('error', 'category-tree', 'Feed refresh error', err?.message || String(err));
     }
   }
 
@@ -8949,7 +9097,7 @@ const SHADOW_MODAL_STYLES = `
       }
       return false;
     } catch (err) {
-      console.error(`[Toppreise-Suite] ${contextName} error:`, err);
+      logActivity('error', 'category-tree', `${contextName} error`, err?.message || String(err));
       return false;
     }
   }
@@ -13309,6 +13457,7 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   // Single-product verify flow. Reads price at click time and re-verifies it
   // after fetch so a stale or swapped card never paints another product's stats.
   // Händlername (§8 in renderCardEffects): Memory-Map pid:Modus -> Name.
@@ -13439,8 +13588,8 @@ const SHADOW_MODAL_STYLES = `
     } else if (card.dataset.tpAppliedHeat || card.classList.contains('tp-heat-blend') || card.querySelector('.badge-dif, [class*="badge-dif"]')?.style.background) {
       // Tripwire: heat stripped while the badge still claims a verified % means
       // a stats regression slipped through — enable DEBUG to catch it live.
-      if (CONFIG.DEBUG && CONFIG.HEATMAP_ENABLED === true && card.querySelector('.tp-deal-alltime-low, .tp-deal-new-record')) {
-        console.warn('[Toppreise Suite] heat removed with verified badge present',
+      if (CONFIG.HEATMAP_ENABLED === true && card.querySelector('.tp-deal-alltime-low, .tp-deal-new-record')) {
+        logActivity('warn', 'deal-badge', 'heat removed with verified badge present',
           { pid, median: stats?.medianPrice ?? null, tiefstpreis: stats?.tiefstpreis ?? null });
       }
       delete card.dataset.tpAppliedHeat;
@@ -15123,29 +15272,66 @@ const SHADOW_MODAL_STYLES = `
     let dialog = shadow.getElementById('tp-diag-dialog');
     let unsub = null;
 
+    const getState = () => {
+      if (!dialog._tpState) {
+        dialog._tpState = { activeTab: 'session', sessionWarnOnly: false };
+      }
+      return dialog._tpState;
+    };
+
     const renderSnapshotAndLog = () => {
       if (!dialog) return;
+      const state = getState();
       const snapEl = dialog.querySelector('#tp-diag-snapshot');
       const preEl = dialog.querySelector('#tp-diag-log-pre');
       const debugToggle = dialog.querySelector('#tp-diag-debug-toggle');
+      const warnFilter = dialog.querySelector('#tp-diag-warn-filter');
+      const sessionTabBtn = dialog.querySelector('#tp-diag-tab-session');
+      const persistentTabBtn = dialog.querySelector('#tp-diag-tab-persistent');
       if (debugToggle) debugToggle.checked = CONFIG.DEBUG === true;
+
+      const persistent = getPersistentActivityLog();
+      if (sessionTabBtn) {
+        const isSession = state.activeTab === 'session';
+        sessionTabBtn.classList.toggle('tp-diag-tab-active', isSession);
+        sessionTabBtn.setAttribute('aria-pressed', String(isSession));
+      }
+      if (persistentTabBtn) {
+        const isPersistent = state.activeTab === 'persistent';
+        persistentTabBtn.textContent = `Langzeit (${persistent.length})`;
+        persistentTabBtn.classList.toggle('tp-diag-tab-active', isPersistent);
+        persistentTabBtn.setAttribute('aria-pressed', String(isPersistent));
+      }
 
       const refresh = getFeedRefreshState();
       const version = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || 'dev';
       const snapLines = [
-        `v${version} | page=${getPageProfileType()} | DEBUG=${!!CONFIG.DEBUG}`,
+        `v${version} | page=${getPageProfileType()} | DEBUG=${!!CONFIG.DEBUG} | persistentWarns=${persistent.length}`,
         `scan: active=${scanState.isBatchChecking} (${scanState.progress?.completed || 0}/${scanState.progress?.total || 0}) | activeFetches=${activeFetches.size}`,
         `refresh: active=${refresh.active} stage=${refresh.stage} last=${refresh.lastOutcome || '-'}${refresh.lastError ? ` err=${refresh.lastError}` : ''}`,
       ];
       if (snapEl) snapEl.textContent = snapLines.join('\n');
 
-      const entries = getActivityLog();
-      const warnOnly = !!dialog.querySelector('#tp-diag-warn-filter')?.checked;
-      const filtered = warnOnly
-        ? entries.filter((e) => e.level === 'warn' || e.level === 'error')
-        : entries;
+      let formatted = '';
+      if (state.activeTab === 'persistent') {
+        if (warnFilter) {
+          warnFilter.checked = true;
+          warnFilter.disabled = true;
+        }
+        formatted = persistent.length > 0 ? formatActivityLogText(persistent, { includeDate: true }) : '';
+      } else {
+        if (warnFilter) {
+          warnFilter.disabled = false;
+          warnFilter.checked = state.sessionWarnOnly;
+        }
+        const entries = getActivityLog();
+        const filtered = state.sessionWarnOnly
+          ? entries.filter((e) => e.level === 'warn' || e.level === 'error')
+          : entries;
+        formatted = filtered.length > 0 ? formatActivityLogText(filtered) : '';
+      }
       if (preEl) {
-        preEl.textContent = filtered.length > 0 ? formatActivityLogText(filtered) : '(keine Einträge)';
+        preEl.textContent = formatted || '(keine Einträge)';
         preEl.scrollTop = preEl.scrollHeight;
       }
     };
@@ -15162,6 +15348,10 @@ const SHADOW_MODAL_STYLES = `
           <button type="button" id="tp-diag-close-btn" class="tp-btn tp-btn-secondary">Schliessen</button>
         </div>
         <pre id="tp-diag-snapshot"></pre>
+        <div class="tp-diag-tabs" role="tablist">
+          <button type="button" id="tp-diag-tab-session" class="tp-btn tp-btn-secondary tp-diag-tab tp-diag-tab-active" aria-pressed="true">Sitzung</button>
+          <button type="button" id="tp-diag-tab-persistent" class="tp-btn tp-btn-secondary tp-diag-tab" aria-pressed="false">Langzeit (0)</button>
+        </div>
         <div class="tp-diag-toolbar">
           <label><input type="checkbox" id="tp-diag-warn-filter"> Nur Warn+Err</label>
           <label><input type="checkbox" id="tp-diag-debug-toggle"> Debug-Konsole</label>
@@ -15174,12 +15364,29 @@ const SHADOW_MODAL_STYLES = `
       shadow.appendChild(dialog);
 
       dialog.querySelector('#tp-diag-close-btn').addEventListener('click', () => dialog.close());
-      dialog.querySelector('#tp-diag-refresh-btn').addEventListener('click', renderSnapshotAndLog);
-      dialog.querySelector('#tp-diag-clear-btn').addEventListener('click', () => {
-        clearActivityLog();
+      dialog.querySelector('#tp-diag-tab-session').addEventListener('click', () => {
+        getState().activeTab = 'session';
         renderSnapshotAndLog();
       });
-      dialog.querySelector('#tp-diag-warn-filter').addEventListener('change', () => {
+      dialog.querySelector('#tp-diag-tab-persistent').addEventListener('click', () => {
+        getState().activeTab = 'persistent';
+        renderSnapshotAndLog();
+      });
+      dialog.querySelector('#tp-diag-refresh-btn').addEventListener('click', renderSnapshotAndLog);
+      dialog.querySelector('#tp-diag-clear-btn').addEventListener('click', () => {
+        if (getState().activeTab === 'persistent') {
+          if (!window.confirm('Langzeit-Diagnose-Log (Warn+Err) wirklich leeren?')) return;
+          clearPersistentActivityLog();
+        } else {
+          clearActivityLog();
+        }
+        renderSnapshotAndLog();
+      });
+      dialog.querySelector('#tp-diag-warn-filter').addEventListener('change', (e) => {
+        const state = getState();
+        if (state.activeTab === 'session') {
+          state.sessionWarnOnly = !!e.target.checked;
+        }
         renderSnapshotAndLog();
       });
       dialog.querySelector('#tp-diag-debug-toggle').addEventListener('change', (e) => {
@@ -15189,10 +15396,12 @@ const SHADOW_MODAL_STYLES = `
         renderSnapshotAndLog();
       });
       dialog.querySelector('#tp-diag-copy-btn').addEventListener('click', async () => {
-        const txt = `${dialog.querySelector('#tp-diag-snapshot')?.textContent || ''}\n\n${dialog.querySelector('#tp-diag-log-pre')?.textContent || ''}`;
+        const isPersistent = getState().activeTab === 'persistent';
+        const header = isPersistent ? '[Langzeit]\n' : '';
+        const txt = `${header}${dialog.querySelector('#tp-diag-snapshot')?.textContent || ''}\n\n${dialog.querySelector('#tp-diag-log-pre')?.textContent || ''}`;
         try {
           await navigator.clipboard?.writeText(txt);
-          showToast('Diagnose-Log kopiert');
+          showToast(isPersistent ? 'Langzeit-Log kopiert' : 'Diagnose-Log kopiert');
         } catch {
           showToast('Kopieren fehlgeschlagen');
         }
@@ -18773,6 +18982,7 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   const ALARM_DURATIONS = ['90', '180', '365', '730'];
   const DURATION_LABELS = { 90: '3 Monate', 180: '6 Monate', 365: '1 Jahr', 730: '2 Jahre' };
   const clampAlarmTarget = v =>
@@ -19072,7 +19282,7 @@ const SHADOW_MODAL_STYLES = `
             const closeBtn = reqModal.closest('.AbstractDialog, .AbstractDialog_NewInfoMailFormDialog')?.querySelector('.AbstractDialog_CloseButton') ||
                              document.querySelector('#tmpAbstractDialogContainer .AbstractDialog_CloseButton');
             if (closeBtn) closeBtn.click();
-            else if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] Preisalarm: kein Close-Button gefunden');
+            else logActivity('warn', 'price-alarm', 'Preisalarm: kein Close-Button gefunden');
             delete reqModal._tpBatchAlarmOpts;
             batchOpts?.onResult?.({ status: 'confirmed', targetPrice: reqSnap.target });
           } else if (!reqModal.isConnected || !document.querySelector(SELECTORS.alarm.form)) {
@@ -19116,7 +19326,7 @@ const SHADOW_MODAL_STYLES = `
         modalContainer.dataset.tpAlarmTimers = `${submitTimer},${fallbackTimer}`;
         modalContainer.dataset.tpAlarmState = 'scheduled';
       } catch (err) {
-        if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] Preisalarm submit error', err);
+        logActivity('warn', 'price-alarm', 'Preisalarm submit error', err?.message || String(err));
         showToast('⚠️ Preisalarm Übermittlungsfehler');
         failBatch('submit-error');
       }
@@ -19196,7 +19406,7 @@ const SHADOW_MODAL_STYLES = `
         { timeoutMs: 8000, source: 'price-alarm', label: 'form', readAs: 'text', signal: batchOpts?.signal }
       ));
     } catch (err) {
-      if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] Preisalarm-Formular laden fehlgeschlagen', err);
+      logActivity('warn', 'price-alarm', 'Preisalarm-Formular laden fehlgeschlagen', err?.message || String(err));
       return false;
     }
     if (!formRes.ok) {
@@ -19289,7 +19499,7 @@ const SHADOW_MODAL_STYLES = `
         }, { timeoutMs: 8000, source: 'price-alarm', label: 'open', readAs: 'text' });
         if (res.ok && await openFetchedAlarmDialog(html)) return;
       } catch (err) {
-        if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] Failed to open price alarm modal', err);
+        logActivity('warn', 'price-alarm', 'Failed to open price alarm modal', err?.message || String(err));
       }
 
       // 4. Ultimate fallback if AJAX fails: direct URL navigation in new tab
@@ -21709,6 +21919,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
       scan: { active: scanState.isBatchChecking, progress: scanState.progress },
       refresh: getFeedRefreshState(),
       recentLog: getActivityLog().slice(-10),
+      persistentWarnCount: getPersistentActivityLog().length,
       ts: Date.now()
     }));
   }
@@ -21908,7 +22119,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.561';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.562';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
@@ -21946,6 +22157,8 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
         showToast,
         openDiagLog: () => openDiagModal(uiShadowRoot),
         getActivityLog,
+        getPersistentActivityLog,
+        clearPersistentActivityLog,
         lastToast: getLastToastMessage
       };
     } else {

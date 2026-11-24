@@ -14,6 +14,7 @@ import { isShippingPriceActive } from '../page/adapter.js';
 import { SELECTORS } from '../page/selectors.js';
 import { showToast } from '../ui/toast.js';
 import { fetchWithTimeout } from '../state/net.js';
+import { logActivity } from '../state/activity-log.js';
 import { sanitizeImportedNode, isSafeImportedUrl } from '../page/sanitize.js';
 
 export { sanitizeImportedNode, isSafeImportedUrl };
@@ -317,7 +318,7 @@ export function processPriceAlarmModal() {
           const closeBtn = reqModal.closest('.AbstractDialog, .AbstractDialog_NewInfoMailFormDialog')?.querySelector('.AbstractDialog_CloseButton') ||
                            document.querySelector('#tmpAbstractDialogContainer .AbstractDialog_CloseButton');
           if (closeBtn) closeBtn.click();
-          else if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] Preisalarm: kein Close-Button gefunden');
+          else logActivity('warn', 'price-alarm', 'Preisalarm: kein Close-Button gefunden');
           delete reqModal._tpBatchAlarmOpts;
           batchOpts?.onResult?.({ status: 'confirmed', targetPrice: reqSnap.target });
         } else if (!reqModal.isConnected || !document.querySelector(SELECTORS.alarm.form)) {
@@ -361,7 +362,7 @@ export function processPriceAlarmModal() {
       modalContainer.dataset.tpAlarmTimers = `${submitTimer},${fallbackTimer}`;
       modalContainer.dataset.tpAlarmState = 'scheduled';
     } catch (err) {
-      if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] Preisalarm submit error', err);
+      logActivity('warn', 'price-alarm', 'Preisalarm submit error', err?.message || String(err));
       showToast('⚠️ Preisalarm Übermittlungsfehler');
       failBatch('submit-error');
     }
@@ -441,7 +442,7 @@ export async function openFetchedAlarmDialog(html, batchOpts = null) {
       { timeoutMs: 8000, source: 'price-alarm', label: 'form', readAs: 'text', signal: batchOpts?.signal }
     ));
   } catch (err) {
-    if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] Preisalarm-Formular laden fehlgeschlagen', err);
+    logActivity('warn', 'price-alarm', 'Preisalarm-Formular laden fehlgeschlagen', err?.message || String(err));
     return false;
   }
   if (!formRes.ok) {
@@ -534,7 +535,7 @@ export async function openPriceAlarmForProduct(pid, card = null) {
       }, { timeoutMs: 8000, source: 'price-alarm', label: 'open', readAs: 'text' });
       if (res.ok && await openFetchedAlarmDialog(html)) return;
     } catch (err) {
-      if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] Failed to open price alarm modal', err);
+      logActivity('warn', 'price-alarm', 'Failed to open price alarm modal', err?.message || String(err));
     }
 
     // 4. Ultimate fallback if AJAX fails: direct URL navigation in new tab

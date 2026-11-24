@@ -9,7 +9,7 @@ import { getPageProfileType } from '../page/adapter.js';
 import { scanState } from '../state/store.js';
 import { getFeedRefreshState } from '../page/feed-refresh.js';
 import { activeFetches } from '../scanner/scanner.js';
-import { getActivityLog, clearActivityLog, formatActivityLogText, subscribeActivityLog } from '../state/activity-log.js';
+import { getActivityLog, clearActivityLog, getPersistentActivityLog, clearPersistentActivityLog, formatActivityLogText, subscribeActivityLog } from '../state/activity-log.js';
 import { showToast } from './toast.js';
 
 let suppressNextFabClick = false;
@@ -19,29 +19,66 @@ export function openDiagModal(shadow) {
   let dialog = shadow.getElementById('tp-diag-dialog');
   let unsub = null;
 
+  const getState = () => {
+    if (!dialog._tpState) {
+      dialog._tpState = { activeTab: 'session', sessionWarnOnly: false };
+    }
+    return dialog._tpState;
+  };
+
   const renderSnapshotAndLog = () => {
     if (!dialog) return;
+    const state = getState();
     const snapEl = dialog.querySelector('#tp-diag-snapshot');
     const preEl = dialog.querySelector('#tp-diag-log-pre');
     const debugToggle = dialog.querySelector('#tp-diag-debug-toggle');
+    const warnFilter = dialog.querySelector('#tp-diag-warn-filter');
+    const sessionTabBtn = dialog.querySelector('#tp-diag-tab-session');
+    const persistentTabBtn = dialog.querySelector('#tp-diag-tab-persistent');
     if (debugToggle) debugToggle.checked = CONFIG.DEBUG === true;
+
+    const persistent = getPersistentActivityLog();
+    if (sessionTabBtn) {
+      const isSession = state.activeTab === 'session';
+      sessionTabBtn.classList.toggle('tp-diag-tab-active', isSession);
+      sessionTabBtn.setAttribute('aria-pressed', String(isSession));
+    }
+    if (persistentTabBtn) {
+      const isPersistent = state.activeTab === 'persistent';
+      persistentTabBtn.textContent = `Langzeit (${persistent.length})`;
+      persistentTabBtn.classList.toggle('tp-diag-tab-active', isPersistent);
+      persistentTabBtn.setAttribute('aria-pressed', String(isPersistent));
+    }
 
     const refresh = getFeedRefreshState();
     const version = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || 'dev';
     const snapLines = [
-      `v${version} | page=${getPageProfileType()} | DEBUG=${!!CONFIG.DEBUG}`,
+      `v${version} | page=${getPageProfileType()} | DEBUG=${!!CONFIG.DEBUG} | persistentWarns=${persistent.length}`,
       `scan: active=${scanState.isBatchChecking} (${scanState.progress?.completed || 0}/${scanState.progress?.total || 0}) | activeFetches=${activeFetches.size}`,
       `refresh: active=${refresh.active} stage=${refresh.stage} last=${refresh.lastOutcome || '-'}${refresh.lastError ? ` err=${refresh.lastError}` : ''}`,
     ];
     if (snapEl) snapEl.textContent = snapLines.join('\n');
 
-    const entries = getActivityLog();
-    const warnOnly = !!dialog.querySelector('#tp-diag-warn-filter')?.checked;
-    const filtered = warnOnly
-      ? entries.filter((e) => e.level === 'warn' || e.level === 'error')
-      : entries;
+    let formatted = '';
+    if (state.activeTab === 'persistent') {
+      if (warnFilter) {
+        warnFilter.checked = true;
+        warnFilter.disabled = true;
+      }
+      formatted = persistent.length > 0 ? formatActivityLogText(persistent, { includeDate: true }) : '';
+    } else {
+      if (warnFilter) {
+        warnFilter.disabled = false;
+        warnFilter.checked = state.sessionWarnOnly;
+      }
+      const entries = getActivityLog();
+      const filtered = state.sessionWarnOnly
+        ? entries.filter((e) => e.level === 'warn' || e.level === 'error')
+        : entries;
+      formatted = filtered.length > 0 ? formatActivityLogText(filtered) : '';
+    }
     if (preEl) {
-      preEl.textContent = filtered.length > 0 ? formatActivityLogText(filtered) : '(keine Einträge)';
+      preEl.textContent = formatted || '(keine Einträge)';
       preEl.scrollTop = preEl.scrollHeight;
     }
   };
@@ -58,6 +95,10 @@ export function openDiagModal(shadow) {
         <button type="button" id="tp-diag-close-btn" class="tp-btn tp-btn-secondary">Schliessen</button>
       </div>
       <pre id="tp-diag-snapshot"></pre>
+      <div class="tp-diag-tabs" role="tablist">
+        <button type="button" id="tp-diag-tab-session" class="tp-btn tp-btn-secondary tp-diag-tab tp-diag-tab-active" aria-pressed="true">Sitzung</button>
+        <button type="button" id="tp-diag-tab-persistent" class="tp-btn tp-btn-secondary tp-diag-tab" aria-pressed="false">Langzeit (0)</button>
+      </div>
       <div class="tp-diag-toolbar">
         <label><input type="checkbox" id="tp-diag-warn-filter"> Nur Warn+Err</label>
         <label><input type="checkbox" id="tp-diag-debug-toggle"> Debug-Konsole</label>
@@ -70,12 +111,29 @@ export function openDiagModal(shadow) {
     shadow.appendChild(dialog);
 
     dialog.querySelector('#tp-diag-close-btn').addEventListener('click', () => dialog.close());
-    dialog.querySelector('#tp-diag-refresh-btn').addEventListener('click', renderSnapshotAndLog);
-    dialog.querySelector('#tp-diag-clear-btn').addEventListener('click', () => {
-      clearActivityLog();
+    dialog.querySelector('#tp-diag-tab-session').addEventListener('click', () => {
+      getState().activeTab = 'session';
       renderSnapshotAndLog();
     });
-    dialog.querySelector('#tp-diag-warn-filter').addEventListener('change', () => {
+    dialog.querySelector('#tp-diag-tab-persistent').addEventListener('click', () => {
+      getState().activeTab = 'persistent';
+      renderSnapshotAndLog();
+    });
+    dialog.querySelector('#tp-diag-refresh-btn').addEventListener('click', renderSnapshotAndLog);
+    dialog.querySelector('#tp-diag-clear-btn').addEventListener('click', () => {
+      if (getState().activeTab === 'persistent') {
+        if (!window.confirm('Langzeit-Diagnose-Log (Warn+Err) wirklich leeren?')) return;
+        clearPersistentActivityLog();
+      } else {
+        clearActivityLog();
+      }
+      renderSnapshotAndLog();
+    });
+    dialog.querySelector('#tp-diag-warn-filter').addEventListener('change', (e) => {
+      const state = getState();
+      if (state.activeTab === 'session') {
+        state.sessionWarnOnly = !!e.target.checked;
+      }
       renderSnapshotAndLog();
     });
     dialog.querySelector('#tp-diag-debug-toggle').addEventListener('change', (e) => {
@@ -85,10 +143,12 @@ export function openDiagModal(shadow) {
       renderSnapshotAndLog();
     });
     dialog.querySelector('#tp-diag-copy-btn').addEventListener('click', async () => {
-      const txt = `${dialog.querySelector('#tp-diag-snapshot')?.textContent || ''}\n\n${dialog.querySelector('#tp-diag-log-pre')?.textContent || ''}`;
+      const isPersistent = getState().activeTab === 'persistent';
+      const header = isPersistent ? '[Langzeit]\n' : '';
+      const txt = `${header}${dialog.querySelector('#tp-diag-snapshot')?.textContent || ''}\n\n${dialog.querySelector('#tp-diag-log-pre')?.textContent || ''}`;
       try {
         await navigator.clipboard?.writeText(txt);
-        showToast('Diagnose-Log kopiert');
+        showToast(isPersistent ? 'Langzeit-Log kopiert' : 'Diagnose-Log kopiert');
       } catch {
         showToast('Kopieren fehlgeschlagen');
       }
