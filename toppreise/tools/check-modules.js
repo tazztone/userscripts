@@ -185,7 +185,7 @@ const GLOBALS = new Set([
   'JSON', 'Math', 'Number', 'Boolean', 'String', 'Array', 'Object', 'Map', 'Set', 'WeakMap', 'WeakSet', 'Promise', 'Date', 'RegExp', 'Error', 'Symbol', 'BigInt',
   'parseInt', 'parseFloat', 'isNaN', 'isFinite', 'encodeURIComponent', 'decodeURIComponent',
   'requestAnimationFrame', 'cancelAnimationFrame', 'getComputedStyle', 'Proxy',
-  'GM_getValue', 'GM_setValue', 'GM_deleteValue', 'GM_xmlhttpRequest', 'GM_info',
+  'GM_getValue', 'GM_setValue', 'GM_deleteValue', 'GM_xmlhttpRequest', 'GM_openInTab', 'GM_info',
   'process', 'require', 'module', 'exports', '__dirname', '__filename'
 ]);
 // Language keywords that match the `name(` shape (`if (`, `for (`) — never calls.

@@ -116,6 +116,7 @@ export function buildBundle() {
     'ui/toolbar.js',
     'ui/floating-cta.js',
     'features/price-alarm.js',
+    'features/batch-runners.js',
     'features/product-detail.js',
   ];
   const banner = r => `// ─── MODULE: src/${r} `.padEnd(79, '─');

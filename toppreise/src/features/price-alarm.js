@@ -211,9 +211,10 @@ const ensureAlarmStatus = modal => {
 
 export function processPriceAlarmModal() {
   refreshAlarmBellDecor();
-  if (!CONFIG.ALARM_ENABLED) return;
   const modalContainer = document.querySelector(SELECTORS.alarm.form);
   if (!modalContainer) return;
+  const batchOpts = modalContainer._tpBatchAlarmOpts || null;
+  if (!CONFIG.ALARM_ENABLED && !batchOpts) return;
   // Attempt machine: a fresh fill only from idle-like states — in-flight
   // (filled/scheduled/submitted) or confirmed attempts never refill, so a
   // replaced modal can never paint another attempt's status.
@@ -236,8 +237,8 @@ export function processPriceAlarmModal() {
     url: location.href,
     basis: isShippingPriceActive(),
     priceText: priceEl.textContent,
-    target: (presentValue * clampAlarmTarget(CONFIG.ALARM_TARGET_PERCENT)).toFixed(2),
-    duration: normalizeAlarmDuration(CONFIG.ALARM_DURATION_DAYS)
+    target: (presentValue * clampAlarmTarget(batchOpts ? batchOpts.targetPct : CONFIG.ALARM_TARGET_PERCENT)).toFixed(2),
+    duration: normalizeAlarmDuration(batchOpts ? batchOpts.durationDays : CONFIG.ALARM_DURATION_DAYS)
   };
   const targetPrice = snapshot.target;
   const duration = snapshot.duration;
@@ -262,7 +263,7 @@ export function processPriceAlarmModal() {
   modalContainer.dataset.tpAlarmState = 'filled';
   modalContainer.dataset.tpAlarmAttempt = String(++alarmAttemptSeq);
 
-  if (CONFIG.ALARM_AUTO_SUBMIT === true) {
+  if (batchOpts ? batchOpts.autoSubmit === true : CONFIG.ALARM_AUTO_SUBMIT === true) {
     const reqModal = modalContainer;
     const reqSnap = snapshot;
     const reqAttempt = modalContainer.dataset.tpAlarmAttempt;
@@ -276,6 +277,7 @@ export function processPriceAlarmModal() {
       try { observer?.disconnect(); } catch {}
       reqModal._tpAlarmObserver = null;
       if (reqModal.dataset.tpAlarmAttempt === reqAttempt) reqModal.dataset.tpAlarmState = 'cancelled';
+      batchOpts?.onResult?.({ status: 'cancelled', targetPrice: reqSnap.target });
     };
     const flagUnconfirmed = () => {
       // Attempt-scoped paint: a replaced modal never gets another
@@ -287,6 +289,7 @@ export function processPriceAlarmModal() {
       // textContent assignment would re-trigger it into a microtask loop.
       if (el.textContent !== unconfirmedMsg) el.textContent = unconfirmedMsg;
       showToast(unconfirmedMsg);
+      batchOpts?.onResult?.({ status: 'unconfirmed', targetPrice: reqSnap.target });
     };
     try {
       const dialogRoot = modalContainer.closest('.AbstractDialog, .AbstractDialog_NewInfoMailFormDialog') || document.querySelector('#tmpAbstractDialogContainer') || document.body;
@@ -308,12 +311,14 @@ export function processPriceAlarmModal() {
                            document.querySelector('#tmpAbstractDialogContainer .AbstractDialog_CloseButton');
           if (closeBtn) closeBtn.click();
           else if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] Preisalarm: kein Close-Button gefunden');
+          batchOpts?.onResult?.({ status: 'confirmed', targetPrice: reqSnap.target });
         } else if (!reqModal.isConnected || !document.querySelector(SELECTORS.alarm.form)) {
           try { observer.disconnect(); } catch {}
           clearTimeout(submitTimer);
           clearTimeout(fallbackTimer);
           reqModal._tpAlarmObserver = null;
           if (reqModal.dataset.tpAlarmAttempt === reqAttempt) reqModal.dataset.tpAlarmState = 'cancelled';
+          batchOpts?.onResult?.({ status: 'cancelled', targetPrice: reqSnap.target });
         }
       });
       observer.observe(dialogRoot, { childList: true, subtree: true });
@@ -328,7 +333,7 @@ export function processPriceAlarmModal() {
         if (state === 'cancelled' || state === 'confirmed' || state === 'submitted') return;
         // Pre-submit revalidation: basis/route/config/price may have changed mid-wait.
         if (reqModal.dataset.tpAlarmAttempt !== reqAttempt) return cancelAttempt();
-        if (!reqModal.isConnected || !CONFIG.ALARM_ENABLED || CONFIG.ALARM_AUTO_SUBMIT !== true) return cancelAttempt();
+        if (!reqModal.isConnected || (!batchOpts && (!CONFIG.ALARM_ENABLED || CONFIG.ALARM_AUTO_SUBMIT !== true))) return cancelAttempt();
         if (location.href !== reqSnap.url || isShippingPriceActive() !== reqSnap.basis) return cancelAttempt();
         if (!priceEl.isConnected || priceEl.textContent !== reqSnap.priceText) return cancelAttempt();
         if (priceInput.value !== reqSnap.target) return cancelAttempt();
@@ -366,7 +371,7 @@ export function closeFetchedAlarmDialogs() {
 // Materializes a fetched NewInfoMailButton response: dialog shell + form body.
 // Returns false without touching the page when the response is unusable, so
 // the caller can fall back to direct navigation.
-async function openFetchedAlarmDialog(html) {
+export async function openFetchedAlarmDialog(html, batchOpts = null) {
   if (typeof DOMParser !== 'function') return false;
   const doc = new DOMParser().parseFromString(html, 'text/html');
   const tpl = doc.querySelector(SELECTORS.alarm.lazyDialog);
@@ -440,6 +445,10 @@ async function openFetchedAlarmDialog(html) {
     .filter(Boolean);
   const content = dialogNode.querySelector(SELECTORS.alarm.content);
   if (content) content.replaceChildren(...nodes);
+  if (batchOpts) {
+    const formEl = dialogNode.querySelector(SELECTORS.alarm.form);
+    if (formEl) formEl._tpBatchAlarmOpts = batchOpts;
+  }
 
   if (dialogId) {
     if (typeof window !== 'undefined' && typeof window.AbstractDialog_hide === 'function') {
