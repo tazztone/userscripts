@@ -13,10 +13,10 @@ import { fetchProductInfo, extractDealer } from '../page/product-offers.js';
 import { getCachedDealer, setCachedDealer, getCachedPriceStats, getSharedDeal, setSharedDeal, fullSeries } from '../scanner/cache.js';
 import { priceToCents } from '../domain/price.js';
 import { formatDealMessage, forumRecipeFor, resolveShareFields } from './discord-recipe.js';
-import { withLivePrice, renderSparklinePng, fetchImageBlob, buildThreadName } from './share-discord.js';
+import { withLivePrice, renderSparklinePng, fetchImageBlob, buildThreadName, isDiscordWebhookUrl } from './share-discord.js';
 import { sendDealToChannel } from '../ui/badges/card-share.js';
 import { formatSearchQuery, buildTavilyQuery } from './tavily-search.js';
-import { fetchOpenRouterWebSearch } from './openrouter-search.js';
+import { fetchOpenRouterWebSearch, getCachedConfiguredAiSummary } from './openrouter-search.js';
 import { ensureDealerInfo } from '../ui/badges/card-dealer.js';
 import { openFetchedAlarmDialog, closeFetchedAlarmDialogs, processPriceAlarmModal } from './price-alarm.js';
 import { buildComparisonPrompt, buildExternalAiUrl, copyTextToClipboard, isComparisonButtonActive } from './batch-actions.js';
@@ -27,20 +27,28 @@ export async function runSingleBatchAlarm(pid, card = null, { targetPct, duratio
 
   return new Promise(async (resolve) => {
     let settled = false;
+    let watchdog = null;
     const finish = (res) => {
       if (settled) return;
       settled = true;
+      if (watchdog) clearTimeout(watchdog);
       signal?.removeEventListener?.('abort', onAbort);
+      const mockForm = document.querySelector?.(`#mock-alarm-dialog ${SELECTORS.alarm.form}`);
+      if (mockForm) delete mockForm._tpBatchAlarmOpts;
+      const mockDlg = document.querySelector?.('#mock-alarm-dialog');
+      if (mockDlg && mockDlg.style.display === 'block') mockDlg.style.display = 'none';
       closeFetchedAlarmDialogs();
       resolve(res);
     };
     const onAbort = () => finish({ status: 'cancelled' });
     signal?.addEventListener?.('abort', onAbort, { once: true });
+    watchdog = setTimeout(() => finish({ status: 'error', reason: 'timeout' }), (CONFIG.ALARM_FALLBACK_TIMEOUT_MS || 5000) + 10000);
 
     const batchOpts = {
       targetPct,
       durationDays,
       autoSubmit: true,
+      signal,
       onResult: (res) => finish(res)
     };
 
@@ -72,7 +80,7 @@ export async function runSingleBatchAlarm(pid, card = null, { targetPct, duratio
           'X-Requested-With': 'XMLHttpRequest'
         },
         body: postBody
-      }, { timeoutMs: 8000, source: 'price-alarm', label: 'batch-open', readAs: 'text' });
+      }, { timeoutMs: 8000, source: 'price-alarm', label: 'batch-open', readAs: 'text', signal });
       if (signal?.aborted) return finish({ status: 'cancelled' });
       if (!res.ok || !(await openFetchedAlarmDialog(html, batchOpts))) {
         finish({ status: 'error', reason: 'fetch-failed' });
@@ -98,10 +106,11 @@ export function startBatchJob(label, total = 0) {
   return {
     job,
     signal: controller.signal,
-    updateProgress: (done, failed = job.failed) => {
+    updateProgress: (done, failed = job.failed, total = job.total) => {
       if (activeJob?.id === job.id) {
         job.done = done;
         job.failed = failed;
+        job.total = total;
       }
     },
     finish: () => {
@@ -269,7 +278,10 @@ export async function runBatchAiIndividual(items, { provider = 'google', onProgr
 export async function runBatchComparisonAi(items, { target = 'google-ai', signal, openTabFn = openTabUrl, searchFn = fetchOpenRouterWebSearch } = {}) {
   const prompt = buildComparisonPrompt(items);
   if (!prompt) return { mode: 'empty' };
-  if (target === 'openrouter' && CONFIG.OPENROUTER_API_KEY && String(CONFIG.OPENROUTER_API_KEY).trim()) {
+  if (target === 'openrouter') {
+    if (!CONFIG.OPENROUTER_API_KEY || !String(CONFIG.OPENROUTER_API_KEY).trim()) {
+      return { mode: 'missing-key', target: 'openrouter' };
+    }
     const res = await searchFn(CONFIG.OPENROUTER_API_KEY, prompt, {
       model: CONFIG.OPENROUTER_MODEL,
       engine: CONFIG.OPENROUTER_SEARCH_ENGINE,
@@ -298,7 +310,7 @@ export function runBatchOpenTabs(items, { openTabFn = openTabUrl } = {}) {
 }
 
 export async function runBatchDiscordShare(items, channel, { onProgress, signal } = {}) {
-  if (!channel?.url) return { total: 0, shared: 0, skippedDuplicates: 0, failed: 0 };
+  if (!isDiscordWebhookUrl(channel?.url)) return { total: 0, shared: 0, skippedDuplicates: 0, failed: 0 };
   const useShipping = isShippingPriceActive();
   const eligible = [];
   let skippedDuplicates = 0;
@@ -315,7 +327,7 @@ export async function runBatchDiscordShare(items, channel, { onProgress, signal 
   const total = eligible.length;
   let shared = 0;
   let failed = 0;
-  const hook = channel.url.trim();
+  const needsAi = String(CONFIG.DISCORD_LAYOUT || '').includes('{ai}');
 
   for (let i = 0; i < eligible.length; i++) {
     if (signal?.aborted) break;
@@ -335,6 +347,9 @@ export async function runBatchDiscordShare(items, channel, { onProgress, signal 
       }
       const stats = getCachedPriceStats(it.pid, true, undefined, useShipping);
       const resolved = stats ? resolveShareFields(it.cardPrice, stats) : {};
+      const aiText = needsAi
+        ? (getCachedConfiguredAiSummary(it.title, CONFIG.REVIEW_SEARCH_KEYWORD, it.priceText)?.answer || '')
+        : '';
       const fields = {
         title: it.title,
         priceText: it.priceText,
@@ -346,6 +361,7 @@ export async function runBatchDiscordShare(items, channel, { onProgress, signal 
         prevLowPct: resolved.prevLowPct || 0,
         medianText: resolved.medianText || '',
         medianPct: resolved.medianPct || 0,
+        aiText,
         suppressDealerEmbed: CONFIG.DISCORD_SUPPRESS_DEALER_EMBED !== false,
         suppressProductEmbed: CONFIG.DISCORD_SUPPRESS_PRODUCT_EMBED !== false
       };

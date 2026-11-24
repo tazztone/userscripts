@@ -124,6 +124,7 @@ export async function fetchWithTimeout(url, fetchOpts = {}, opts = {}) {
 export function gmRequestWithTimeout(gmOpts = {}, opts = {}) {
   const {
     timeoutMs = 10000,
+    signal = null,
     source = 'net',
     label = '',
   } = opts || {};
@@ -131,6 +132,9 @@ export function gmRequestWithTimeout(gmOpts = {}, opts = {}) {
   const gmFn = globalThis.GM_xmlhttpRequest;
   if (typeof gmFn !== 'function') {
     return Promise.reject(makeTypedError('GM_xmlhttpRequest is not available', { network: true }));
+  }
+  if (signal?.aborted) {
+    return Promise.reject(makeTypedError('GM_xmlhttpRequest aborted', { cancelled: true }));
   }
 
   const startedAt = Date.now();
@@ -149,15 +153,28 @@ export function gmRequestWithTimeout(gmOpts = {}, opts = {}) {
       ? setTimeout(() => {
           if (settled) return;
           settled = true;
+          cleanup();
           abortHandle();
           logActivity('warn', source, `${tag}GM timeout after ${timeoutMs}ms: ${safeUrl}`);
           reject(makeTypedError(`GM timeout after ${timeoutMs}ms`, { timeout: true }));
         }, timeoutMs)
       : null;
 
+    const onAbort = () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      abortHandle();
+      logActivity('debug', source, `${tag}GM aborted: ${safeUrl}`);
+      reject(makeTypedError('GM_xmlhttpRequest aborted', { cancelled: true }));
+    };
+
     const cleanup = () => {
       if (timer !== null) clearTimeout(timer);
+      if (signal) signal.removeEventListener('abort', onAbort);
     };
+
+    if (signal) signal.addEventListener('abort', onAbort, { once: true });
 
     try {
       handle = gmFn({

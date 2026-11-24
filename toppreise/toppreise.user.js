@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.551
+// @version      2.18.552
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -6384,6 +6384,7 @@ const SHADOW_MODAL_STYLES = `
   function gmRequestWithTimeout(gmOpts = {}, opts = {}) {
     const {
       timeoutMs = 10000,
+      signal = null,
       source = 'net',
       label = '',
     } = opts || {};
@@ -6391,6 +6392,9 @@ const SHADOW_MODAL_STYLES = `
     const gmFn = globalThis.GM_xmlhttpRequest;
     if (typeof gmFn !== 'function') {
       return Promise.reject(makeTypedError('GM_xmlhttpRequest is not available', { network: true }));
+    }
+    if (signal?.aborted) {
+      return Promise.reject(makeTypedError('GM_xmlhttpRequest aborted', { cancelled: true }));
     }
 
     const startedAt = Date.now();
@@ -6409,15 +6413,28 @@ const SHADOW_MODAL_STYLES = `
         ? setTimeout(() => {
             if (settled) return;
             settled = true;
+            cleanup();
             abortHandle();
             logActivity('warn', source, `${tag}GM timeout after ${timeoutMs}ms: ${safeUrl}`);
             reject(makeTypedError(`GM timeout after ${timeoutMs}ms`, { timeout: true }));
           }, timeoutMs)
         : null;
 
+      const onAbort = () => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        abortHandle();
+        logActivity('debug', source, `${tag}GM aborted: ${safeUrl}`);
+        reject(makeTypedError('GM_xmlhttpRequest aborted', { cancelled: true }));
+      };
+
       const cleanup = () => {
         if (timer !== null) clearTimeout(timer);
+        if (signal) signal.removeEventListener('abort', onAbort);
       };
+
+      if (signal) signal.addEventListener('abort', onAbort, { once: true });
 
       try {
         handle = gmFn({
@@ -10416,14 +10433,25 @@ const SHADOW_MODAL_STYLES = `
   const orMemCache = new Map();
   const orInFlight = new Map();
 
+  function hashCacheStr(str) {
+    let h1 = 0x811c9dc5;
+    let h2 = 0x811c9dc5;
+    for (let i = 0; i < str.length; i++) {
+      const c = str.charCodeAt(i);
+      h1 = Math.imul(h1 ^ c, 0x01000193);
+      h2 = Math.imul(h2 ^ (c + i), 0x01000193);
+    }
+    return (h1 >>> 0).toString(16).padStart(8, '0') + (h2 >>> 0).toString(16).padStart(8, '0');
+  }
+
   function normalizeOpenRouterPrompt(prompt) {
     return String(prompt ?? '').replace(/\s+/g, ' ').trim();
   }
 
-  function openRouterCacheKey(prompt, model, engine, maxResults) {
+  function openRouterCacheKey(prompt, model, engine, maxResults, searchContextSize = 'medium') {
     const norm = normalizeOpenRouterPrompt(prompt).toLowerCase();
     if (!norm) return '';
-    return `${model || 'google/gemini-2.5-flash'}::${engine || 'auto'}::${maxResults || 5}::${norm}`;
+    return `${model || 'google/gemini-2.5-flash'}::${engine || 'auto'}::${maxResults || 5}::${searchContextSize || 'medium'}::${hashCacheStr(norm)}`;
   }
 
   function extractOpenRouterCitations(annotations) {
@@ -10572,7 +10600,7 @@ const SHADOW_MODAL_STYLES = `
       : (CONFIG?.OPENROUTER_MAX_RESULTS || 5);
     const searchContextSize = options.searchContextSize || 'medium';
 
-    const cacheKey = openRouterCacheKey(normalized, model, engine, maxResults);
+    const cacheKey = openRouterCacheKey(normalized, model, engine, maxResults, searchContextSize);
     const cached = getCachedOpenRouter(cacheKey);
     if (cached?.answer) {
       return Promise.resolve({ answer: cached.answer, citations: cached.citations || [] });
@@ -10690,7 +10718,7 @@ const SHADOW_MODAL_STYLES = `
       const model = opts.model || cfg?.OPENROUTER_MODEL || 'google/gemini-2.5-flash';
       const engine = opts.engine || cfg?.OPENROUTER_SEARCH_ENGINE || 'auto';
       const maxResults = opts.maxResults || cfg?.OPENROUTER_MAX_RESULTS || 5;
-      return getCachedOpenRouter(openRouterCacheKey(query, model, engine, maxResults));
+      return getCachedOpenRouter(openRouterCacheKey(query, model, engine, maxResults, opts.searchContextSize || 'medium'));
     }
     if (provider === 'tavily') {
       const depth = opts.searchDepth || cfg?.TAVILY_SEARCH_DEPTH || 'basic';
@@ -10872,8 +10900,8 @@ const SHADOW_MODAL_STYLES = `
   function neutralizeFormulaCell(raw) {
     const s = String(raw ?? '');
     if (!s) return '';
-    // Preserve negative numbers / percentages like "-35%" or "-12.50"
-    if (/^-\d/.test(s)) return s;
+    // Preserve pure negative numbers / percentages like "-35%" or "-12.50"
+    if (/^-?\d+(?:[.,]\d+)?%?$/.test(s)) return s;
     if (/^[=+\-@\t\r]/.test(s)) return `'${s}`;
     return s;
   }
@@ -10908,7 +10936,7 @@ const SHADOW_MODAL_STYLES = `
       if (hasHistory) row.push(esc(histParts.join(' · ') || '—'));
       row.push(esc(dealerStr));
       if (hasSpecs) row.push(esc(it.specs || '—'));
-      row.push(it.url ? `[Toppreise](${it.url})` : '—');
+      row.push(it.url ? `[Toppreise](${it.url.replace(/\(/g, '%28').replace(/\)/g, '%29')})` : '—');
       lines.push(`| ${row.join(' | ')} |`);
     });
 
@@ -10985,7 +11013,7 @@ const SHADOW_MODAL_STYLES = `
         return { url: needsPaste ? 'https://claude.ai/new' : `https://claude.ai/new?q=${encoded}`, needsPaste };
       case 'google-ai':
       default:
-        return { url: `https://www.google.com/search?q=${encoded}&udm=50`, needsPaste };
+        return { url: needsPaste ? 'https://www.google.com/search?udm=50' : `https://www.google.com/search?q=${encoded}&udm=50`, needsPaste };
     }
   }
 
@@ -15764,6 +15792,7 @@ const SHADOW_MODAL_STYLES = `
     const clearWebhookEditor = () => {
       if (els.discordWebhookInput) els.discordWebhookInput.value = '';
       if (els.tavilyApiKeyInput) els.tavilyApiKeyInput.value = '';
+      if (els.openrouterApiKeyInput) els.openrouterApiKeyInput.value = '';
       els.shadow?.querySelectorAll('.tp-discord-extra-url')?.forEach(input => { input.value = ''; });
     };
     const closeModal = () => {
@@ -18046,6 +18075,11 @@ const SHADOW_MODAL_STYLES = `
     if (!modalContainer) return;
     const batchOpts = modalContainer._tpBatchAlarmOpts || null;
     if (!CONFIG.ALARM_ENABLED && !batchOpts) return;
+    const failBatch = reason => {
+      if (!batchOpts) return;
+      delete modalContainer._tpBatchAlarmOpts;
+      batchOpts.onResult?.({ status: 'error', reason });
+    };
     // Attempt machine: a fresh fill only from idle-like states — in-flight
     // (filled/scheduled/submitted) or confirmed attempts never refill, so a
     // replaced modal can never paint another attempt's status.
@@ -18058,10 +18092,10 @@ const SHADOW_MODAL_STYLES = `
     // Basis-strict: no opposite-basis fallback — a foreign price must never be
     // filled into this product's alarm (missing controls retry next pass).
     const priceEl = isShippingPriceActive() ? shippingFirst : productFirst;
-    if (!priceEl) return;
+    if (!priceEl) return failBatch('no-price');
 
     const presentValue = parsePrice(priceEl.textContent);
-    if (!(presentValue > 0)) return;
+    if (!(presentValue > 0)) return failBatch('invalid-price');
     // Full snapshot: the 300ms submit revalidates every field below — a basis
     // toggle, route change, or foreign fill mid-wait aborts silently.
     const snapshot = {
@@ -18077,7 +18111,7 @@ const SHADOW_MODAL_STYLES = `
     const durationHidden = modalContainer.querySelector('input[name="im_nimf_du"]');
     const durationLi = modalContainer.querySelector(`li[data-value="${duration}"]`);
     // Missing-controls: no submission, no attempt stamp — next DOM pass retries.
-    if (!priceInput || (!durationHidden && !durationLi)) return;
+    if (!priceInput || (!durationHidden && !durationLi)) return failBatch('missing-controls');
     // Refill must not clobber a focused manual edit.
     if (document.activeElement === priceInput && priceInput.value !== snapshot.target) return;
     priceInput.value = targetPrice;
@@ -18089,7 +18123,7 @@ const SHADOW_MODAL_STYLES = `
     }
     durationLi?.click();
     // Read-back revalidation: partial fills retry on the next observer pass.
-    if (priceInput.value !== targetPrice || (durationHidden && durationHidden.value !== duration)) return;
+    if (priceInput.value !== targetPrice || (durationHidden && durationHidden.value !== duration)) return failBatch('fill-failed');
     modalContainer.dataset.tpAlarmProcessed = 'true';
     modalContainer.dataset.tpAlarmState = 'filled';
     modalContainer.dataset.tpAlarmAttempt = String(++alarmAttemptSeq);
@@ -18108,6 +18142,7 @@ const SHADOW_MODAL_STYLES = `
         try { observer?.disconnect(); } catch {}
         reqModal._tpAlarmObserver = null;
         if (reqModal.dataset.tpAlarmAttempt === reqAttempt) reqModal.dataset.tpAlarmState = 'cancelled';
+        delete reqModal._tpBatchAlarmOpts;
         batchOpts?.onResult?.({ status: 'cancelled', targetPrice: reqSnap.target });
       };
       const flagUnconfirmed = () => {
@@ -18120,6 +18155,7 @@ const SHADOW_MODAL_STYLES = `
         // textContent assignment would re-trigger it into a microtask loop.
         if (el.textContent !== unconfirmedMsg) el.textContent = unconfirmedMsg;
         showToast(unconfirmedMsg);
+        delete reqModal._tpBatchAlarmOpts;
         batchOpts?.onResult?.({ status: 'unconfirmed', targetPrice: reqSnap.target });
       };
       try {
@@ -18142,6 +18178,7 @@ const SHADOW_MODAL_STYLES = `
                              document.querySelector('#tmpAbstractDialogContainer .AbstractDialog_CloseButton');
             if (closeBtn) closeBtn.click();
             else if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] Preisalarm: kein Close-Button gefunden');
+            delete reqModal._tpBatchAlarmOpts;
             batchOpts?.onResult?.({ status: 'confirmed', targetPrice: reqSnap.target });
           } else if (!reqModal.isConnected || !document.querySelector(SELECTORS.alarm.form)) {
             try { observer.disconnect(); } catch {}
@@ -18149,6 +18186,7 @@ const SHADOW_MODAL_STYLES = `
             clearTimeout(fallbackTimer);
             reqModal._tpAlarmObserver = null;
             if (reqModal.dataset.tpAlarmAttempt === reqAttempt) reqModal.dataset.tpAlarmState = 'cancelled';
+            delete reqModal._tpBatchAlarmOpts;
             batchOpts?.onResult?.({ status: 'cancelled', targetPrice: reqSnap.target });
           }
         });
@@ -18185,6 +18223,7 @@ const SHADOW_MODAL_STYLES = `
       } catch (err) {
         if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] Preisalarm submit error', err);
         showToast('⚠️ Preisalarm Übermittlungsfehler');
+        failBatch('submit-error');
       }
     }
   }
@@ -18259,7 +18298,7 @@ const SHADOW_MODAL_STYLES = `
       ({ res: formRes, body: formHtml } = await fetchWithTimeout(
         requestUrl.toString(),
         { headers: { 'X-Requested-With': 'XMLHttpRequest' } },
-        { timeoutMs: 8000, source: 'price-alarm', label: 'form', readAs: 'text' }
+        { timeoutMs: 8000, source: 'price-alarm', label: 'form', readAs: 'text', signal: batchOpts?.signal }
       ));
     } catch (err) {
       if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] Preisalarm-Formular laden fehlgeschlagen', err);
@@ -18278,7 +18317,8 @@ const SHADOW_MODAL_STYLES = `
     if (content) content.replaceChildren(...nodes);
     if (batchOpts) {
       const formEl = dialogNode.querySelector(SELECTORS.alarm.form);
-      if (formEl) formEl._tpBatchAlarmOpts = batchOpts;
+      if (!formEl) return false;
+      formEl._tpBatchAlarmOpts = batchOpts;
     }
 
     if (dialogId) {
@@ -18409,20 +18449,28 @@ const SHADOW_MODAL_STYLES = `
 
     return new Promise(async (resolve) => {
       let settled = false;
+      let watchdog = null;
       const finish = (res) => {
         if (settled) return;
         settled = true;
+        if (watchdog) clearTimeout(watchdog);
         signal?.removeEventListener?.('abort', onAbort);
+        const mockForm = document.querySelector?.(`#mock-alarm-dialog ${SELECTORS.alarm.form}`);
+        if (mockForm) delete mockForm._tpBatchAlarmOpts;
+        const mockDlg = document.querySelector?.('#mock-alarm-dialog');
+        if (mockDlg && mockDlg.style.display === 'block') mockDlg.style.display = 'none';
         closeFetchedAlarmDialogs();
         resolve(res);
       };
       const onAbort = () => finish({ status: 'cancelled' });
       signal?.addEventListener?.('abort', onAbort, { once: true });
+      watchdog = setTimeout(() => finish({ status: 'error', reason: 'timeout' }), (CONFIG.ALARM_FALLBACK_TIMEOUT_MS || 5000) + 10000);
 
       const batchOpts = {
         targetPct,
         durationDays,
         autoSubmit: true,
+        signal,
         onResult: (res) => finish(res)
       };
 
@@ -18454,7 +18502,7 @@ const SHADOW_MODAL_STYLES = `
             'X-Requested-With': 'XMLHttpRequest'
           },
           body: postBody
-        }, { timeoutMs: 8000, source: 'price-alarm', label: 'batch-open', readAs: 'text' });
+        }, { timeoutMs: 8000, source: 'price-alarm', label: 'batch-open', readAs: 'text', signal });
         if (signal?.aborted) return finish({ status: 'cancelled' });
         if (!res.ok || !(await openFetchedAlarmDialog(html, batchOpts))) {
           finish({ status: 'error', reason: 'fetch-failed' });
@@ -18480,10 +18528,11 @@ const SHADOW_MODAL_STYLES = `
     return {
       job,
       signal: controller.signal,
-      updateProgress: (done, failed = job.failed) => {
+      updateProgress: (done, failed = job.failed, total = job.total) => {
         if (activeJob?.id === job.id) {
           job.done = done;
           job.failed = failed;
+          job.total = total;
         }
       },
       finish: () => {
@@ -18651,7 +18700,10 @@ const SHADOW_MODAL_STYLES = `
   async function runBatchComparisonAi(items, { target = 'google-ai', signal, openTabFn = openTabUrl, searchFn = fetchOpenRouterWebSearch } = {}) {
     const prompt = buildComparisonPrompt(items);
     if (!prompt) return { mode: 'empty' };
-    if (target === 'openrouter' && CONFIG.OPENROUTER_API_KEY && String(CONFIG.OPENROUTER_API_KEY).trim()) {
+    if (target === 'openrouter') {
+      if (!CONFIG.OPENROUTER_API_KEY || !String(CONFIG.OPENROUTER_API_KEY).trim()) {
+        return { mode: 'missing-key', target: 'openrouter' };
+      }
       const res = await searchFn(CONFIG.OPENROUTER_API_KEY, prompt, {
         model: CONFIG.OPENROUTER_MODEL,
         engine: CONFIG.OPENROUTER_SEARCH_ENGINE,
@@ -18680,7 +18732,7 @@ const SHADOW_MODAL_STYLES = `
   }
 
   async function runBatchDiscordShare(items, channel, { onProgress, signal } = {}) {
-    if (!channel?.url) return { total: 0, shared: 0, skippedDuplicates: 0, failed: 0 };
+    if (!isDiscordWebhookUrl(channel?.url)) return { total: 0, shared: 0, skippedDuplicates: 0, failed: 0 };
     const useShipping = isShippingPriceActive();
     const eligible = [];
     let skippedDuplicates = 0;
@@ -18697,7 +18749,7 @@ const SHADOW_MODAL_STYLES = `
     const total = eligible.length;
     let shared = 0;
     let failed = 0;
-    const hook = channel.url.trim();
+    const needsAi = String(CONFIG.DISCORD_LAYOUT || '').includes('{ai}');
 
     for (let i = 0; i < eligible.length; i++) {
       if (signal?.aborted) break;
@@ -18717,6 +18769,9 @@ const SHADOW_MODAL_STYLES = `
         }
         const stats = getCachedPriceStats(it.pid, true, undefined, useShipping);
         const resolved = stats ? resolveShareFields(it.cardPrice, stats) : {};
+        const aiText = needsAi
+          ? (getCachedConfiguredAiSummary(it.title, CONFIG.REVIEW_SEARCH_KEYWORD, it.priceText)?.answer || '')
+          : '';
         const fields = {
           title: it.title,
           priceText: it.priceText,
@@ -18728,6 +18783,7 @@ const SHADOW_MODAL_STYLES = `
           prevLowPct: resolved.prevLowPct || 0,
           medianText: resolved.medianText || '',
           medianPct: resolved.medianPct || 0,
+          aiText,
           suppressDealerEmbed: CONFIG.DISCORD_SUPPRESS_DEALER_EMBED !== false,
           suppressProductEmbed: CONFIG.DISCORD_SUPPRESS_PRODUCT_EMBED !== false
         };
@@ -20711,7 +20767,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.551';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.552';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

@@ -144,8 +144,8 @@ export function getBatchScopeCounts(root = undefined) {
 export function neutralizeFormulaCell(raw) {
   const s = String(raw ?? '');
   if (!s) return '';
-  // Preserve negative numbers / percentages like "-35%" or "-12.50"
-  if (/^-\d/.test(s)) return s;
+  // Preserve pure negative numbers / percentages like "-35%" or "-12.50"
+  if (/^-?\d+(?:[.,]\d+)?%?$/.test(s)) return s;
   if (/^[=+\-@\t\r]/.test(s)) return `'${s}`;
   return s;
 }
@@ -180,7 +180,7 @@ export function formatBatchMarkdown(items) {
     if (hasHistory) row.push(esc(histParts.join(' · ') || '—'));
     row.push(esc(dealerStr));
     if (hasSpecs) row.push(esc(it.specs || '—'));
-    row.push(it.url ? `[Toppreise](${it.url})` : '—');
+    row.push(it.url ? `[Toppreise](${it.url.replace(/\(/g, '%28').replace(/\)/g, '%29')})` : '—');
     lines.push(`| ${row.join(' | ')} |`);
   });
 
@@ -257,7 +257,7 @@ export function buildExternalAiUrl(target, prompt) {
       return { url: needsPaste ? 'https://claude.ai/new' : `https://claude.ai/new?q=${encoded}`, needsPaste };
     case 'google-ai':
     default:
-      return { url: `https://www.google.com/search?q=${encoded}&udm=50`, needsPaste };
+      return { url: needsPaste ? 'https://www.google.com/search?udm=50' : `https://www.google.com/search?q=${encoded}&udm=50`, needsPaste };
   }
 }
 

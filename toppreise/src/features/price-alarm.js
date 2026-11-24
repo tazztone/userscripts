@@ -215,6 +215,11 @@ export function processPriceAlarmModal() {
   if (!modalContainer) return;
   const batchOpts = modalContainer._tpBatchAlarmOpts || null;
   if (!CONFIG.ALARM_ENABLED && !batchOpts) return;
+  const failBatch = reason => {
+    if (!batchOpts) return;
+    delete modalContainer._tpBatchAlarmOpts;
+    batchOpts.onResult?.({ status: 'error', reason });
+  };
   // Attempt machine: a fresh fill only from idle-like states — in-flight
   // (filled/scheduled/submitted) or confirmed attempts never refill, so a
   // replaced modal can never paint another attempt's status.
@@ -227,10 +232,10 @@ export function processPriceAlarmModal() {
   // Basis-strict: no opposite-basis fallback — a foreign price must never be
   // filled into this product's alarm (missing controls retry next pass).
   const priceEl = isShippingPriceActive() ? shippingFirst : productFirst;
-  if (!priceEl) return;
+  if (!priceEl) return failBatch('no-price');
 
   const presentValue = parsePrice(priceEl.textContent);
-  if (!(presentValue > 0)) return;
+  if (!(presentValue > 0)) return failBatch('invalid-price');
   // Full snapshot: the 300ms submit revalidates every field below — a basis
   // toggle, route change, or foreign fill mid-wait aborts silently.
   const snapshot = {
@@ -246,7 +251,7 @@ export function processPriceAlarmModal() {
   const durationHidden = modalContainer.querySelector('input[name="im_nimf_du"]');
   const durationLi = modalContainer.querySelector(`li[data-value="${duration}"]`);
   // Missing-controls: no submission, no attempt stamp — next DOM pass retries.
-  if (!priceInput || (!durationHidden && !durationLi)) return;
+  if (!priceInput || (!durationHidden && !durationLi)) return failBatch('missing-controls');
   // Refill must not clobber a focused manual edit.
   if (document.activeElement === priceInput && priceInput.value !== snapshot.target) return;
   priceInput.value = targetPrice;
@@ -258,7 +263,7 @@ export function processPriceAlarmModal() {
   }
   durationLi?.click();
   // Read-back revalidation: partial fills retry on the next observer pass.
-  if (priceInput.value !== targetPrice || (durationHidden && durationHidden.value !== duration)) return;
+  if (priceInput.value !== targetPrice || (durationHidden && durationHidden.value !== duration)) return failBatch('fill-failed');
   modalContainer.dataset.tpAlarmProcessed = 'true';
   modalContainer.dataset.tpAlarmState = 'filled';
   modalContainer.dataset.tpAlarmAttempt = String(++alarmAttemptSeq);
@@ -277,6 +282,7 @@ export function processPriceAlarmModal() {
       try { observer?.disconnect(); } catch {}
       reqModal._tpAlarmObserver = null;
       if (reqModal.dataset.tpAlarmAttempt === reqAttempt) reqModal.dataset.tpAlarmState = 'cancelled';
+      delete reqModal._tpBatchAlarmOpts;
       batchOpts?.onResult?.({ status: 'cancelled', targetPrice: reqSnap.target });
     };
     const flagUnconfirmed = () => {
@@ -289,6 +295,7 @@ export function processPriceAlarmModal() {
       // textContent assignment would re-trigger it into a microtask loop.
       if (el.textContent !== unconfirmedMsg) el.textContent = unconfirmedMsg;
       showToast(unconfirmedMsg);
+      delete reqModal._tpBatchAlarmOpts;
       batchOpts?.onResult?.({ status: 'unconfirmed', targetPrice: reqSnap.target });
     };
     try {
@@ -311,6 +318,7 @@ export function processPriceAlarmModal() {
                            document.querySelector('#tmpAbstractDialogContainer .AbstractDialog_CloseButton');
           if (closeBtn) closeBtn.click();
           else if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] Preisalarm: kein Close-Button gefunden');
+          delete reqModal._tpBatchAlarmOpts;
           batchOpts?.onResult?.({ status: 'confirmed', targetPrice: reqSnap.target });
         } else if (!reqModal.isConnected || !document.querySelector(SELECTORS.alarm.form)) {
           try { observer.disconnect(); } catch {}
@@ -318,6 +326,7 @@ export function processPriceAlarmModal() {
           clearTimeout(fallbackTimer);
           reqModal._tpAlarmObserver = null;
           if (reqModal.dataset.tpAlarmAttempt === reqAttempt) reqModal.dataset.tpAlarmState = 'cancelled';
+          delete reqModal._tpBatchAlarmOpts;
           batchOpts?.onResult?.({ status: 'cancelled', targetPrice: reqSnap.target });
         }
       });
@@ -354,6 +363,7 @@ export function processPriceAlarmModal() {
     } catch (err) {
       if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] Preisalarm submit error', err);
       showToast('⚠️ Preisalarm Übermittlungsfehler');
+      failBatch('submit-error');
     }
   }
 }
@@ -428,7 +438,7 @@ export async function openFetchedAlarmDialog(html, batchOpts = null) {
     ({ res: formRes, body: formHtml } = await fetchWithTimeout(
       requestUrl.toString(),
       { headers: { 'X-Requested-With': 'XMLHttpRequest' } },
-      { timeoutMs: 8000, source: 'price-alarm', label: 'form', readAs: 'text' }
+      { timeoutMs: 8000, source: 'price-alarm', label: 'form', readAs: 'text', signal: batchOpts?.signal }
     ));
   } catch (err) {
     if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] Preisalarm-Formular laden fehlgeschlagen', err);
@@ -447,7 +457,8 @@ export async function openFetchedAlarmDialog(html, batchOpts = null) {
   if (content) content.replaceChildren(...nodes);
   if (batchOpts) {
     const formEl = dialogNode.querySelector(SELECTORS.alarm.form);
-    if (formEl) formEl._tpBatchAlarmOpts = batchOpts;
+    if (!formEl) return false;
+    formEl._tpBatchAlarmOpts = batchOpts;
   }
 
   if (dialogId) {

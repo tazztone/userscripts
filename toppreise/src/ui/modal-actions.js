@@ -227,6 +227,7 @@ export function wireModalActions(els) {
   const clearWebhookEditor = () => {
     if (els.discordWebhookInput) els.discordWebhookInput.value = '';
     if (els.tavilyApiKeyInput) els.tavilyApiKeyInput.value = '';
+    if (els.openrouterApiKeyInput) els.openrouterApiKeyInput.value = '';
     els.shadow?.querySelectorAll('.tp-discord-extra-url')?.forEach(input => { input.value = ''; });
   };
   const closeModal = () => {

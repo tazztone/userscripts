@@ -20,14 +20,25 @@ export const OPENROUTER_CACHE_TTL_MS = 48 * 60 * 60 * 1000; // 48h
 const orMemCache = new Map();
 const orInFlight = new Map();
 
+function hashCacheStr(str) {
+  let h1 = 0x811c9dc5;
+  let h2 = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) {
+    const c = str.charCodeAt(i);
+    h1 = Math.imul(h1 ^ c, 0x01000193);
+    h2 = Math.imul(h2 ^ (c + i), 0x01000193);
+  }
+  return (h1 >>> 0).toString(16).padStart(8, '0') + (h2 >>> 0).toString(16).padStart(8, '0');
+}
+
 export function normalizeOpenRouterPrompt(prompt) {
   return String(prompt ?? '').replace(/\s+/g, ' ').trim();
 }
 
-export function openRouterCacheKey(prompt, model, engine, maxResults) {
+export function openRouterCacheKey(prompt, model, engine, maxResults, searchContextSize = 'medium') {
   const norm = normalizeOpenRouterPrompt(prompt).toLowerCase();
   if (!norm) return '';
-  return `${model || 'google/gemini-2.5-flash'}::${engine || 'auto'}::${maxResults || 5}::${norm}`;
+  return `${model || 'google/gemini-2.5-flash'}::${engine || 'auto'}::${maxResults || 5}::${searchContextSize || 'medium'}::${hashCacheStr(norm)}`;
 }
 
 export function extractOpenRouterCitations(annotations) {
@@ -176,7 +187,7 @@ export function fetchOpenRouterWebSearch(apiKey, prompt, options = {}) {
     : (CONFIG?.OPENROUTER_MAX_RESULTS || 5);
   const searchContextSize = options.searchContextSize || 'medium';
 
-  const cacheKey = openRouterCacheKey(normalized, model, engine, maxResults);
+  const cacheKey = openRouterCacheKey(normalized, model, engine, maxResults, searchContextSize);
   const cached = getCachedOpenRouter(cacheKey);
   if (cached?.answer) {
     return Promise.resolve({ answer: cached.answer, citations: cached.citations || [] });
@@ -294,7 +305,7 @@ export function getCachedConfiguredAiSummary(title, keyword = '', priceText = ''
     const model = opts.model || cfg?.OPENROUTER_MODEL || 'google/gemini-2.5-flash';
     const engine = opts.engine || cfg?.OPENROUTER_SEARCH_ENGINE || 'auto';
     const maxResults = opts.maxResults || cfg?.OPENROUTER_MAX_RESULTS || 5;
-    return getCachedOpenRouter(openRouterCacheKey(query, model, engine, maxResults));
+    return getCachedOpenRouter(openRouterCacheKey(query, model, engine, maxResults, opts.searchContextSize || 'medium'));
   }
   if (provider === 'tavily') {
     const depth = opts.searchDepth || cfg?.TAVILY_SEARCH_DEPTH || 'basic';
