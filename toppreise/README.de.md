@@ -197,34 +197,36 @@ Das Skript passt seine Oberfläche automatisch an den jeweiligen Seitentyp an:
 
 Klick auf das **Zahnrad-Symbol (`⚙️`)** unten rechts öffnet das Einstellungsmenü (`#tp-root`). Dank gekapseltem Shadow DOM und nativem HTML5 `<dialog>` (`showModal()`) im Top Layer des Browsers ist es immun gegen CSS- und z-Index-Konflikte der Hauptseite. Gegliedert in Basis- und Erweiterte Einstellungen:
 
-### Basis-Einstellungen (Bereiche 1–5: Ansicht, Review-Suche, Sortieren, Filtern, Preisalarm)
+### Basis-Einstellungen (Bereiche 1–5: Ansicht, Deals & Sortieren, Filtern, Web-Suche, Preisalarm)
 
 ![Shadow DOM Einstellungen: Basis-Bereiche](docs/shots/04a-settings-core.webp)
 
 | # | Einstellung / Bereich | Beschreibung |
 |---|---|---|
-| ① | **🖥️ Ansicht** | Regelt die Deckkraft gedimmter Angebote, Deal-Intensität und Layout-Anpassungen. |
-| ② | **🌐 Web-Suche** | Konfiguriert die 1-Klick-Google-Suche mit anpassbaren Begriffen und optionalem KI-Modus (`&udm=50`). |
-| ③ | **💎 Sortieren** | Aktiviert die authentische Tiefstpreis-Sortierung (`💎`), Gewichtung (Rekord vs. Median) & Zeithorizont. |
-| ④ | **🧹 Filtern** | Preis-Toleranz (%) für Händler-Bestpreis, Negativ-Filterung und Rabatt-Schwellen. |
-| ⑤ | **🔔 Preisalarm** | Automatische Vorbelegung von Zielpreis in Prozent (5%–99%) und Alarmdauer. |
+| ① | **🖥️ Ansicht** | Regelt Deckkraft gedimmter Angebote, Deal-Intensität, Werbe-Ausblendung, Mini-Preiskurven & Keepa-Verlauf. |
+| ② | **💎 Deals & Sortieren** | Tiefstpreis-Sortierung (`💎`), Angebots-/Rabatt-Sortierung sowie einklappbare Berechnungsparameter & Prüfung. |
+| ③ | **🧹 Filtern** | Seitentyp-Profile (`Neue Toppreise` vs. Suche/Katalog) und Preis-Toleranz (%) für Händler-Bestpreis. |
+| ④ | **🌐 Web-Suche** | 1-Klick-Google-Suche (`{preis}`-Token) sowie einklappbare Unterbereiche für Google, OpenRouter, Tavily & Batch. |
+| ⑤ | **🔔 Preisalarm** | Automatische Vorbelegung von Zielpreis in Prozent (5%–99%), Laufzeit & Auto-Submit. |
 
-### Erweiterte Einstellungen (Bereiche 6–7: Discord Share & Daten/Cache)
+### Erweiterte Einstellungen (Bereiche 6–8: Discord Share, Daten/Cache & Über)
 
 ![Shadow DOM Einstellungen: Erweiterte Bereiche](docs/shots/04b-settings-advanced.webp)
 
 | # | Einstellung / Bereich | Beschreibung |
 |---|---|---|
-| ① | **💬 Discord Share** | Vertrauliche Webhook-URLs für mehrere Discord-Kanäle, Layout-Baukasten und Live-Markdown-Vorschau. |
-| ② | **💾 Daten & Cache** | Händler-Autoload, TTL-Regler, Cache leeren (`🗑️`), Daten-Reset (`🧨`) und Konfigurations-Export. |
+| ① | **💬 Discord Share** | Vertrauliche Webhook-Kanäle plus einklappbare Embed-Optionen und Layout-Baukasten. |
+| ② | **💾 Daten & Cache** | Einklappbare Bereiche für Cache/Autofetch/TTLs, JSON-Export/Import und Gefahrenzone (`🧨`) am Ende. |
+| ③ | **ℹ️ Über & Hilfe** | Live-Version & Script-Handler, Links zu Repo, Doku/Demos, Issues & Script-Update sowie Diagnose-Log-Button. |
 
-1. **🖥️ Ansicht:** Deckkraft für gedimmte Karten, Werbeplätze/Banner ausblenden (entfernt leere Werbeflächen oben und im Layout) und Deal-Intensität / Heatmap-Stärke (20%–100%).
-2. **🌐 Web-Suche & KI-Fazit:** Schalter für Suche (`🌐`) am Produktnamen, anpassbarer Suchbegriff (inkl. `{preis}`), Google-KI-Modus (`&udm=50`), **OpenRouter `openrouter:web_search`** (Modell, Such-Engine, Quellenlinks) sowie Legacy-Tavily für 1-Klick KI-Fazit und `{ai}` im Discord-Share (48h gecached), plus Batch-KI-Ziel und Bestätigungs-Schwelle (`1–100`).
-3. **💎 Sortieren:** Tiefstpreis-Sortierung nach Gewichteter Differenz (`💎`) und Angebots-/Rabatt-Sortierung (`Standard`, `Meiste ⬇`, `Wenigste ⬆`, `% Rabatt ⬇`).
-4. **🧹 Filtern:** Preis-Toleranz (%) für Händler-Bestpreis; Verweis auf Negativ-Begriffe, Min-Angebote, Ungeprüfte und Fallback-Tiefs im Filterleisten-Popover.
+1. **🖥️ Ansicht:** Deckkraft für gedimmte Karten, Deal-Intensität / Heatmap-Stärke (20%–100%), Werbeplätze/Banner ausblenden, Mini-Preiskurven (Sparklines) und Amazon Keepa-Verlauf.
+2. **💎 Deals & Sortieren:** Tiefstpreis-Sortierung nach Gewichteter Differenz (`💎`), Angebots-/Rabatt-Sortierung (`Standard`, `Meiste ⬇`, `Wenigste ⬆`, `% Rabatt ⬇`) sowie einklappbare **Berechnungsparameter & Prüfung** (Gewichtung Rekord vs. Ø, Mindest-Datenpunkte, Median-Zeitraum, Prüf-Vorauswahl für Batch-Check, `inkl. Versand`).
+3. **🧹 Filtern:** Seitentyp-Profile merken, aktives Profil und Preis-Toleranz (%) für Händler-Bestpreis.
+4. **🌐 Web-Suche:** Schalter für Suche (`🌐`), anpassbarer Suchbegriff (inkl. `{preis}`) mit Live-Vorschau, KI-Anbieter-Auswahl sowie einklappbare Unterbereiche für **Google-Suche** (`&udm=50`), **OpenRouter `openrouter:web_search`**, **Tavily KI-Suche** und **Batch-Aktionen** (Batch-KI-Ziel & Bestätigung ab N Karten).
 5. **🔔 Preisalarm:** Zielpreis-Prozentsatz (5%–99%, Standard 60%), Laufzeit (3, 6, 12, 24 Monate) und automatisches Absenden & Schliessen.
-6. **💬 Discord Share:** Vertrauliche Webhook-Kanäle (nur lokal in `GM_setValue`), Embed-Unterdrückung, Layout-Baukasten mit Tokens (`{title}`, `{price}`, `{ai}`, `{comment}`, etc.), Presets und Live-Markdown-Vorschau.
-7. **💾 Daten & Cache:** Händler-Autoload, Gewichtete Differenz (Sortierung + Farb-Emphase), Mindest-Datenpunkte, Median-Berechnungszeitraum, Prüf-Vorauswahl für Batch-Check, Versandkosten-Basis (`inkl. Versand`), Sparklines, Cache-TTL, Cache leeren (`🗑️`), Daten zurücksetzen (`🧨`) und Konfigurations-Export/Import.
+6. **💬 Discord Share:** Vertrauliche Webhook-Kanäle (nur lokal in `GM_setValue`) plus einklappbare **Embed- & Foren-Optionen** und **Nachrichten-Layout (Baukasten)** (`{title}`, `{price}`, `{ai}`, `{comment}`, etc.).
+7. **💾 Daten & Cache:** Einklappbare Unterbereiche für **Cache, Abruf & Limits** (Cache-Zähler, Cache leeren `🗑️`, Händler-Autoload, TTLs, RAM/Disk-Limits), **Sicherung** (JSON-Export/Import) und **Gefahrenzone** (`🧨 Alle Daten löschen`) ganz unten.
+8. **ℹ️ Über & Hilfe:** Aktuelle Version & Script-Handler, Autor/MIT-Lizenz, direkte Links zu GitHub Repository, Doku & Video-Demos, Issues und Userscript-Update sowie `🛠️ Dev-Diagnose-Log öffnen`.
 
 ---
 

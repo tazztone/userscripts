@@ -17,9 +17,9 @@ import { cancelBatchDealCheck } from '../scanner/scanner.js';
 import { DEFAULT_LAYOUT, validateLayoutRecipe } from '../features/discord-recipe.js';
 import { discordForumFlagKey, isDiscordWebhookUrl } from '../features/share-discord.js';
 import { syncFieldsFromConfig, scheduleLayoutPreview, getLayoutPresets, updateKeywordPreview, addExtraChannelRow } from './modal-bindings.js';
-import { bindDiagTrigger } from './diag-modal.js';
+import { bindDiagTrigger, openDiagModal } from './diag-modal.js';
 import { ensureSkeleton } from './shell.js';
-import { writeCollapsed, clearCollapsedState } from './modal-template.js';
+import { writeCollapsed, clearCollapsedState, syncCollapseAllBtn } from './modal-template.js';
 
 export function wireModalActions(els) {
   els.cacheClearBtn?.addEventListener('click', () => {
@@ -238,6 +238,7 @@ export function wireModalActions(els) {
   };
 
   bindDiagTrigger(els.fabButton, els.shadow);
+  els.aboutOpenDiagBtn?.addEventListener('click', () => openDiagModal(els.shadow));
   els.fabButton.addEventListener('click', openModal);
   els.btnResetDefaults?.addEventListener('click', () => {
     if (!window.confirm('Wirklich alle Einstellungen auf die Standardwerte zurücksetzen?')) return;
@@ -324,13 +325,15 @@ export function wireModalActions(els) {
     showToast(`${group.label} auf Standard zurückgesetzt`);
   });
   els.btnClose.addEventListener('click', closeModal);
-  // Native `close` (Escape on backdrop/frame, cancel event) bypasses both
-  // closeModal and the els.shadow keydown handler — reset the preview anyway.
-  els.dialog.addEventListener('close', () => {
+  // Native `cancel` (Escape) fires synchronously before `[open]` is removed,
+  // avoiding a race with async `close` delivery when clearing secret inputs.
+  const resetOnDismiss = () => {
     clearWebhookEditor();
     document.documentElement.style.setProperty('--tp-dim-opacity', CONFIG.DIM_OPACITY);
     document.documentElement.classList.toggle('tp-hide-ads', !!CONFIG.HIDE_ADS);
-  });
+  };
+  els.dialog.addEventListener('cancel', resetOnDismiss);
+  els.dialog.addEventListener('close', resetOnDismiss);
 
   els.hideAdsToggle?.addEventListener('change', e => {
     document.documentElement.classList.toggle('tp-hide-ads', e.target.checked);
@@ -459,6 +462,8 @@ export function wireModalActions(els) {
         if (els.discordLayoutError) els.discordLayoutError.textContent = err;
         els.shadow.getElementById('tp-section-discord')?.classList.remove('tp-collapsed');
         els.shadow.querySelector('#tp-section-discord [data-collapse]')?.setAttribute('aria-expanded', 'true');
+        const layoutSub = els.shadow.querySelector('#tp-section-discord details[data-sub="discord-layout"]');
+        if (layoutSub) layoutSub.open = true;
         els.discordLayoutInput.focus();
         return;
       }
@@ -492,6 +497,7 @@ export function openSettingsAt(sectionId) {
     const current = [...shadow.querySelectorAll('#tp-settings-sections section.tp-collapsed')].map(s => s.id);
     writeCollapsed(current);
   }
+  syncCollapseAllBtn(shadow);
   anchor.scrollIntoView({ block: 'start' });
   anchor.classList.add('tp-flash');
   setTimeout(() => anchor.classList.remove('tp-flash'), 2000);

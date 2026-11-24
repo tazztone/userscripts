@@ -3,19 +3,17 @@
  * Extracted from modal-template.js to respect module size limits.
  */
 
-import { DEFAULTS, minPointsToIndex, MIN_POINTS_STEPS } from '../state/config.js';
-
 export function renderDiscordSection() {
   return `
       <section id="tp-section-discord" class="tp-section-card tp-section-discord">
 <button type="button" class="tp-section-header" aria-expanded="true" aria-controls="tp-section-discord-body" data-collapse="tp-section-discord"><span class="tp-section-title">💬 Discord Share</span><span class="tp-chevron" aria-hidden="true"></span></button>
 <div class="tp-section-body" id="tp-section-discord-body">
         <div class="tp-group-head-row">
-          <span>Nachrichten- & Embed-Optionen</span>
+          <span>Kanäle &amp; Webhooks</span>
           <button type="button" class="tp-btn-group-reset" data-reset-group="discord" title="Discord-Optionen auf Standard zurücksetzen" aria-label="Discord-Optionen auf Standard zurücksetzen">↺</button>
         </div>
         <div class="tp-settings-group">
-          <label title="Webhooks deiner Discord-Kanäle (Kanal-Einstellungen → Integrationen → Webhook). Nur lokal gespeichert, nie exportiert.">📤 Discord Kanäle & Webhooks (Deals-Share)</label>
+          <label title="Webhooks deiner Discord-Kanäle (Kanal-Einstellungen → Integrationen → Webhook). Nur lokal gespeichert, nie exportiert.">📤 Discord Kanäle &amp; Webhooks (Deals-Share)</label>
           <div id="tp-discord-channels-list" class="tp-discord-channels-list">
             <div class="tp-discord-channel-card" data-channel-id="default">
               <div class="tp-discord-channel-header">
@@ -34,6 +32,9 @@ export function renderDiscordSection() {
           </div>
           <button type="button" id="tp-discord-add-channel-btn" class="tp-btn tp-btn-secondary" style="margin-top: 6px;">➕ Weiteren Kanal hinzufügen</button>
         </div>
+        <details class="tp-subsection" data-sub="discord-embeds">
+          <summary class="tp-subsection-header">🖼️ Embed- &amp; Foren-Optionen</summary>
+          <div class="tp-subsection-body">
         <div class="tp-settings-group tp-switch-container">
           <div class="tp-switch-label">
             <label title="Unterdrückt die automatische Händler-Link-Vorschau (Embed) unter Discord-Posts.">Händler-Link Embed</label>
@@ -64,6 +65,11 @@ export function renderDiscordSection() {
             <span class="tp-slider"></span>
           </label>
         </div>
+          </div>
+        </details>
+        <details class="tp-subsection" data-sub="discord-layout">
+          <summary class="tp-subsection-header">🧩 Nachrichten-Layout (Baukasten)</summary>
+          <div class="tp-subsection-body">
         <div class="tp-settings-group">
           <label for="tp-discord-layout-input" title="Aufbau der Discord-Nachricht (eine Zeile je Baustein)">Nachrichten-Layout (Baukasten)</label>
           <div>
@@ -90,6 +96,8 @@ export function renderDiscordSection() {
           <span id="tp-discord-layout-error" class="tp-switch-desc"></span>
           <button type="button" id="tp-discord-layout-reset" class="tp-btn tp-btn-secondary" title="Layout auf Standard zurücksetzen">Layout zurücksetzen</button>
         </div>
+          </div>
+        </details>
 </div>
       </section>
   `;
@@ -98,10 +106,18 @@ export function renderDiscordSection() {
 export function renderDataSection() {
   return `
       <section id="tp-section-data" class="tp-section-card tp-section-data">
-<button type="button" class="tp-section-header" aria-expanded="true" aria-controls="tp-section-data-body" data-collapse="tp-section-data"><span class="tp-section-title">💾 Daten & Cache</span><span class="tp-chevron" aria-hidden="true"></span></button>
+<button type="button" class="tp-section-header" aria-expanded="true" aria-controls="tp-section-data-body" data-collapse="tp-section-data"><span class="tp-section-title">💾 Daten &amp; Cache</span><span class="tp-chevron" aria-hidden="true"></span></button>
 <div class="tp-section-body" id="tp-section-data-body">
-        <div class="tp-settings-group">
-          <span class="tp-switch-desc tp-field-hint">Ausreisser-Filter (Glitch-Erkennung): siehe ⚖️-Popover in der Filterleiste.</span>
+        <details class="tp-subsection" data-sub="data-cache">
+          <summary class="tp-subsection-header">🗄️ Cache, Abruf &amp; Limits</summary>
+          <div class="tp-subsection-body">
+        <div class="tp-group-head-row">
+          <span>Cache &amp; Speicher-Limits</span>
+          <button type="button" class="tp-btn-group-reset" data-reset-group="cache" title="Cache-Einstellungen auf Standard zurücksetzen" aria-label="Cache-Einstellungen auf Standard zurücksetzen">↺</button>
+        </div>
+        <div class="tp-settings-group tp-cache-row">
+          <div id="tp-cache-stats-label">Lokaler Cache: 0 Einträge</div>
+          <button type="button" id="tp-cache-clear-btn" class="tp-btn tp-btn-secondary">🗑️ Cache leeren</button>
         </div>
         <div class="tp-settings-group tp-switch-container">
           <div class="tp-switch-label">
@@ -112,97 +128,6 @@ export function renderDataSection() {
             <input type="checkbox" id="tp-dealer-autofetch-toggle">
             <span class="tp-slider"></span>
           </label>
-        </div>
-        <div class="tp-group-head-row">
-          <span>Berechnungsparameter & Analyse</span>
-          <button type="button" class="tp-btn-group-reset" data-reset-group="weights" title="Berechnungsparameter auf Standard zurücksetzen" aria-label="Berechnungsparameter auf Standard zurücksetzen">↺</button>
-        </div>
-        <div class="tp-settings-group" id="tp-bestpreise-weight-group">
-          <label><span class="tp-glossary-term" title="Kombiniert Rekord-Tiefstpreis und Durchschnittsrabatt im gewählten Mix für Badge, Farbe und Platzierung.">Gewichtete Differenz</span>: Sortierung + Farb-Emphase (Rekord vs Ø)</label>
-          <div class="tp-range-container tp-purple">
-            <input type="range" id="tp-bestpreise-weight-range" min="0" max="100" step="5" value="50">
-            <input type="number" id="tp-bestpreise-weight-val" min="0" max="100" step="5" value="50">
-          </div>
-          <span class="tp-switch-desc tp-field-hint" id="tp-bestpreise-weight-desc">50% Rekord / 50% Ø-Preis (Sortierung + Farb-Emphase) · z.B. Rek −10% + Ø −25% → Gewichtete Differenz 18</span>
-        </div>
-        <div class="tp-settings-group" id="tp-bestpreise-minpoints-group">
-          <label title="Ø-Vergleich erst ab so vielen Punkten (Punkte ≈ Tage). Darunter: Fallback-Tief.">Mindestanzahl Datenpunkte in der Preishistorie</label>
-          <div class="tp-range-container tp-purple">
-            <input type="range" id="tp-bestpreise-minpoints-range" min="0" max="${MIN_POINTS_STEPS.length - 1}" step="1" value="${minPointsToIndex(DEFAULTS.BESTPREISE_MIN_POINTS)}">
-            <input type="number" id="tp-bestpreise-minpoints-val" min="1" max="100" step="1" value="5">
-          </div>
-          <span class="tp-switch-desc tp-field-hint">Nur Historien ab dieser Punktzahl bekommen einen gewichteten Ø-Vergleich (⚖️/💎). Darunter: <span class="tp-glossary-term" title="Verifizierter Tiefstpreis mit zu wenigen Datenpunkten für einen Ø-Vergleich. Zeigt ersatzweise den Abstand zum Vortief.">Fallback-Tief</span> (Abstand zum Vortief, ohne Ø-Vergleich).</span>
-        </div>
-        <div class="tp-settings-group" id="tp-bestpreise-horizon-group">
-          <label title="Zeitraum für den Ø-Preis-Vergleich">Median-Berechnungszeitraum (Ø-Preis)</label>
-          <div class="tp-range-container tp-purple">
-            <input type="range" id="tp-bestpreise-horizon-range" min="30" max="760" step="5" value="365">
-            <input type="number" id="tp-bestpreise-horizon-val" min="0" max="3650" step="1" value="365">
-          </div>
-          <span class="tp-switch-desc tp-field-hint" id="tp-bestpreise-horizon-desc">Ø-Vergleich: 1J (0 = gesamte Historie / Lifetime, Vorgabe: 1J). Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis.</span>
-        </div>
-        <div class="tp-settings-group">
-          <label title="Nur Differenzen ab diesem Wert automatisch prüfen">Prüf-Vorauswahl: Mindest-Differenz für Batch-Check (%)</label>
-          <div class="tp-range-container">
-            <input type="range" id="tp-real-deal-min-range" min="10" max="70" step="5" value="30">
-            <input type="number" id="tp-real-deal-min-val" min="0" max="90" step="5" value="30">
-          </div>
-          <span class="tp-switch-desc tp-field-hint">Nur Differenzen ab diesem Wert (ungeprüft) werden automatisch geprüft. Die Prüfung ersetzt sie durch den echten Rabatt.</span>
-        </div>
-        <div class="tp-settings-group tp-switch-container">
-          <div class="tp-switch-label"><label title="Versandkosten in den Preisvergleich einrechnen.">inkl. Versand</label></div>
-          <label class="tp-switch">
-            <input type="checkbox" id="tp-shipping-toggle">
-            <span class="tp-slider"></span>
-          </label>
-        </div>
-        <div class="tp-settings-group tp-switch-container">
-          <div class="tp-switch-label">
-            <label>Mini-Preiskurven (Sparklines) anzeigen</label>
-            <span class="tp-switch-desc">Erfordert zusätzliche Server-Abfragen pro Produkt</span>
-          </div>
-          <label class="tp-switch tp-purple">
-            <input type="checkbox" id="tp-sparklines-toggle">
-            <span class="tp-slider"></span>
-          </label>
-        </div>
-        <div class="tp-settings-group tp-switch-container">
-          <div class="tp-switch-label">
-            <label>Amazon Keepa-Verlauf im Preisverlauf</label>
-            <span class="tp-switch-desc">Zeigt bei Amazon.de-Deals den detaillierten Keepa-Verlauf (Buy Box, Amazon, Neu) im Preisverlauf-Diagramm an</span>
-          </div>
-          <label class="tp-switch tp-purple">
-            <input type="checkbox" id="tp-keepa-chart-toggle">
-            <span class="tp-slider"></span>
-          </label>
-        </div>
-        <div class="tp-group-head-row">
-          <span>Cache & Speicher-Limits</span>
-          <button type="button" class="tp-btn-group-reset" data-reset-group="cache" title="Cache-Einstellungen auf Standard zurücksetzen" aria-label="Cache-Einstellungen auf Standard zurücksetzen">↺</button>
-        </div>
-        <div class="tp-settings-group tp-cache-row">
-          <div id="tp-cache-stats-label">Lokaler Cache: 0 Einträge</div>
-          <button type="button" id="tp-cache-clear-btn" class="tp-btn tp-btn-secondary">🗑️ Cache leeren</button>
-        </div>
-        <div class="tp-settings-group">
-          <label title="Maximale Anzahl an Preishistorien im Arbeitsspeicher (LRU)">RAM-Cache Limit (Einträge)</label>
-          <div class="tp-range-container">
-            <input type="range" id="tp-cache-memory-range" min="100" max="2000" step="50" value="500">
-            <input type="number" id="tp-cache-memory-val" min="100" max="2000" step="50" value="500">
-          </div>
-          <span class="tp-switch-desc tp-field-hint">Hält bis zu N Einträge im Arbeitsspeicher (Standard: 500). Ältere Einträge weichen per LRU.</span>
-        </div>
-        <div class="tp-settings-group">
-          <label title="Maximale Anzahl an Preishistorien im Browser-Speicher (localStorage)">Festplatten-Cache Limit (Einträge)</label>
-          <div class="tp-range-container">
-            <input type="range" id="tp-cache-disk-range" min="100" max="1000" step="50" value="300">
-            <input type="number" id="tp-cache-disk-val" min="100" max="1000" step="50" value="300">
-          </div>
-          <span class="tp-switch-desc tp-field-hint">Maximaler lokaler Browser-Speicher (Standard: 300). Bei Überschreitung wird auf 80% bereinigt.</span>
-        </div>
-        <div class="tp-settings-group tp-danger-zone">
-          <span class="tp-switch-desc">Gefahrenzone: löscht Cache und setzt alle Einstellungen zurück.</span>
-          <button type="button" id="tp-data-reset-btn" class="tp-btn tp-btn-danger" title="Löscht Preis- und Händler-Cache und setzt ALLE Einstellungen (inkl. Discord-Webhook) auf Standard zurück.">🧨 Alle Daten löschen</button>
         </div>
         <div class="tp-settings-group">
           <label title="So lange bleiben Preisdaten lokal gespeichert">Cache-Dauer für Preishistorie (Gültige Daten)</label>
@@ -226,10 +151,73 @@ export function renderDataSection() {
           </select>
           <span class="tp-switch-desc tp-field-hint">Verhindert wiederholte Server-Anfragen bei Produkten ohne Preiskurve</span>
         </div>
+        <div class="tp-settings-group">
+          <label title="Maximale Anzahl an Preishistorien im Arbeitsspeicher (LRU)">RAM-Cache Limit (Einträge)</label>
+          <div class="tp-range-container">
+            <input type="range" id="tp-cache-memory-range" min="100" max="2000" step="50" value="500">
+            <input type="number" id="tp-cache-memory-val" min="100" max="2000" step="50" value="500">
+          </div>
+          <span class="tp-switch-desc tp-field-hint">Hält bis zu N Einträge im Arbeitsspeicher (Standard: 500). Ältere Einträge weichen per LRU.</span>
+        </div>
+        <div class="tp-settings-group">
+          <label title="Maximale Anzahl an Preishistorien im Browser-Speicher (localStorage)">Festplatten-Cache Limit (Einträge)</label>
+          <div class="tp-range-container">
+            <input type="range" id="tp-cache-disk-range" min="100" max="1000" step="50" value="300">
+            <input type="number" id="tp-cache-disk-val" min="100" max="1000" step="50" value="300">
+          </div>
+          <span class="tp-switch-desc tp-field-hint">Maximaler lokaler Browser-Speicher (Standard: 300). Bei Überschreitung wird auf 80% bereinigt.</span>
+        </div>
+          </div>
+        </details>
+        <details class="tp-subsection" data-sub="data-backup">
+          <summary class="tp-subsection-header">📦 Sicherung (Export / Import)</summary>
+          <div class="tp-subsection-body">
         <div class="tp-settings-group tp-btn-row">
           <button type="button" id="tp-export-config-btn" title="Einstellungen als JSON-Datei sichern." class="tp-btn tp-btn-secondary">📥 Export (JSON)</button>
           <button type="button" id="tp-import-config-btn" title="Einstellungen aus einer JSON-Datei wiederherstellen." class="tp-btn tp-btn-secondary">📤 Import (JSON)</button>
           <input type="file" id="tp-import-config-file" accept=".json">
+        </div>
+          </div>
+        </details>
+        <details class="tp-subsection tp-subsection-danger" data-sub="data-danger">
+          <summary class="tp-subsection-header">⚠️ Gefahrenzone</summary>
+          <div class="tp-subsection-body">
+        <div class="tp-settings-group tp-danger-zone">
+          <span class="tp-switch-desc">Gefahrenzone: löscht Cache und setzt alle Einstellungen zurück.</span>
+          <button type="button" id="tp-data-reset-btn" class="tp-btn tp-btn-danger" title="Löscht Preis- und Händler-Cache und setzt ALLE Einstellungen (inkl. Discord-Webhook) auf Standard zurück.">🧨 Alle Daten löschen</button>
+        </div>
+          </div>
+        </details>
+</div>
+      </section>
+  `;
+}
+
+export function renderAboutSection() {
+  return `
+      <section id="tp-section-about" class="tp-section-card tp-section-about">
+<button type="button" class="tp-section-header" aria-expanded="true" aria-controls="tp-section-about-body" data-collapse="tp-section-about"><span class="tp-section-title">ℹ️ Über &amp; Hilfe</span><span class="tp-chevron" aria-hidden="true"></span></button>
+<div class="tp-section-body" id="tp-section-about-body">
+        <div class="tp-about-meta">
+          <div class="tp-about-title-row">
+            <span class="tp-about-name">Toppreise.ch Suite</span>
+            <span id="tp-about-version" class="tp-about-version-pill">vdev</span>
+          </div>
+          <div class="tp-about-facts">
+            <span>Handler: <strong id="tp-about-handler">Browser</strong></span>
+            <span>Autor: <strong>tazztone</strong></span>
+            <span>Lizenz: <strong>MIT</strong></span>
+          </div>
+        </div>
+        <div class="tp-about-links">
+          <a href="https://github.com/tazztone/userscripts" target="_blank" rel="noopener noreferrer" class="tp-about-link"><span>📦 GitHub Repository</span><span class="tp-about-link-arrow" aria-hidden="true">↗</span></a>
+          <a href="https://tazztone.github.io/userscripts/" target="_blank" rel="noopener noreferrer" class="tp-about-link"><span>📖 Doku &amp; Video-Demos</span><span class="tp-about-link-arrow" aria-hidden="true">↗</span></a>
+          <a href="https://github.com/tazztone/userscripts/issues" target="_blank" rel="noopener noreferrer" class="tp-about-link"><span>🐛 Bug melden / Issues</span><span class="tp-about-link-arrow" aria-hidden="true">↗</span></a>
+          <a href="https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js" target="_blank" rel="noopener noreferrer" class="tp-about-link"><span>🔄 Userscript / Update</span><span class="tp-about-link-arrow" aria-hidden="true">↗</span></a>
+        </div>
+        <div class="tp-about-diag-row">
+          <button type="button" id="tp-about-open-diag-btn" class="tp-btn tp-btn-secondary">🛠️ Dev-Diagnose-Log öffnen</button>
+          <span class="tp-switch-desc">Tipp: Shift+Klick oder gedrückt halten auf ⚙️ öffnet das Log direkt.</span>
         </div>
 </div>
       </section>

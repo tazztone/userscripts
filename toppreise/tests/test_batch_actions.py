@@ -296,6 +296,7 @@ def test_openrouter_api_key_cleared_on_modal_close(page: Page):
         return blk && blk.classList.contains('tp-provider-dimmed') ? parseFloat(getComputedStyle(blk).opacity) : 1;
     }""")
     assert or_opacity < 0.8
+    page.locator('#tp-root >> #tp-ai-openrouter-block > summary').click()
     page.click('#tp-root >> #tp-openrouter-api-key-reveal')
     key_input = page.locator('#tp-root >> #tp-openrouter-api-key-input')
     key_input.fill('sk-or-v1-secret-test-key')

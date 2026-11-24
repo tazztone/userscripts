@@ -2036,6 +2036,7 @@ def test_reset_during_pending_fetch_keeps_cache_empty(page: Page):
     # Real reset path: bumps the cache generation mid-flight.
     open_settings(page)
     page.locator('#tp-root >> #tp-settings-dialog').wait_for(state='visible')
+    page.locator('#tp-root >> details[data-sub="data-cache"] > summary').click()
     page.click('#tp-root >> #tp-cache-clear-btn')
     page.click('#tp-root >> #tp-btn-close')
     held_routes[0].fulfill(status=200, headers={'access-control-allow-origin': '*'},

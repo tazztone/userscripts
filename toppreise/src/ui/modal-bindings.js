@@ -92,7 +92,10 @@ export function collectModalElements(shadow) {
   const exportBtn = shadow.getElementById('tp-export-config-btn');
   const importBtn = shadow.getElementById('tp-import-config-btn');
   const importFile = shadow.getElementById('tp-import-config-file');
-  return { shadow, dialog, fabButton, btnResetDefaults, btnClose, btnSave, marginRange, marginVal, filterRememberPerPageTypeToggle, profileActiveBadge, opacityRange, opacityVal, hideAdsToggle, shippingToggle, sortNone, sortDesc, sortAsc, sortDiscount, alarmEnabledToggle, alarmTargetRange, alarmTargetVal, alarmAutoSubmitToggle, heatmapIntensityRange, heatmapIntensityVal, bestpreiseModeToggle, bestpreiseWeightRange, bestpreiseWeightVal, bestpreiseWeightDesc, bestpreiseMinPointsRange, bestpreiseMinPointsVal, bestpreiseHorizonRange, bestpreiseHorizonVal, bestpreiseHorizonDesc, cacheTtlSelect, cacheNegTtlSelect, cacheMemoryRange, cacheMemoryVal, cacheDiskRange, cacheDiskVal, cacheStatsLabel, cacheClearBtn, dataResetBtn, realDealMinRange, realDealMinVal, sparklinesToggle, keepaChartToggle, reviewSearchToggle, reviewKeywordInput, reviewKeywordReset, reviewKeywordPreview, reviewKeywordPreviewNoPrice, reviewKeywordPreviewNoPriceRow, reviewAiModeToggle, tavilyEnabledToggle, tavilyApiKeyInput, tavilyApiKeyReveal, tavilyApiKeyEditor, tavilyApiKeyStatus, tavilySearchDepth, tavilyMaxResults, ...collectAiSectionElements(shadow), dealerAutofetchToggle, discordPrimaryName, discordChannelsList, discordExtraChannels, discordAddChannelBtn, discordWebhookInput, discordWebhookReveal, discordWebhookEditor, discordWebhookStatus, discordDealerEmbedToggle, discordProductEmbedToggle, discordForumTitleToggle, discordLayoutInput, discordLayoutPreview, discordLayoutCount, discordLayoutError, discordLayoutReset, exportBtn, importBtn, importFile, layoutTimer: 0 };
+  const aboutVersion = shadow.getElementById('tp-about-version');
+  const aboutHandler = shadow.getElementById('tp-about-handler');
+  const aboutOpenDiagBtn = shadow.getElementById('tp-about-open-diag-btn');
+  return { shadow, dialog, fabButton, btnResetDefaults, btnClose, btnSave, marginRange, marginVal, filterRememberPerPageTypeToggle, profileActiveBadge, opacityRange, opacityVal, hideAdsToggle, shippingToggle, sortNone, sortDesc, sortAsc, sortDiscount, alarmEnabledToggle, alarmTargetRange, alarmTargetVal, alarmAutoSubmitToggle, heatmapIntensityRange, heatmapIntensityVal, bestpreiseModeToggle, bestpreiseWeightRange, bestpreiseWeightVal, bestpreiseWeightDesc, bestpreiseMinPointsRange, bestpreiseMinPointsVal, bestpreiseHorizonRange, bestpreiseHorizonVal, bestpreiseHorizonDesc, cacheTtlSelect, cacheNegTtlSelect, cacheMemoryRange, cacheMemoryVal, cacheDiskRange, cacheDiskVal, cacheStatsLabel, cacheClearBtn, dataResetBtn, realDealMinRange, realDealMinVal, sparklinesToggle, keepaChartToggle, reviewSearchToggle, reviewKeywordInput, reviewKeywordReset, reviewKeywordPreview, reviewKeywordPreviewNoPrice, reviewKeywordPreviewNoPriceRow, reviewAiModeToggle, tavilyEnabledToggle, tavilyApiKeyInput, tavilyApiKeyReveal, tavilyApiKeyEditor, tavilyApiKeyStatus, tavilySearchDepth, tavilyMaxResults, ...collectAiSectionElements(shadow), dealerAutofetchToggle, discordPrimaryName, discordChannelsList, discordExtraChannels, discordAddChannelBtn, discordWebhookInput, discordWebhookReveal, discordWebhookEditor, discordWebhookStatus, discordDealerEmbedToggle, discordProductEmbedToggle, discordForumTitleToggle, discordLayoutInput, discordLayoutPreview, discordLayoutCount, discordLayoutError, discordLayoutReset, exportBtn, importBtn, importFile, aboutVersion, aboutHandler, aboutOpenDiagBtn, layoutTimer: 0 };
 }
 
 // Built lazily (was setupUI-local): kompakt reads DEFAULT_LAYOUT, which
@@ -203,6 +206,8 @@ export function syncFieldsFromConfig(els) {
 
     renderLayoutPreview(els);
     updateKeywordPreview(els);
+    if (els.aboutVersion) els.aboutVersion.textContent = `v${(typeof GM_info !== 'undefined' && GM_info?.script?.version) || 'dev'}`;
+    if (els.aboutHandler) els.aboutHandler.textContent = (typeof GM_info !== 'undefined' && GM_info?.scriptHandler) || 'Browser';
 }
 
 export function updateKeywordPreview(els) {

@@ -17,8 +17,9 @@ export function renderAiProviderTopMarkup() {
           </select>
         </div>
 
-        <div id="tp-ai-openrouter-block" class="tp-ai-provider-block">
-          <div class="tp-settings-subhead">OpenRouter Web-Suche</div>
+        <details id="tp-ai-openrouter-block" class="tp-subsection tp-ai-provider-block" data-sub="review-openrouter">
+          <summary class="tp-subsection-header">🤖 OpenRouter Web-Suche</summary>
+          <div class="tp-subsection-body">
           <div class="tp-settings-group">
             <label title="OpenRouter API-Key (openrouter.ai). Ermöglicht openrouter:web_search mit Quellenlinks auf Karte, Discord {ai} und Batch-KI.">OpenRouter API-Schlüssel</label>
             <div id="tp-openrouter-api-key-collapsed">
@@ -56,13 +57,17 @@ export function renderAiProviderTopMarkup() {
               </select>
             </div>
           </div>
-        </div>`;
+          </div>
+        </details>`;
 }
 
 export function renderAiBatchSettingsMarkup() {
   return `
-        <div class="tp-group-head-row" style="margin-top:12px;">
-          <span>Batch-Aktionen</span>
+        <details class="tp-subsection" data-sub="review-batch">
+          <summary class="tp-subsection-header">⚡ Batch-Aktionen</summary>
+          <div class="tp-subsection-body">
+        <div class="tp-group-head-row">
+          <span>Batch-Konfiguration</span>
           <button type="button" class="tp-btn-group-reset" data-reset-group="batch" title="Batch-Aktionen auf Standard zurücksetzen" aria-label="Batch-Aktionen auf Standard zurücksetzen">↺</button>
         </div>
         <div class="tp-settings-group" style="display:flex;gap:12px;flex-wrap:wrap;">
@@ -80,7 +85,113 @@ export function renderAiBatchSettingsMarkup() {
             <label for="tp-batch-confirm-threshold-input" title="Ab dieser Anzahl Karten fragt Batch vor Tabs, Händler-Laden oder API-Calls nach (1–100).">Bestätigung ab N Karten</label>
             <input type="number" id="tp-batch-confirm-threshold-input" class="tp-field-dark" min="1" max="100" step="1" value="10">
           </div>
-        </div>`;
+        </div>
+          </div>
+        </details>`;
+}
+
+export function renderReviewSection() {
+  return `
+      <section id="tp-section-review" class="tp-section-card tp-section-review">
+<button type="button" class="tp-section-header" aria-expanded="true" aria-controls="tp-section-review-body" data-collapse="tp-section-review"><span class="tp-section-title">🌐 Web-Suche</span><span class="tp-chevron" aria-hidden="true"></span></button>
+<div class="tp-section-body" id="tp-section-review-body">
+        <div class="tp-group-head-row">
+          <span>Web- &amp; KI-Suche</span>
+          <button type="button" class="tp-btn-group-reset" data-reset-group="review" title="Web-Suche auf Standard zurücksetzen" aria-label="Web-Suche auf Standard zurücksetzen">↺</button>
+        </div>
+        <div class="tp-settings-group tp-switch-container">
+          <div class="tp-switch-label">
+            <label title="Hängt ans Ende jedes Produktnamens ein 🌐-Icon für die Web-Suche.">Web-Suche (🌐) anzeigen</label>
+            <span class="tp-switch-desc">Zeigt auf jeder Produktkarte ein Icon für die externe Web- und KI-Suche</span>
+          </div>
+          <label class="tp-switch tp-purple">
+            <input type="checkbox" id="tp-review-search-toggle">
+            <span class="tp-slider"></span>
+          </label>
+        </div>
+        <div class="tp-settings-group">
+          <label title="Dieser Begriff wird für die Google- und KI-Suche verwendet.">Suchbegriff / Prompt</label>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <input type="text" id="tp-review-keyword-input" class="tp-field-dark" value="Testberichte zu: [Produkt]. Ist der Preis von {preis} ein guter Deal? Bewerte Preis-Leistung, Stärken und Schwächen kurz auf Deutsch." maxlength="150" placeholder="Suchbegriff eingeben…" spellcheck="false" autocomplete="off" style="flex:1;margin-top:0;">
+            <button type="button" id="tp-review-keyword-reset" class="tp-btn tp-btn-secondary" style="padding:6px 10px;font-size:var(--tp-fs-sm);height:32px;white-space:nowrap;" title="Auf Standard-Suchbegriff zurücksetzen">↺ Standard</button>
+          </div>
+          <span class="tp-switch-desc tp-field-hint">Wird für Web- und KI-Suche verwendet. Platzhalter: <code>[Produkt]</code> (wird sonst vorangestellt) und <code>{preis}</code> (ohne Preisdaten automatisch entfernt).</span>
+          <div class="tp-search-preview-box">
+            <div class="tp-search-preview-title">Live-Vorschau (Beispiel: Sony WH-1000XM5)</div>
+            <div class="tp-search-preview-row">
+              <span class="tp-search-preview-badge">Mit Deal-Preis:</span>
+              <span id="tp-review-keyword-preview" class="tp-search-preview-text"></span>
+            </div>
+            <div class="tp-search-preview-row" id="tp-review-keyword-preview-noprice-row">
+              <span class="tp-search-preview-badge">Ohne Preis:</span>
+              <span id="tp-review-keyword-preview-noprice" class="tp-search-preview-text tp-muted"></span>
+            </div>
+          </div>
+        </div>
+        <details class="tp-subsection" data-sub="review-google">
+          <summary class="tp-subsection-header">🔍 Google-Suche</summary>
+          <div class="tp-subsection-body">
+        <div class="tp-settings-group tp-switch-container">
+          <div class="tp-switch-label">
+            <label title="Öffnet die Suche in Googles KI-Modus (Parameter &amp;udm=50).">Im Google KI-Modus öffnen</label>
+            <span class="tp-switch-desc">Google AI Overview Modus (&amp;udm=50) statt klassischer Trefferliste</span>
+          </div>
+          <label class="tp-switch tp-purple">
+            <input type="checkbox" id="tp-review-ai-mode-toggle">
+            <span class="tp-slider"></span>
+          </label>
+        </div>
+          </div>
+        </details>
+
+${renderAiProviderTopMarkup()}
+        <details id="tp-ai-tavily-block" class="tp-subsection tp-ai-provider-block" data-sub="review-tavily">
+          <summary class="tp-subsection-header">🧠 Tavily KI-Suche (Legacy-Direktfazit &amp; Discord)</summary>
+          <div class="tp-subsection-body">
+          <div class="tp-settings-group tp-switch-container">
+            <div class="tp-switch-label">
+              <label title="Aktiviert Tavily KI-Zusammenfassungen für Direkt-Fazit auf der Karte und {ai} in Discord.">Tavily KI-Suche aktivieren</label>
+              <span class="tp-switch-desc">AUS = 🌐 öffnet Websuche direkt, kein KI-Fazit auf Karte &amp; in Discord</span>
+            </div>
+            <label class="tp-switch tp-purple">
+              <input type="checkbox" id="tp-tavily-enabled-toggle">
+              <span class="tp-slider"></span>
+            </label>
+          </div>
+          <div class="tp-settings-group">
+            <label title="Kostenloser Tavily API Key (tavily.com, 1'000 Anfragen/Monat). Ermöglicht KI-Kurzfazit direkt auf der Karte (🌐) und im Discord-Share ({ai}).">API-Schlüssel</label>
+            <div id="tp-tavily-api-key-collapsed">
+              <span id="tp-tavily-api-key-status" class="tp-switch-desc"></span>
+              <button type="button" id="tp-tavily-api-key-reveal" class="tp-btn tp-btn-secondary" aria-expanded="false" aria-controls="tp-tavily-api-key-editor">🔑 Key ersetzen / entfernen</button>
+            </div>
+            <div id="tp-tavily-api-key-editor" style="display: none;">
+              <input type="password" id="tp-tavily-api-key-input" class="tp-field-dark" placeholder="tvly-…" autocomplete="new-password" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
+              <span class="tp-switch-desc tp-field-hint">Kostenloser Key von <a href="https://tavily.com" target="_blank" rel="noopener">tavily.com</a> (1'000 Anfragen/Monat). Ermöglicht KI-Kurzfazit per 1-Klick auf der Karte und <code>{ai}</code> im Discord-Post. Bleibt lokal im Browser.</span>
+            </div>
+          </div>
+          <div class="tp-settings-group" style="display:flex;gap:12px;flex-wrap:wrap;">
+            <div style="flex:1;min-width:140px;">
+              <label title="Suchtiefe: Basic ist schnell (~1-2s). Advanced durchsucht mehr Webquellen (~2-4s).">Tavily Suchtiefe</label>
+              <select id="tp-tavily-search-depth" class="tp-select tp-field-dark">
+                <option value="basic">Basic (schnell, Standard)</option>
+                <option value="advanced">Advanced (gründlich)</option>
+              </select>
+            </div>
+            <div style="flex:1;min-width:140px;">
+              <label title="Anzahl der Webseiten, die Tavily für die Antwort analysiert.">Max. Quellen (Ergebnisse)</label>
+              <select id="tp-tavily-max-results" class="tp-select tp-field-dark">
+                <option value="3">3 Quellen</option>
+                <option value="5" selected>5 Quellen (Standard)</option>
+                <option value="8">8 Quellen</option>
+                <option value="10">10 Quellen</option>
+              </select>
+            </div>
+          </div>
+          </div>
+        </details>
+${renderAiBatchSettingsMarkup()}
+</div>
+      </section>`;
 }
 
 export function collectAiSectionElements(shadow) {
@@ -106,8 +217,14 @@ function syncProviderBlockDimming(els) {
   if (els.tavilyBlock) els.tavilyBlock.classList.toggle('tp-provider-dimmed', prov !== 'tavily');
 }
 
+function revealSelectedProviderBlock(els, prov) {
+  if (prov === 'openrouter' && els.openrouterBlock) els.openrouterBlock.open = true;
+  if (prov === 'tavily' && els.tavilyBlock) els.tavilyBlock.open = true;
+}
+
 export function syncAiSectionFromConfig(els) {
-  if (els.aiProviderSelect) els.aiProviderSelect.value = effectiveAiProvider(CONFIG);
+  const prov = effectiveAiProvider(CONFIG);
+  if (els.aiProviderSelect) els.aiProviderSelect.value = prov;
   if (els.openrouterApiKeyInput) els.openrouterApiKeyInput.value = '';
   if (els.openrouterApiKeyEditor) els.openrouterApiKeyEditor.style.display = 'none';
   if (els.openrouterApiKeyReveal) {
@@ -125,6 +242,7 @@ export function syncAiSectionFromConfig(els) {
   if (els.batchAiTargetSelect) els.batchAiTargetSelect.value = CONFIG.BATCH_AI_TARGET || 'google-ai';
   if (els.batchConfirmThresholdInput) els.batchConfirmThresholdInput.value = String(CONFIG.BATCH_CONFIRM_THRESHOLD ?? 10);
   syncProviderBlockDimming(els);
+  revealSelectedProviderBlock(els, prov);
 }
 
 export function bindAiSectionEvents(els) {
@@ -144,6 +262,7 @@ export function bindAiSectionEvents(els) {
       els.tavilyEnabledToggle.checked = val === 'tavily';
     }
     syncProviderBlockDimming(els);
+    revealSelectedProviderBlock(els, val);
   });
 
   els.tavilyEnabledToggle?.addEventListener('change', () => {
@@ -154,6 +273,7 @@ export function bindAiSectionEvents(els) {
       els.aiProviderSelect.value = 'google';
     }
     syncProviderBlockDimming(els);
+    revealSelectedProviderBlock(els, els.aiProviderSelect.value);
   });
 }
 

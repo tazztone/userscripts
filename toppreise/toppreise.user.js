@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.555
+// @version      2.18.556
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -3270,15 +3270,9 @@ const SHADOW_MODAL_STYLES = `
   }
   dialog#tp-settings-dialog:not([open]) { display: none; }
   dialog#tp-settings-dialog::backdrop { background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
-  dialog#tp-settings-dialog h3 {
-    margin: 0 0 18px;
-    font-size: 18px;
-    font-weight: 700;
-    background: linear-gradient(to right, var(--tp-acc-txt), var(--tp-acc-deep));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    flex-shrink: 0;
-  }
+  .tp-modal-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; flex-shrink: 0; }
+  dialog#tp-settings-dialog h3 { margin: 0; font-size: 18px; font-weight: 700; background: linear-gradient(to right, var(--tp-acc-txt), var(--tp-acc-deep)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; flex-shrink: 0; }
+  .tp-btn-compact { padding: 4px 10px; min-height: 28px; font-size: var(--tp-fs-sm); white-space: nowrap; }
   #tp-settings-sections {
     display: flex;
     flex-direction: column;
@@ -3298,15 +3292,39 @@ const SHADOW_MODAL_STYLES = `
     text-underline-offset: 3px !important;
     cursor: help !important;
   }
-  .tp-section-card { background: rgba(255, 255, 255, 0.65); border: 1px solid var(--tp-line-soft); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+  .tp-section-card { background: rgba(255, 255, 255, 0.72); border: 1px solid var(--tp-line-soft); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
   .tp-section-card.tp-flash { border-color: var(--tp-blue-soft); box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.45); transition: border-color 0.2s ease, box-shadow 0.2s ease; }
-  .tp-section-card .tp-settings-group { margin-bottom: 10px; }
-  .tp-section-header { background:none; border:none; padding:6px 0; min-height:32px; margin:0; width:100%; display:flex; align-items:center; justify-content:space-between; gap:8px; cursor:pointer; font-size:13px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; color:var(--tp-txt); font-family:inherit; }
+  .tp-section-card .tp-settings-group { margin-bottom: 8px; }
+  .tp-section-header { background:none; border:none; padding:6px 8px; min-height:32px; margin:-2px -6px; width:calc(100% + 12px); display:flex; align-items:center; justify-content:space-between; gap:8px; cursor:pointer; font-size:13px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; color:var(--tp-txt); font-family:inherit; border-radius:8px; transition:background 0.15s ease; }
+  .tp-section-header:hover { background: rgba(15, 23, 42, 0.05); }
   .tp-section-header:focus-visible { outline:2px solid var(--tp-focus); outline-offset:2px; border-radius:6px; }
   .tp-section-header .tp-chevron { color: var(--tp-mut); font-size: 14px; }
   .tp-section-header .tp-chevron::after { content:"▾"; display:inline-block; transition:transform .15s ease; }
   section.tp-collapsed .tp-section-header .tp-chevron::after { transform:rotate(-90deg); }
   section.tp-collapsed .tp-section-body { display:none; }
+  .tp-section-body { display: flex; flex-direction: column; gap: 8px; padding-top: 8px; border-top: 1px solid rgba(15, 23, 42, 0.06); }
+  details.tp-subsection { background: rgba(15, 23, 42, 0.025); border: 1px solid var(--tp-line-soft); border-radius: 10px; padding: 0 12px; margin: 2px 0; }
+  details.tp-subsection[open] { background: rgba(255, 255, 255, 0.65); }
+  details.tp-subsection.tp-subsection-danger { border-color: rgba(239, 68, 68, 0.45); background: rgba(239, 68, 68, 0.03); }
+  summary.tp-subsection-header { list-style: none; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 0; min-height: 28px; cursor: pointer; font-size: 12px; font-weight: 700; color: var(--tp-txt); user-select: none; }
+  summary.tp-subsection-header::-webkit-details-marker { display: none; }
+  summary.tp-subsection-header:hover { color: var(--tp-acc-txt); }
+  summary.tp-subsection-header:focus-visible { outline: 2px solid var(--tp-focus); outline-offset: 2px; border-radius: 6px; }
+  summary.tp-subsection-header::after { content: "▸"; color: var(--tp-mut); font-size: 13px; flex-shrink: 0; }
+  details.tp-subsection[open] > summary.tp-subsection-header::after { content: "▾"; }
+  details.tp-subsection[open] > .tp-subsection-body { padding: 8px 0 10px; border-top: 1px solid rgba(15, 23, 42, 0.07); display: flex; flex-direction: column; gap: 8px; }
+  .tp-about-meta { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; background: rgba(15, 23, 42, 0.03); border: 1px solid var(--tp-line-soft); border-radius: 10px; }
+  .tp-about-title-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .tp-about-name { font-size: 14px; font-weight: 700; color: var(--tp-txt); }
+  .tp-about-version-pill { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 9999px; background: rgba(16, 185, 129, 0.14); color: var(--tp-acc-deep, #047857); border: 1px solid rgba(16, 185, 129, 0.3); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .tp-about-facts { font-size: var(--tp-fs-sm); color: var(--tp-mut); display: flex; flex-wrap: wrap; gap: 6px 12px; }
+  .tp-about-links { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  @media (max-width: 480px) { .tp-about-links { grid-template-columns: 1fr; } }
+  .tp-about-link { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--tp-line-soft); background: rgba(255, 255, 255, 0.8); color: var(--tp-txt); text-decoration: none; font-size: var(--tp-fs-md); font-weight: 600; transition: background 0.15s ease, border-color 0.15s ease; }
+  .tp-about-link:hover { background: rgba(16, 185, 129, 0.08); border-color: rgba(16, 185, 129, 0.45); }
+  .tp-about-link:focus-visible { outline: 2px solid var(--tp-focus); outline-offset: 2px; }
+  .tp-about-link-arrow { color: var(--tp-mut); font-size: 12px; }
+  .tp-about-diag-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding-top: 4px; }
   .tp-danger-zone { border:1px solid rgba(239,68,68,.45); border-radius:10px; padding:10px 12px; }
   .tp-btn-danger { border:1px solid rgba(239,68,68,.6); color:#b91c1c; background:rgba(239,68,68,.08); }
   .tp-section-card { border-color: var(--tp-line-soft); }
@@ -3815,9 +3833,10 @@ const SHADOW_MODAL_STYLES = `
   @media (hover: none), (pointer: coarse) {
     #tp-settings-fab { width: 42px; height: 42px; }
     #tp-toast-container { bottom: 56px; }
-    .tp-btn, .tp-share-channel-btn { min-height: 36px; touch-action: manipulation; }
+    .tp-btn, .tp-btn-compact, .tp-share-channel-btn { min-height: 36px; touch-action: manipulation; }
     .tp-btn-group-reset { min-width: 32px; min-height: 32px; font-size: 15px; }
     .tp-section-header { min-height: 38px; }
+    summary.tp-subsection-header { min-height: 36px; }
     .tp-share-preview-close, .tp-discord-remove-channel-btn { min-width: 36px; min-height: 36px; }
     .tp-range-container input[type="range"] { min-height: 34px; }
     .tp-range-container input[type="range"]::-webkit-slider-thumb { width: 22px; height: 22px; }
@@ -5223,7 +5242,7 @@ const SHADOW_MODAL_STYLES = `
   const RESET_GROUPS = Object.freeze({
     display: {
       label: 'Ansicht',
-      keys: ['DIM_OPACITY', 'HEATMAP_INTENSITY', 'HEATMAP_ENABLED', 'HIDE_ADS']
+      keys: ['DIM_OPACITY', 'HEATMAP_INTENSITY', 'HEATMAP_ENABLED', 'HIDE_ADS', 'ENABLE_SPARKLINES', 'KEEPA_CHART_ENABLED']
     },
     review: {
       label: 'Web-Suche',
@@ -5264,7 +5283,7 @@ const SHADOW_MODAL_STYLES = `
       label: 'Berechnungsparameter & Analyse',
       keys: [
         'BESTPREISE_WEIGHT_RECORD', 'BESTPREISE_MIN_POINTS', 'BESTPREISE_MEDIAN_HORIZON_DAYS',
-        'REAL_DEAL_MIN_DISCOUNT', 'USE_SHIPPING_PRICE', 'ENABLE_SPARKLINES', 'KEEPA_CHART_ENABLED',
+        'REAL_DEAL_MIN_DISCOUNT', 'USE_SHIPPING_PRICE',
         'OUTLIER_REJECTION_ENABLED', 'OUTLIER_DEVIATION_BAND', 'OUTLIER_MAX_GLITCH_HOURS'
       ]
     },
@@ -14747,6 +14766,211 @@ const SHADOW_MODAL_STYLES = `
    * `from './ui/badges.js'` path keeps working.
    */
 
+  // ─── MODULE: src/ui/toast.js ────────────────────────────────────────────────
+  /**
+   * Toast Notification Component
+   * Renders glassmorphic notifications inside Shadow DOM.
+   */
+
+
+  let lastToastMessage = '';
+
+  function getLastToastMessage() {
+    return lastToastMessage;
+  }
+
+  function showToast(message) {
+    lastToastMessage = message;
+    if (typeof document === 'undefined') return;
+    const { shadow } = ensureSkeleton();
+    const container = shadow?.getElementById('tp-toast-container');
+    if (!container) return;
+
+    const toast = document.createElement('div');
+    toast.className = 'tp-toast';
+    const textSpan = document.createElement('span');
+    textSpan.textContent = message;
+    toast.appendChild(textSpan);
+
+    container.appendChild(toast);
+    setTimeout(() => {
+      toast.classList.add('fade-out');
+      setTimeout(() => toast.remove(), 400);
+    }, 2500);
+  }
+
+  // ─── MODULE: src/ui/diag-modal.js ───────────────────────────────────────────
+  /**
+   * Dev Diagnostic Log Modal
+   * Triggered by 600ms long-press or Shift+Click on #tp-settings-fab, or ToppreiseSuite.openDiagLog().
+   * Displays live runtime snapshot and secret-redacted in-memory activity log.
+   */
+
+
+
+
+
+
+
+
+  let suppressNextFabClick = false;
+
+  function openDiagModal(shadow) {
+    if (!shadow) return;
+    let dialog = shadow.getElementById('tp-diag-dialog');
+    let unsub = null;
+
+    const renderSnapshotAndLog = () => {
+      if (!dialog) return;
+      const snapEl = dialog.querySelector('#tp-diag-snapshot');
+      const preEl = dialog.querySelector('#tp-diag-log-pre');
+      const debugToggle = dialog.querySelector('#tp-diag-debug-toggle');
+      if (debugToggle) debugToggle.checked = CONFIG.DEBUG === true;
+
+      const refresh = getFeedRefreshState();
+      const version = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || 'dev';
+      const snapLines = [
+        `v${version} | page=${getPageProfileType()} | DEBUG=${!!CONFIG.DEBUG}`,
+        `scan: active=${scanState.isBatchChecking} (${scanState.progress?.completed || 0}/${scanState.progress?.total || 0}) | activeFetches=${activeFetches.size}`,
+        `refresh: active=${refresh.active} stage=${refresh.stage} last=${refresh.lastOutcome || '-'}${refresh.lastError ? ` err=${refresh.lastError}` : ''}`,
+      ];
+      if (snapEl) snapEl.textContent = snapLines.join('\n');
+
+      const entries = getActivityLog();
+      const warnOnly = !!dialog.querySelector('#tp-diag-warn-filter')?.checked;
+      const filtered = warnOnly
+        ? entries.filter((e) => e.level === 'warn' || e.level === 'error')
+        : entries;
+      if (preEl) {
+        preEl.textContent = filtered.length > 0 ? formatActivityLogText(filtered) : '(keine Einträge)';
+        preEl.scrollTop = preEl.scrollHeight;
+      }
+    };
+
+    if (!dialog) {
+      dialog = document.createElement('dialog');
+      dialog.id = 'tp-diag-dialog';
+      dialog.setAttribute('role', 'dialog');
+      dialog.setAttribute('aria-modal', 'true');
+      dialog.setAttribute('aria-labelledby', 'tp-diag-title');
+      dialog.innerHTML = `
+        <div class="tp-diag-head">
+          <strong id="tp-diag-title">🛠️ Toppreise Dev-Diagnose-Log</strong>
+          <button type="button" id="tp-diag-close-btn" class="tp-btn tp-btn-secondary">Schliessen</button>
+        </div>
+        <pre id="tp-diag-snapshot"></pre>
+        <div class="tp-diag-toolbar">
+          <label><input type="checkbox" id="tp-diag-warn-filter"> Nur Warn+Err</label>
+          <label><input type="checkbox" id="tp-diag-debug-toggle"> Debug-Konsole</label>
+          <button type="button" id="tp-diag-refresh-btn" class="tp-btn tp-btn-secondary">Aktualisieren</button>
+          <button type="button" id="tp-diag-copy-btn" class="tp-btn tp-btn-secondary">Kopieren</button>
+          <button type="button" id="tp-diag-clear-btn" class="tp-btn tp-btn-secondary">Leeren</button>
+        </div>
+        <pre id="tp-diag-log-pre"></pre>
+      `;
+      shadow.appendChild(dialog);
+
+      dialog.querySelector('#tp-diag-close-btn').addEventListener('click', () => dialog.close());
+      dialog.querySelector('#tp-diag-refresh-btn').addEventListener('click', renderSnapshotAndLog);
+      dialog.querySelector('#tp-diag-clear-btn').addEventListener('click', () => {
+        clearActivityLog();
+        renderSnapshotAndLog();
+      });
+      dialog.querySelector('#tp-diag-warn-filter').addEventListener('change', () => {
+        renderSnapshotAndLog();
+      });
+      dialog.querySelector('#tp-diag-debug-toggle').addEventListener('change', (e) => {
+        const next = !!e.target.checked;
+        updateConfig('DEBUG', next);
+        showToast(next ? 'Debug-Konsole AN' : 'Debug-Konsole AUS');
+        renderSnapshotAndLog();
+      });
+      dialog.querySelector('#tp-diag-copy-btn').addEventListener('click', async () => {
+        const txt = `${dialog.querySelector('#tp-diag-snapshot')?.textContent || ''}\n\n${dialog.querySelector('#tp-diag-log-pre')?.textContent || ''}`;
+        try {
+          await navigator.clipboard?.writeText(txt);
+          showToast('Diagnose-Log kopiert');
+        } catch {
+          showToast('Kopieren fehlgeschlagen');
+        }
+      });
+      dialog.addEventListener('click', (e) => {
+        if (e.target === dialog) dialog.close();
+      });
+    }
+
+    renderSnapshotAndLog();
+    dialog._tpUnsub?.();
+    unsub = subscribeActivityLog(() => {
+      if (dialog.open) renderSnapshotAndLog();
+    });
+    dialog._tpUnsub = () => {
+      if (unsub) {
+        unsub();
+        unsub = null;
+      }
+    };
+    dialog.addEventListener('close', () => {
+      dialog._tpUnsub?.();
+    }, { once: true });
+
+    if (!dialog.open) {
+      if (typeof dialog.showModal === 'function') dialog.showModal();
+      else dialog.setAttribute('open', '');
+    }
+  }
+
+  function bindDiagTrigger(fabButton, shadow) {
+    if (!fabButton || !shadow || fabButton.dataset?.tpDiagBound) return;
+    if (fabButton.dataset) fabButton.dataset.tpDiagBound = '1';
+    fabButton.title = 'Toppreise Suite Einstellungen öffnen (Gedrückt halten / Shift+Klick = Dev-Log)';
+
+    let pressTimer = null;
+    let startX = 0;
+    let startY = 0;
+
+    const clearPress = () => {
+      if (pressTimer !== null) {
+        clearTimeout(pressTimer);
+        pressTimer = null;
+      }
+    };
+
+    fabButton.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      suppressNextFabClick = false;
+      clearPress();
+      startX = e.clientX;
+      startY = e.clientY;
+      pressTimer = setTimeout(() => {
+        pressTimer = null;
+        suppressNextFabClick = true;
+        setTimeout(() => { suppressNextFabClick = false; }, 400);
+        openDiagModal(shadow);
+      }, 600);
+    });
+
+    fabButton.addEventListener('pointermove', (e) => {
+      if (pressTimer === null) return;
+      if (Math.hypot(e.clientX - startX, e.clientY - startY) > 10) {
+        clearPress();
+      }
+    });
+
+    fabButton.addEventListener('pointerup', clearPress);
+    fabButton.addEventListener('pointerleave', clearPress);
+    fabButton.addEventListener('pointercancel', clearPress);
+
+    fabButton.addEventListener('click', (e) => {
+      if (suppressNextFabClick || e.shiftKey) {
+        suppressNextFabClick = false;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        if (e.shiftKey) openDiagModal(shadow);
+      }
+    });
+  }
+
   // ─── MODULE: src/ui/shell.js ────────────────────────────────────────────────
   /**
    * Shadow DOM Shell
@@ -14778,7 +15002,10 @@ const SHADOW_MODAL_STYLES = `
           </svg>
         </button>
         <dialog id="tp-settings-dialog" role="dialog" aria-modal="true" aria-labelledby="tp-settings-title">
-          <h3 id="tp-settings-title">Toppreise Suite Einstellungen</h3>
+          <div class="tp-modal-header">
+            <h3 id="tp-settings-title">Toppreise Suite Einstellungen</h3>
+            <button type="button" id="tp-btn-collapse-all" class="tp-btn tp-btn-secondary tp-btn-compact" aria-label="Alle Bereiche ein- oder ausklappen">Alle einklappen</button>
+          </div>
           <div id="tp-settings-sections"></div>
           <div class="tp-modal-actions">
             <button type="button" class="tp-btn tp-btn-secondary" id="tp-btn-reset-defaults" title="Setzt alle Einstellungen auf die Standardwerte zurück">Einstellungen auf Standardwerte zurücksetzen</button>
@@ -14798,18 +15025,17 @@ const SHADOW_MODAL_STYLES = `
    * Extracted from modal-template.js to respect module size limits.
    */
 
-
   function renderDiscordSection() {
     return `
         <section id="tp-section-discord" class="tp-section-card tp-section-discord">
   <button type="button" class="tp-section-header" aria-expanded="true" aria-controls="tp-section-discord-body" data-collapse="tp-section-discord"><span class="tp-section-title">💬 Discord Share</span><span class="tp-chevron" aria-hidden="true"></span></button>
   <div class="tp-section-body" id="tp-section-discord-body">
           <div class="tp-group-head-row">
-            <span>Nachrichten- & Embed-Optionen</span>
+            <span>Kanäle &amp; Webhooks</span>
             <button type="button" class="tp-btn-group-reset" data-reset-group="discord" title="Discord-Optionen auf Standard zurücksetzen" aria-label="Discord-Optionen auf Standard zurücksetzen">↺</button>
           </div>
           <div class="tp-settings-group">
-            <label title="Webhooks deiner Discord-Kanäle (Kanal-Einstellungen → Integrationen → Webhook). Nur lokal gespeichert, nie exportiert.">📤 Discord Kanäle & Webhooks (Deals-Share)</label>
+            <label title="Webhooks deiner Discord-Kanäle (Kanal-Einstellungen → Integrationen → Webhook). Nur lokal gespeichert, nie exportiert.">📤 Discord Kanäle &amp; Webhooks (Deals-Share)</label>
             <div id="tp-discord-channels-list" class="tp-discord-channels-list">
               <div class="tp-discord-channel-card" data-channel-id="default">
                 <div class="tp-discord-channel-header">
@@ -14828,6 +15054,9 @@ const SHADOW_MODAL_STYLES = `
             </div>
             <button type="button" id="tp-discord-add-channel-btn" class="tp-btn tp-btn-secondary" style="margin-top: 6px;">➕ Weiteren Kanal hinzufügen</button>
           </div>
+          <details class="tp-subsection" data-sub="discord-embeds">
+            <summary class="tp-subsection-header">🖼️ Embed- &amp; Foren-Optionen</summary>
+            <div class="tp-subsection-body">
           <div class="tp-settings-group tp-switch-container">
             <div class="tp-switch-label">
               <label title="Unterdrückt die automatische Händler-Link-Vorschau (Embed) unter Discord-Posts.">Händler-Link Embed</label>
@@ -14858,6 +15087,11 @@ const SHADOW_MODAL_STYLES = `
               <span class="tp-slider"></span>
             </label>
           </div>
+            </div>
+          </details>
+          <details class="tp-subsection" data-sub="discord-layout">
+            <summary class="tp-subsection-header">🧩 Nachrichten-Layout (Baukasten)</summary>
+            <div class="tp-subsection-body">
           <div class="tp-settings-group">
             <label for="tp-discord-layout-input" title="Aufbau der Discord-Nachricht (eine Zeile je Baustein)">Nachrichten-Layout (Baukasten)</label>
             <div>
@@ -14884,6 +15118,8 @@ const SHADOW_MODAL_STYLES = `
             <span id="tp-discord-layout-error" class="tp-switch-desc"></span>
             <button type="button" id="tp-discord-layout-reset" class="tp-btn tp-btn-secondary" title="Layout auf Standard zurücksetzen">Layout zurücksetzen</button>
           </div>
+            </div>
+          </details>
   </div>
         </section>
     `;
@@ -14892,10 +15128,18 @@ const SHADOW_MODAL_STYLES = `
   function renderDataSection() {
     return `
         <section id="tp-section-data" class="tp-section-card tp-section-data">
-  <button type="button" class="tp-section-header" aria-expanded="true" aria-controls="tp-section-data-body" data-collapse="tp-section-data"><span class="tp-section-title">💾 Daten & Cache</span><span class="tp-chevron" aria-hidden="true"></span></button>
+  <button type="button" class="tp-section-header" aria-expanded="true" aria-controls="tp-section-data-body" data-collapse="tp-section-data"><span class="tp-section-title">💾 Daten &amp; Cache</span><span class="tp-chevron" aria-hidden="true"></span></button>
   <div class="tp-section-body" id="tp-section-data-body">
-          <div class="tp-settings-group">
-            <span class="tp-switch-desc tp-field-hint">Ausreisser-Filter (Glitch-Erkennung): siehe ⚖️-Popover in der Filterleiste.</span>
+          <details class="tp-subsection" data-sub="data-cache">
+            <summary class="tp-subsection-header">🗄️ Cache, Abruf &amp; Limits</summary>
+            <div class="tp-subsection-body">
+          <div class="tp-group-head-row">
+            <span>Cache &amp; Speicher-Limits</span>
+            <button type="button" class="tp-btn-group-reset" data-reset-group="cache" title="Cache-Einstellungen auf Standard zurücksetzen" aria-label="Cache-Einstellungen auf Standard zurücksetzen">↺</button>
+          </div>
+          <div class="tp-settings-group tp-cache-row">
+            <div id="tp-cache-stats-label">Lokaler Cache: 0 Einträge</div>
+            <button type="button" id="tp-cache-clear-btn" class="tp-btn tp-btn-secondary">🗑️ Cache leeren</button>
           </div>
           <div class="tp-settings-group tp-switch-container">
             <div class="tp-switch-label">
@@ -14907,9 +15151,520 @@ const SHADOW_MODAL_STYLES = `
               <span class="tp-slider"></span>
             </label>
           </div>
+          <div class="tp-settings-group">
+            <label title="So lange bleiben Preisdaten lokal gespeichert">Cache-Dauer für Preishistorie (Gültige Daten)</label>
+            <select id="tp-cache-ttl-select" class="tp-select tp-field-dark">
+              <option value="24">24 Stunden (1 Tag)</option>
+              <option value="48">48 Stunden (2 Tage) [Standard]</option>
+              <option value="72">72 Stunden (3 Tage)</option>
+              <option value="168">7 Tage (1 Woche)</option>
+              <option value="336">14 Tage (2 Wochen)</option>
+            </select>
+            <span class="tp-switch-desc tp-field-hint">Bestimmt, wie lange abgefragte Preisstatistiken lokal gespeichert bleiben</span>
+          </div>
+          <div class="tp-settings-group">
+            <label title="So lange werden leere Ergebnisse zwischengespeichert">Negativ-Cache Dauer (Nicht verfügbare Daten)</label>
+            <select id="tp-cache-neg-ttl-select" class="tp-select tp-field-dark">
+              <option value="1">1 Stunde</option>
+              <option value="2">2 Stunden [Standard]</option>
+              <option value="6">6 Stunden</option>
+              <option value="12">12 Stunden</option>
+              <option value="24">24 Stunden</option>
+            </select>
+            <span class="tp-switch-desc tp-field-hint">Verhindert wiederholte Server-Anfragen bei Produkten ohne Preiskurve</span>
+          </div>
+          <div class="tp-settings-group">
+            <label title="Maximale Anzahl an Preishistorien im Arbeitsspeicher (LRU)">RAM-Cache Limit (Einträge)</label>
+            <div class="tp-range-container">
+              <input type="range" id="tp-cache-memory-range" min="100" max="2000" step="50" value="500">
+              <input type="number" id="tp-cache-memory-val" min="100" max="2000" step="50" value="500">
+            </div>
+            <span class="tp-switch-desc tp-field-hint">Hält bis zu N Einträge im Arbeitsspeicher (Standard: 500). Ältere Einträge weichen per LRU.</span>
+          </div>
+          <div class="tp-settings-group">
+            <label title="Maximale Anzahl an Preishistorien im Browser-Speicher (localStorage)">Festplatten-Cache Limit (Einträge)</label>
+            <div class="tp-range-container">
+              <input type="range" id="tp-cache-disk-range" min="100" max="1000" step="50" value="300">
+              <input type="number" id="tp-cache-disk-val" min="100" max="1000" step="50" value="300">
+            </div>
+            <span class="tp-switch-desc tp-field-hint">Maximaler lokaler Browser-Speicher (Standard: 300). Bei Überschreitung wird auf 80% bereinigt.</span>
+          </div>
+            </div>
+          </details>
+          <details class="tp-subsection" data-sub="data-backup">
+            <summary class="tp-subsection-header">📦 Sicherung (Export / Import)</summary>
+            <div class="tp-subsection-body">
+          <div class="tp-settings-group tp-btn-row">
+            <button type="button" id="tp-export-config-btn" title="Einstellungen als JSON-Datei sichern." class="tp-btn tp-btn-secondary">📥 Export (JSON)</button>
+            <button type="button" id="tp-import-config-btn" title="Einstellungen aus einer JSON-Datei wiederherstellen." class="tp-btn tp-btn-secondary">📤 Import (JSON)</button>
+            <input type="file" id="tp-import-config-file" accept=".json">
+          </div>
+            </div>
+          </details>
+          <details class="tp-subsection tp-subsection-danger" data-sub="data-danger">
+            <summary class="tp-subsection-header">⚠️ Gefahrenzone</summary>
+            <div class="tp-subsection-body">
+          <div class="tp-settings-group tp-danger-zone">
+            <span class="tp-switch-desc">Gefahrenzone: löscht Cache und setzt alle Einstellungen zurück.</span>
+            <button type="button" id="tp-data-reset-btn" class="tp-btn tp-btn-danger" title="Löscht Preis- und Händler-Cache und setzt ALLE Einstellungen (inkl. Discord-Webhook) auf Standard zurück.">🧨 Alle Daten löschen</button>
+          </div>
+            </div>
+          </details>
+  </div>
+        </section>
+    `;
+  }
+
+  function renderAboutSection() {
+    return `
+        <section id="tp-section-about" class="tp-section-card tp-section-about">
+  <button type="button" class="tp-section-header" aria-expanded="true" aria-controls="tp-section-about-body" data-collapse="tp-section-about"><span class="tp-section-title">ℹ️ Über &amp; Hilfe</span><span class="tp-chevron" aria-hidden="true"></span></button>
+  <div class="tp-section-body" id="tp-section-about-body">
+          <div class="tp-about-meta">
+            <div class="tp-about-title-row">
+              <span class="tp-about-name">Toppreise.ch Suite</span>
+              <span id="tp-about-version" class="tp-about-version-pill">vdev</span>
+            </div>
+            <div class="tp-about-facts">
+              <span>Handler: <strong id="tp-about-handler">Browser</strong></span>
+              <span>Autor: <strong>tazztone</strong></span>
+              <span>Lizenz: <strong>MIT</strong></span>
+            </div>
+          </div>
+          <div class="tp-about-links">
+            <a href="https://github.com/tazztone/userscripts" target="_blank" rel="noopener noreferrer" class="tp-about-link"><span>📦 GitHub Repository</span><span class="tp-about-link-arrow" aria-hidden="true">↗</span></a>
+            <a href="https://tazztone.github.io/userscripts/" target="_blank" rel="noopener noreferrer" class="tp-about-link"><span>📖 Doku &amp; Video-Demos</span><span class="tp-about-link-arrow" aria-hidden="true">↗</span></a>
+            <a href="https://github.com/tazztone/userscripts/issues" target="_blank" rel="noopener noreferrer" class="tp-about-link"><span>🐛 Bug melden / Issues</span><span class="tp-about-link-arrow" aria-hidden="true">↗</span></a>
+            <a href="https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js" target="_blank" rel="noopener noreferrer" class="tp-about-link"><span>🔄 Userscript / Update</span><span class="tp-about-link-arrow" aria-hidden="true">↗</span></a>
+          </div>
+          <div class="tp-about-diag-row">
+            <button type="button" id="tp-about-open-diag-btn" class="tp-btn tp-btn-secondary">🛠️ Dev-Diagnose-Log öffnen</button>
+            <span class="tp-switch-desc">Tipp: Shift+Klick oder gedrückt halten auf ⚙️ öffnet das Log direkt.</span>
+          </div>
+  </div>
+        </section>
+    `;
+  }
+
+  // ─── MODULE: src/ui/modal-ai-section.js ─────────────────────────────────────
+  /**
+   * Settings Modal: OpenRouter Web Search & Batch Settings Section
+   * Extracted to keep modal-template.js, modal-bindings.js & modal-actions.js < 25 KB.
+   */
+
+
+  function renderAiProviderTopMarkup() {
+    return `
+          <div class="tp-settings-subhead">KI-Anbieter (Direkt-Fazit, Discord &amp; Batch)</div>
+          <div class="tp-settings-group">
+            <label for="tp-ai-provider-select" title="Wähle, ob 🌐 auf der Karte direkt ein KI-Fazit via OpenRouter/Tavily lädt oder Google-Suche öffnet.">Aktiver KI-Anbieter</label>
+            <select id="tp-ai-provider-select" class="tp-select tp-field-dark">
+              <option value="google">Google Web-Suche (Standard, kein Key)</option>
+              <option value="openrouter">OpenRouter (openrouter:web_search + Quellen)</option>
+              <option value="tavily">Tavily (Legacy-Direktfazit)</option>
+            </select>
+          </div>
+
+          <details id="tp-ai-openrouter-block" class="tp-subsection tp-ai-provider-block" data-sub="review-openrouter">
+            <summary class="tp-subsection-header">🤖 OpenRouter Web-Suche</summary>
+            <div class="tp-subsection-body">
+            <div class="tp-settings-group">
+              <label title="OpenRouter API-Key (openrouter.ai). Ermöglicht openrouter:web_search mit Quellenlinks auf Karte, Discord {ai} und Batch-KI.">OpenRouter API-Schlüssel</label>
+              <div id="tp-openrouter-api-key-collapsed">
+                <span id="tp-openrouter-api-key-status" class="tp-switch-desc"></span>
+                <button type="button" id="tp-openrouter-api-key-reveal" class="tp-btn tp-btn-secondary" aria-expanded="false" aria-controls="tp-openrouter-api-key-editor">🔑 Key ersetzen / entfernen</button>
+              </div>
+              <div id="tp-openrouter-api-key-editor" style="display: none;">
+                <input type="password" id="tp-openrouter-api-key-input" class="tp-field-dark" placeholder="sk-or-v1-…" autocomplete="new-password" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
+                <span class="tp-switch-desc tp-field-hint">Key von <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai</a>. Bleibt lokal &amp; GM-privat im Browser.</span>
+              </div>
+            </div>
+            <div class="tp-settings-group">
+              <label for="tp-openrouter-model-input" title="OpenRouter Modell-ID für Web-Suche &amp; Batch-Vergleich.">OpenRouter Modell</label>
+              <input type="text" id="tp-openrouter-model-input" class="tp-field-dark" placeholder="google/gemini-2.5-flash" spellcheck="false">
+            </div>
+            <div class="tp-settings-group" style="display:flex;gap:12px;flex-wrap:wrap;">
+              <div style="flex:1;min-width:140px;">
+                <label for="tp-openrouter-engine-select" title="Web-Search Engine für openrouter:web_search.">Such-Engine</label>
+                <select id="tp-openrouter-engine-select" class="tp-select tp-field-dark">
+                  <option value="auto">Auto (Standard)</option>
+                  <option value="native">Native</option>
+                  <option value="exa">Exa</option>
+                  <option value="parallel">Parallel</option>
+                  <option value="perplexity">Perplexity</option>
+                  <option value="firecrawl">Firecrawl</option>
+                </select>
+              </div>
+              <div style="flex:1;min-width:140px;">
+                <label for="tp-openrouter-max-results" title="Maximale Web-Quellen pro OpenRouter-Anfrage.">Max. Quellen</label>
+                <select id="tp-openrouter-max-results" class="tp-select tp-field-dark">
+                  <option value="3">3 Quellen</option>
+                  <option value="5" selected>5 Quellen (Standard)</option>
+                  <option value="8">8 Quellen</option>
+                  <option value="10">10 Quellen</option>
+                </select>
+              </div>
+            </div>
+            </div>
+          </details>`;
+  }
+
+  function renderAiBatchSettingsMarkup() {
+    return `
+          <details class="tp-subsection" data-sub="review-batch">
+            <summary class="tp-subsection-header">⚡ Batch-Aktionen</summary>
+            <div class="tp-subsection-body">
           <div class="tp-group-head-row">
-            <span>Berechnungsparameter & Analyse</span>
+            <span>Batch-Konfiguration</span>
+            <button type="button" class="tp-btn-group-reset" data-reset-group="batch" title="Batch-Aktionen auf Standard zurücksetzen" aria-label="Batch-Aktionen auf Standard zurücksetzen">↺</button>
+          </div>
+          <div class="tp-settings-group" style="display:flex;gap:12px;flex-wrap:wrap;">
+            <div style="flex:1;min-width:150px;">
+              <label for="tp-batch-ai-target-select" title="Ziel-Plattform für 🤖 KI-Vergleich im Batch-Menü.">Batch KI-Vergleich Ziel</label>
+              <select id="tp-batch-ai-target-select" class="tp-select tp-field-dark">
+                <option value="google-ai">Google AI-Modus (&amp;udm=50)</option>
+                <option value="openrouter">OpenRouter (In-Page)</option>
+                <option value="chatgpt">ChatGPT</option>
+                <option value="perplexity">Perplexity</option>
+                <option value="claude">Claude</option>
+              </select>
+            </div>
+            <div style="flex:1;min-width:140px;">
+              <label for="tp-batch-confirm-threshold-input" title="Ab dieser Anzahl Karten fragt Batch vor Tabs, Händler-Laden oder API-Calls nach (1–100).">Bestätigung ab N Karten</label>
+              <input type="number" id="tp-batch-confirm-threshold-input" class="tp-field-dark" min="1" max="100" step="1" value="10">
+            </div>
+          </div>
+            </div>
+          </details>`;
+  }
+
+  function renderReviewSection() {
+    return `
+        <section id="tp-section-review" class="tp-section-card tp-section-review">
+  <button type="button" class="tp-section-header" aria-expanded="true" aria-controls="tp-section-review-body" data-collapse="tp-section-review"><span class="tp-section-title">🌐 Web-Suche</span><span class="tp-chevron" aria-hidden="true"></span></button>
+  <div class="tp-section-body" id="tp-section-review-body">
+          <div class="tp-group-head-row">
+            <span>Web- &amp; KI-Suche</span>
+            <button type="button" class="tp-btn-group-reset" data-reset-group="review" title="Web-Suche auf Standard zurücksetzen" aria-label="Web-Suche auf Standard zurücksetzen">↺</button>
+          </div>
+          <div class="tp-settings-group tp-switch-container">
+            <div class="tp-switch-label">
+              <label title="Hängt ans Ende jedes Produktnamens ein 🌐-Icon für die Web-Suche.">Web-Suche (🌐) anzeigen</label>
+              <span class="tp-switch-desc">Zeigt auf jeder Produktkarte ein Icon für die externe Web- und KI-Suche</span>
+            </div>
+            <label class="tp-switch tp-purple">
+              <input type="checkbox" id="tp-review-search-toggle">
+              <span class="tp-slider"></span>
+            </label>
+          </div>
+          <div class="tp-settings-group">
+            <label title="Dieser Begriff wird für die Google- und KI-Suche verwendet.">Suchbegriff / Prompt</label>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <input type="text" id="tp-review-keyword-input" class="tp-field-dark" value="Testberichte zu: [Produkt]. Ist der Preis von {preis} ein guter Deal? Bewerte Preis-Leistung, Stärken und Schwächen kurz auf Deutsch." maxlength="150" placeholder="Suchbegriff eingeben…" spellcheck="false" autocomplete="off" style="flex:1;margin-top:0;">
+              <button type="button" id="tp-review-keyword-reset" class="tp-btn tp-btn-secondary" style="padding:6px 10px;font-size:var(--tp-fs-sm);height:32px;white-space:nowrap;" title="Auf Standard-Suchbegriff zurücksetzen">↺ Standard</button>
+            </div>
+            <span class="tp-switch-desc tp-field-hint">Wird für Web- und KI-Suche verwendet. Platzhalter: <code>[Produkt]</code> (wird sonst vorangestellt) und <code>{preis}</code> (ohne Preisdaten automatisch entfernt).</span>
+            <div class="tp-search-preview-box">
+              <div class="tp-search-preview-title">Live-Vorschau (Beispiel: Sony WH-1000XM5)</div>
+              <div class="tp-search-preview-row">
+                <span class="tp-search-preview-badge">Mit Deal-Preis:</span>
+                <span id="tp-review-keyword-preview" class="tp-search-preview-text"></span>
+              </div>
+              <div class="tp-search-preview-row" id="tp-review-keyword-preview-noprice-row">
+                <span class="tp-search-preview-badge">Ohne Preis:</span>
+                <span id="tp-review-keyword-preview-noprice" class="tp-search-preview-text tp-muted"></span>
+              </div>
+            </div>
+          </div>
+          <details class="tp-subsection" data-sub="review-google">
+            <summary class="tp-subsection-header">🔍 Google-Suche</summary>
+            <div class="tp-subsection-body">
+          <div class="tp-settings-group tp-switch-container">
+            <div class="tp-switch-label">
+              <label title="Öffnet die Suche in Googles KI-Modus (Parameter &amp;udm=50).">Im Google KI-Modus öffnen</label>
+              <span class="tp-switch-desc">Google AI Overview Modus (&amp;udm=50) statt klassischer Trefferliste</span>
+            </div>
+            <label class="tp-switch tp-purple">
+              <input type="checkbox" id="tp-review-ai-mode-toggle">
+              <span class="tp-slider"></span>
+            </label>
+          </div>
+            </div>
+          </details>
+
+  ${renderAiProviderTopMarkup()}
+          <details id="tp-ai-tavily-block" class="tp-subsection tp-ai-provider-block" data-sub="review-tavily">
+            <summary class="tp-subsection-header">🧠 Tavily KI-Suche (Legacy-Direktfazit &amp; Discord)</summary>
+            <div class="tp-subsection-body">
+            <div class="tp-settings-group tp-switch-container">
+              <div class="tp-switch-label">
+                <label title="Aktiviert Tavily KI-Zusammenfassungen für Direkt-Fazit auf der Karte und {ai} in Discord.">Tavily KI-Suche aktivieren</label>
+                <span class="tp-switch-desc">AUS = 🌐 öffnet Websuche direkt, kein KI-Fazit auf Karte &amp; in Discord</span>
+              </div>
+              <label class="tp-switch tp-purple">
+                <input type="checkbox" id="tp-tavily-enabled-toggle">
+                <span class="tp-slider"></span>
+              </label>
+            </div>
+            <div class="tp-settings-group">
+              <label title="Kostenloser Tavily API Key (tavily.com, 1'000 Anfragen/Monat). Ermöglicht KI-Kurzfazit direkt auf der Karte (🌐) und im Discord-Share ({ai}).">API-Schlüssel</label>
+              <div id="tp-tavily-api-key-collapsed">
+                <span id="tp-tavily-api-key-status" class="tp-switch-desc"></span>
+                <button type="button" id="tp-tavily-api-key-reveal" class="tp-btn tp-btn-secondary" aria-expanded="false" aria-controls="tp-tavily-api-key-editor">🔑 Key ersetzen / entfernen</button>
+              </div>
+              <div id="tp-tavily-api-key-editor" style="display: none;">
+                <input type="password" id="tp-tavily-api-key-input" class="tp-field-dark" placeholder="tvly-…" autocomplete="new-password" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
+                <span class="tp-switch-desc tp-field-hint">Kostenloser Key von <a href="https://tavily.com" target="_blank" rel="noopener">tavily.com</a> (1'000 Anfragen/Monat). Ermöglicht KI-Kurzfazit per 1-Klick auf der Karte und <code>{ai}</code> im Discord-Post. Bleibt lokal im Browser.</span>
+              </div>
+            </div>
+            <div class="tp-settings-group" style="display:flex;gap:12px;flex-wrap:wrap;">
+              <div style="flex:1;min-width:140px;">
+                <label title="Suchtiefe: Basic ist schnell (~1-2s). Advanced durchsucht mehr Webquellen (~2-4s).">Tavily Suchtiefe</label>
+                <select id="tp-tavily-search-depth" class="tp-select tp-field-dark">
+                  <option value="basic">Basic (schnell, Standard)</option>
+                  <option value="advanced">Advanced (gründlich)</option>
+                </select>
+              </div>
+              <div style="flex:1;min-width:140px;">
+                <label title="Anzahl der Webseiten, die Tavily für die Antwort analysiert.">Max. Quellen (Ergebnisse)</label>
+                <select id="tp-tavily-max-results" class="tp-select tp-field-dark">
+                  <option value="3">3 Quellen</option>
+                  <option value="5" selected>5 Quellen (Standard)</option>
+                  <option value="8">8 Quellen</option>
+                  <option value="10">10 Quellen</option>
+                </select>
+              </div>
+            </div>
+            </div>
+          </details>
+  ${renderAiBatchSettingsMarkup()}
+  </div>
+        </section>`;
+  }
+
+  function collectAiSectionElements(shadow) {
+    return {
+      aiProviderSelect: shadow.getElementById('tp-ai-provider-select'),
+      openrouterBlock: shadow.getElementById('tp-ai-openrouter-block'),
+      tavilyBlock: shadow.getElementById('tp-ai-tavily-block'),
+      openrouterApiKeyInput: shadow.getElementById('tp-openrouter-api-key-input'),
+      openrouterApiKeyReveal: shadow.getElementById('tp-openrouter-api-key-reveal'),
+      openrouterApiKeyEditor: shadow.getElementById('tp-openrouter-api-key-editor'),
+      openrouterApiKeyStatus: shadow.getElementById('tp-openrouter-api-key-status'),
+      openrouterModelInput: shadow.getElementById('tp-openrouter-model-input'),
+      openrouterEngineSelect: shadow.getElementById('tp-openrouter-engine-select'),
+      openrouterMaxResults: shadow.getElementById('tp-openrouter-max-results'),
+      batchAiTargetSelect: shadow.getElementById('tp-batch-ai-target-select'),
+      batchConfirmThresholdInput: shadow.getElementById('tp-batch-confirm-threshold-input')
+    };
+  }
+
+  function syncProviderBlockDimming(els) {
+    const prov = els.aiProviderSelect?.value || effectiveAiProvider(CONFIG);
+    if (els.openrouterBlock) els.openrouterBlock.classList.toggle('tp-provider-dimmed', prov !== 'openrouter');
+    if (els.tavilyBlock) els.tavilyBlock.classList.toggle('tp-provider-dimmed', prov !== 'tavily');
+  }
+
+  function revealSelectedProviderBlock(els, prov) {
+    if (prov === 'openrouter' && els.openrouterBlock) els.openrouterBlock.open = true;
+    if (prov === 'tavily' && els.tavilyBlock) els.tavilyBlock.open = true;
+  }
+
+  function syncAiSectionFromConfig(els) {
+    const prov = effectiveAiProvider(CONFIG);
+    if (els.aiProviderSelect) els.aiProviderSelect.value = prov;
+    if (els.openrouterApiKeyInput) els.openrouterApiKeyInput.value = '';
+    if (els.openrouterApiKeyEditor) els.openrouterApiKeyEditor.style.display = 'none';
+    if (els.openrouterApiKeyReveal) {
+      els.openrouterApiKeyReveal.style.display = '';
+      els.openrouterApiKeyReveal.setAttribute('aria-expanded', 'false');
+    }
+    if (els.openrouterApiKeyStatus) {
+      els.openrouterApiKeyStatus.textContent = (CONFIG.OPENROUTER_API_KEY && String(CONFIG.OPENROUTER_API_KEY).trim())
+        ? '✅ Key hinterlegt'
+        : 'Kein Key hinterlegt';
+    }
+    if (els.openrouterModelInput) els.openrouterModelInput.value = CONFIG.OPENROUTER_MODEL || 'google/gemini-2.5-flash';
+    if (els.openrouterEngineSelect) els.openrouterEngineSelect.value = CONFIG.OPENROUTER_SEARCH_ENGINE || 'auto';
+    if (els.openrouterMaxResults) els.openrouterMaxResults.value = String(CONFIG.OPENROUTER_MAX_RESULTS || 5);
+    if (els.batchAiTargetSelect) els.batchAiTargetSelect.value = CONFIG.BATCH_AI_TARGET || 'google-ai';
+    if (els.batchConfirmThresholdInput) els.batchConfirmThresholdInput.value = String(CONFIG.BATCH_CONFIRM_THRESHOLD ?? 10);
+    syncProviderBlockDimming(els);
+    revealSelectedProviderBlock(els, prov);
+  }
+
+  function bindAiSectionEvents(els) {
+    els.openrouterApiKeyReveal?.addEventListener('click', e => {
+      if (e && !e.isTrusted) return;
+      if (!els.openrouterApiKeyEditor || !els.openrouterApiKeyInput) return;
+      els.openrouterApiKeyInput.value = '';
+      els.openrouterApiKeyEditor.style.display = '';
+      els.openrouterApiKeyReveal.style.display = 'none';
+      els.openrouterApiKeyReveal.setAttribute('aria-expanded', 'true');
+      els.openrouterApiKeyInput.focus();
+    });
+
+    els.aiProviderSelect?.addEventListener('change', () => {
+      const val = els.aiProviderSelect.value;
+      if (els.tavilyEnabledToggle) {
+        els.tavilyEnabledToggle.checked = val === 'tavily';
+      }
+      syncProviderBlockDimming(els);
+      revealSelectedProviderBlock(els, val);
+    });
+
+    els.tavilyEnabledToggle?.addEventListener('change', () => {
+      if (!els.aiProviderSelect) return;
+      if (els.tavilyEnabledToggle.checked) {
+        els.aiProviderSelect.value = 'tavily';
+      } else if (els.aiProviderSelect.value === 'tavily') {
+        els.aiProviderSelect.value = 'google';
+      }
+      syncProviderBlockDimming(els);
+      revealSelectedProviderBlock(els, els.aiProviderSelect.value);
+    });
+  }
+
+  function collectAiSectionUpdates(els, updates) {
+    if (els.aiProviderSelect) {
+      const prov = els.aiProviderSelect.value;
+      updates.AI_SEARCH_PROVIDER = (prov === 'openrouter' || prov === 'tavily') ? prov : 'google';
+    }
+    if (els.openrouterApiKeyInput && els.openrouterApiKeyEditor && els.openrouterApiKeyEditor.style.display !== 'none') {
+      updates.OPENROUTER_API_KEY = String(els.openrouterApiKeyInput.value || '').trim();
+    }
+    if (els.openrouterModelInput) {
+      const m = String(els.openrouterModelInput.value || '').trim();
+      updates.OPENROUTER_MODEL = m || 'google/gemini-2.5-flash';
+    }
+    if (els.openrouterEngineSelect) {
+      updates.OPENROUTER_SEARCH_ENGINE = els.openrouterEngineSelect.value || 'auto';
+    }
+    if (els.openrouterMaxResults) {
+      const rawMax = parseInt(els.openrouterMaxResults.value, 10);
+      updates.OPENROUTER_MAX_RESULTS = Number.isFinite(rawMax) ? Math.max(1, Math.min(10, rawMax)) : 5;
+    }
+    if (els.batchAiTargetSelect) {
+      updates.BATCH_AI_TARGET = els.batchAiTargetSelect.value || 'google-ai';
+    }
+    if (els.batchConfirmThresholdInput) {
+      const rawThr = parseInt(els.batchConfirmThresholdInput.value, 10);
+      updates.BATCH_CONFIRM_THRESHOLD = Number.isFinite(rawThr) ? Math.max(1, Math.min(100, rawThr)) : 10;
+    }
+  }
+
+  // ─── MODULE: src/ui/modal-template.js ───────────────────────────────────────
+  /**
+   * Modal template (split from ui/modal.js): settings section HTML + collapse state.
+   */
+
+
+
+
+  // Injects the settings sections on first open; later calls are a no-op.
+  function ensureModalSection(shadow) {
+    let section = shadow.getElementById('tp-section-unified-suite');
+    if (!section) {
+      const sectionsHolder = shadow.getElementById('tp-settings-sections');
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = `
+        <div id="tp-section-unified-suite">
+        <section id="tp-section-display" class="tp-section-card tp-section-display">
+  <button type="button" class="tp-section-header" aria-expanded="true" aria-controls="tp-section-display-body" data-collapse="tp-section-display"><span class="tp-section-title">🖥️ Ansicht</span><span class="tp-chevron" aria-hidden="true"></span></button>
+  <div class="tp-section-body" id="tp-section-display-body">
+          <div class="tp-group-head-row">
+            <span>Anzeige, Heatmap &amp; Diagramme</span>
+            <button type="button" class="tp-btn-group-reset" data-reset-group="display" title="Ansicht auf Standard zurücksetzen" aria-label="Ansicht auf Standard zurücksetzen">↺</button>
+          </div>
+          <div class="tp-settings-group" id="tp-dim-opacity-group">
+            <label title="Deckkraft gedimmter Karten (Filter-Modus Dimmen)">Deckkraft / Dimmung (Gedimmt &amp; Gefiltert)</label>
+            <div class="tp-range-container">
+              <input type="range" id="tp-opacity-range" min="0.05" max="1" step="0.05" value="0.25">
+              <input type="number" id="tp-opacity-val" min="5" max="100" step="5" value="25">
+            </div>
+          </div>
+          <div class="tp-settings-group">
+            <label title="Stärke der Karten- und Badge-Farbe (subtil bei kleinen Rabatten, intensiv bei Top-Deals; 0% und Aufschläge bleiben farblos)">Deal-Intensität / Heatmap (%)</label>
+            <div class="tp-range-container tp-rose">
+              <input type="range" id="tp-heatmap-intensity-range" min="20" max="100" step="5" value="100">
+              <input type="number" id="tp-heatmap-intensity-val" min="20" max="100" step="5" value="100">
+            </div>
+          </div>
+          <div class="tp-settings-group tp-switch-container">
+            <div class="tp-switch-label">
+              <label title="Entfernt leere Werbeflächen und Banner oben und im Layout">Werbeplätze / Banner ausblenden</label>
+              <span class="tp-switch-desc">Entfernt leeren Platz über der Kopfzeile und Werbebanner</span>
+            </div>
+            <label class="tp-switch tp-purple">
+              <input type="checkbox" id="tp-hide-ads-toggle">
+              <span class="tp-slider"></span>
+            </label>
+          </div>
+          <div class="tp-settings-group tp-switch-container">
+            <div class="tp-switch-label">
+              <label>Mini-Preiskurven (Sparklines) anzeigen</label>
+              <span class="tp-switch-desc">Erfordert zusätzliche Server-Abfragen pro Produkt</span>
+            </div>
+            <label class="tp-switch tp-purple">
+              <input type="checkbox" id="tp-sparklines-toggle">
+              <span class="tp-slider"></span>
+            </label>
+          </div>
+          <div class="tp-settings-group tp-switch-container">
+            <div class="tp-switch-label">
+              <label>Amazon Keepa-Verlauf im Preisverlauf</label>
+              <span class="tp-switch-desc">Zeigt bei Amazon.de-Deals den detaillierten Keepa-Verlauf (Buy Box, Amazon, Neu) im Preisverlauf-Diagramm an</span>
+            </div>
+            <label class="tp-switch tp-purple">
+              <input type="checkbox" id="tp-keepa-chart-toggle">
+              <span class="tp-slider"></span>
+            </label>
+          </div>
+  </div>
+        </section>
+        <section id="tp-section-deals" class="tp-section-card tp-section-deals">
+  <button type="button" class="tp-section-header" aria-expanded="true" aria-controls="tp-section-deals-body" data-collapse="tp-section-deals"><span class="tp-section-title">💎 Deals &amp; Sortieren</span><span class="tp-chevron" aria-hidden="true"></span></button>
+  <div class="tp-section-body" id="tp-section-deals-body">
+          <details class="tp-subsection" data-sub="deals-sort" open>
+            <summary class="tp-subsection-header">📊 Sortierung &amp; Deals</summary>
+            <div class="tp-subsection-body">
+          <div class="tp-group-head-row">
+            <span>Sortierung &amp; Deals</span>
+            <button type="button" class="tp-btn-group-reset" data-reset-group="deals" title="Sortieren auf Standard zurücksetzen" aria-label="Sortieren auf Standard zurücksetzen">↺</button>
+          </div>
+          <div class="tp-settings-group tp-switch-container">
+            <div class="tp-switch-label">
+              <label><span class="tp-glossary-term" title="Sortiert Angebote nach echter Tiefstpreis-Qualität (Gewichtete Differenz). Entfernt keine Angebote.">Tiefstpreis-Sortierung</span></label>
+            </div>
+            <label class="tp-switch tp-purple">
+              <input type="checkbox" id="tp-bestpreise-mode-toggle">
+              <span class="tp-slider"></span>
+            </label>
+          </div>
+          <div class="tp-settings-group">
+            <label title="Angebotsanzahl- oder Rabatt-Sortierung (Toppreise-Liste)">Sortierung nach Angeboten / Rabatt</label>
+            <div class="tp-segmented-control">
+              <input type="radio" id="tp-sort-none" name="tp-sort-offers" value="none">
+              <label for="tp-sort-none">Standard</label>
+              <input type="radio" id="tp-sort-desc" name="tp-sort-offers" value="desc">
+              <label for="tp-sort-desc">Meiste ⬇</label>
+              <input type="radio" id="tp-sort-asc" name="tp-sort-offers" value="asc">
+              <label for="tp-sort-asc">Wenigste ⬆</label>
+              <input type="radio" id="tp-sort-discount" name="tp-sort-offers" value="discount-desc">
+              <label for="tp-sort-discount">% Rabatt ⬇</label>
+            </div>
+          </div>
+            </div>
+          </details>
+          <details class="tp-subsection" data-sub="deals-weights">
+            <summary class="tp-subsection-header">⚖️ Berechnungsparameter &amp; Prüfung</summary>
+            <div class="tp-subsection-body">
+          <div class="tp-group-head-row">
+            <span>Berechnungsparameter &amp; Analyse</span>
             <button type="button" class="tp-btn-group-reset" data-reset-group="weights" title="Berechnungsparameter auf Standard zurücksetzen" aria-label="Berechnungsparameter auf Standard zurücksetzen">↺</button>
+          </div>
+          <div class="tp-settings-group">
+            <span class="tp-switch-desc tp-field-hint">Ausreisser-Filter (Glitch-Erkennung): siehe ⚖️-Popover in der Filterleiste.</span>
           </div>
           <div class="tp-settings-group" id="tp-bestpreise-weight-group">
             <label><span class="tp-glossary-term" title="Kombiniert Rekord-Tiefstpreis und Durchschnittsrabatt im gewählten Mix für Badge, Farbe und Platzierung.">Gewichtete Differenz</span>: Sortierung + Farb-Emphase (Rekord vs Ø)</label>
@@ -14950,457 +15705,20 @@ const SHADOW_MODAL_STYLES = `
               <span class="tp-slider"></span>
             </label>
           </div>
-          <div class="tp-settings-group tp-switch-container">
-            <div class="tp-switch-label">
-              <label>Mini-Preiskurven (Sparklines) anzeigen</label>
-              <span class="tp-switch-desc">Erfordert zusätzliche Server-Abfragen pro Produkt</span>
             </div>
-            <label class="tp-switch tp-purple">
-              <input type="checkbox" id="tp-sparklines-toggle">
-              <span class="tp-slider"></span>
-            </label>
-          </div>
-          <div class="tp-settings-group tp-switch-container">
-            <div class="tp-switch-label">
-              <label>Amazon Keepa-Verlauf im Preisverlauf</label>
-              <span class="tp-switch-desc">Zeigt bei Amazon.de-Deals den detaillierten Keepa-Verlauf (Buy Box, Amazon, Neu) im Preisverlauf-Diagramm an</span>
-            </div>
-            <label class="tp-switch tp-purple">
-              <input type="checkbox" id="tp-keepa-chart-toggle">
-              <span class="tp-slider"></span>
-            </label>
-          </div>
-          <div class="tp-group-head-row">
-            <span>Cache & Speicher-Limits</span>
-            <button type="button" class="tp-btn-group-reset" data-reset-group="cache" title="Cache-Einstellungen auf Standard zurücksetzen" aria-label="Cache-Einstellungen auf Standard zurücksetzen">↺</button>
-          </div>
-          <div class="tp-settings-group tp-cache-row">
-            <div id="tp-cache-stats-label">Lokaler Cache: 0 Einträge</div>
-            <button type="button" id="tp-cache-clear-btn" class="tp-btn tp-btn-secondary">🗑️ Cache leeren</button>
-          </div>
-          <div class="tp-settings-group">
-            <label title="Maximale Anzahl an Preishistorien im Arbeitsspeicher (LRU)">RAM-Cache Limit (Einträge)</label>
-            <div class="tp-range-container">
-              <input type="range" id="tp-cache-memory-range" min="100" max="2000" step="50" value="500">
-              <input type="number" id="tp-cache-memory-val" min="100" max="2000" step="50" value="500">
-            </div>
-            <span class="tp-switch-desc tp-field-hint">Hält bis zu N Einträge im Arbeitsspeicher (Standard: 500). Ältere Einträge weichen per LRU.</span>
-          </div>
-          <div class="tp-settings-group">
-            <label title="Maximale Anzahl an Preishistorien im Browser-Speicher (localStorage)">Festplatten-Cache Limit (Einträge)</label>
-            <div class="tp-range-container">
-              <input type="range" id="tp-cache-disk-range" min="100" max="1000" step="50" value="300">
-              <input type="number" id="tp-cache-disk-val" min="100" max="1000" step="50" value="300">
-            </div>
-            <span class="tp-switch-desc tp-field-hint">Maximaler lokaler Browser-Speicher (Standard: 300). Bei Überschreitung wird auf 80% bereinigt.</span>
-          </div>
-          <div class="tp-settings-group tp-danger-zone">
-            <span class="tp-switch-desc">Gefahrenzone: löscht Cache und setzt alle Einstellungen zurück.</span>
-            <button type="button" id="tp-data-reset-btn" class="tp-btn tp-btn-danger" title="Löscht Preis- und Händler-Cache und setzt ALLE Einstellungen (inkl. Discord-Webhook) auf Standard zurück.">🧨 Alle Daten löschen</button>
-          </div>
-          <div class="tp-settings-group">
-            <label title="So lange bleiben Preisdaten lokal gespeichert">Cache-Dauer für Preishistorie (Gültige Daten)</label>
-            <select id="tp-cache-ttl-select" class="tp-select tp-field-dark">
-              <option value="24">24 Stunden (1 Tag)</option>
-              <option value="48">48 Stunden (2 Tage) [Standard]</option>
-              <option value="72">72 Stunden (3 Tage)</option>
-              <option value="168">7 Tage (1 Woche)</option>
-              <option value="336">14 Tage (2 Wochen)</option>
-            </select>
-            <span class="tp-switch-desc tp-field-hint">Bestimmt, wie lange abgefragte Preisstatistiken lokal gespeichert bleiben</span>
-          </div>
-          <div class="tp-settings-group">
-            <label title="So lange werden leere Ergebnisse zwischengespeichert">Negativ-Cache Dauer (Nicht verfügbare Daten)</label>
-            <select id="tp-cache-neg-ttl-select" class="tp-select tp-field-dark">
-              <option value="1">1 Stunde</option>
-              <option value="2">2 Stunden [Standard]</option>
-              <option value="6">6 Stunden</option>
-              <option value="12">12 Stunden</option>
-              <option value="24">24 Stunden</option>
-            </select>
-            <span class="tp-switch-desc tp-field-hint">Verhindert wiederholte Server-Anfragen bei Produkten ohne Preiskurve</span>
-          </div>
-          <div class="tp-settings-group tp-btn-row">
-            <button type="button" id="tp-export-config-btn" title="Einstellungen als JSON-Datei sichern." class="tp-btn tp-btn-secondary">📥 Export (JSON)</button>
-            <button type="button" id="tp-import-config-btn" title="Einstellungen aus einer JSON-Datei wiederherstellen." class="tp-btn tp-btn-secondary">📤 Import (JSON)</button>
-            <input type="file" id="tp-import-config-file" accept=".json">
-          </div>
-  </div>
-        </section>
-    `;
-  }
-
-  // ─── MODULE: src/ui/modal-ai-section.js ─────────────────────────────────────
-  /**
-   * Settings Modal: OpenRouter Web Search & Batch Settings Section
-   * Extracted to keep modal-template.js, modal-bindings.js & modal-actions.js < 25 KB.
-   */
-
-
-  function renderAiProviderTopMarkup() {
-    return `
-          <div class="tp-settings-subhead">KI-Anbieter (Direkt-Fazit, Discord &amp; Batch)</div>
-          <div class="tp-settings-group">
-            <label for="tp-ai-provider-select" title="Wähle, ob 🌐 auf der Karte direkt ein KI-Fazit via OpenRouter/Tavily lädt oder Google-Suche öffnet.">Aktiver KI-Anbieter</label>
-            <select id="tp-ai-provider-select" class="tp-select tp-field-dark">
-              <option value="google">Google Web-Suche (Standard, kein Key)</option>
-              <option value="openrouter">OpenRouter (openrouter:web_search + Quellen)</option>
-              <option value="tavily">Tavily (Legacy-Direktfazit)</option>
-            </select>
-          </div>
-
-          <div id="tp-ai-openrouter-block" class="tp-ai-provider-block">
-            <div class="tp-settings-subhead">OpenRouter Web-Suche</div>
-            <div class="tp-settings-group">
-              <label title="OpenRouter API-Key (openrouter.ai). Ermöglicht openrouter:web_search mit Quellenlinks auf Karte, Discord {ai} und Batch-KI.">OpenRouter API-Schlüssel</label>
-              <div id="tp-openrouter-api-key-collapsed">
-                <span id="tp-openrouter-api-key-status" class="tp-switch-desc"></span>
-                <button type="button" id="tp-openrouter-api-key-reveal" class="tp-btn tp-btn-secondary" aria-expanded="false" aria-controls="tp-openrouter-api-key-editor">🔑 Key ersetzen / entfernen</button>
-              </div>
-              <div id="tp-openrouter-api-key-editor" style="display: none;">
-                <input type="password" id="tp-openrouter-api-key-input" class="tp-field-dark" placeholder="sk-or-v1-…" autocomplete="new-password" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
-                <span class="tp-switch-desc tp-field-hint">Key von <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai</a>. Bleibt lokal &amp; GM-privat im Browser.</span>
-              </div>
-            </div>
-            <div class="tp-settings-group">
-              <label for="tp-openrouter-model-input" title="OpenRouter Modell-ID für Web-Suche &amp; Batch-Vergleich.">OpenRouter Modell</label>
-              <input type="text" id="tp-openrouter-model-input" class="tp-field-dark" placeholder="google/gemini-2.5-flash" spellcheck="false">
-            </div>
-            <div class="tp-settings-group" style="display:flex;gap:12px;flex-wrap:wrap;">
-              <div style="flex:1;min-width:140px;">
-                <label for="tp-openrouter-engine-select" title="Web-Search Engine für openrouter:web_search.">Such-Engine</label>
-                <select id="tp-openrouter-engine-select" class="tp-select tp-field-dark">
-                  <option value="auto">Auto (Standard)</option>
-                  <option value="native">Native</option>
-                  <option value="exa">Exa</option>
-                  <option value="parallel">Parallel</option>
-                  <option value="perplexity">Perplexity</option>
-                  <option value="firecrawl">Firecrawl</option>
-                </select>
-              </div>
-              <div style="flex:1;min-width:140px;">
-                <label for="tp-openrouter-max-results" title="Maximale Web-Quellen pro OpenRouter-Anfrage.">Max. Quellen</label>
-                <select id="tp-openrouter-max-results" class="tp-select tp-field-dark">
-                  <option value="3">3 Quellen</option>
-                  <option value="5" selected>5 Quellen (Standard)</option>
-                  <option value="8">8 Quellen</option>
-                  <option value="10">10 Quellen</option>
-                </select>
-              </div>
-            </div>
-          </div>`;
-  }
-
-  function renderAiBatchSettingsMarkup() {
-    return `
-          <div class="tp-group-head-row" style="margin-top:12px;">
-            <span>Batch-Aktionen</span>
-            <button type="button" class="tp-btn-group-reset" data-reset-group="batch" title="Batch-Aktionen auf Standard zurücksetzen" aria-label="Batch-Aktionen auf Standard zurücksetzen">↺</button>
-          </div>
-          <div class="tp-settings-group" style="display:flex;gap:12px;flex-wrap:wrap;">
-            <div style="flex:1;min-width:150px;">
-              <label for="tp-batch-ai-target-select" title="Ziel-Plattform für 🤖 KI-Vergleich im Batch-Menü.">Batch KI-Vergleich Ziel</label>
-              <select id="tp-batch-ai-target-select" class="tp-select tp-field-dark">
-                <option value="google-ai">Google AI-Modus (&amp;udm=50)</option>
-                <option value="openrouter">OpenRouter (In-Page)</option>
-                <option value="chatgpt">ChatGPT</option>
-                <option value="perplexity">Perplexity</option>
-                <option value="claude">Claude</option>
-              </select>
-            </div>
-            <div style="flex:1;min-width:140px;">
-              <label for="tp-batch-confirm-threshold-input" title="Ab dieser Anzahl Karten fragt Batch vor Tabs, Händler-Laden oder API-Calls nach (1–100).">Bestätigung ab N Karten</label>
-              <input type="number" id="tp-batch-confirm-threshold-input" class="tp-field-dark" min="1" max="100" step="1" value="10">
-            </div>
-          </div>`;
-  }
-
-  function collectAiSectionElements(shadow) {
-    return {
-      aiProviderSelect: shadow.getElementById('tp-ai-provider-select'),
-      openrouterBlock: shadow.getElementById('tp-ai-openrouter-block'),
-      tavilyBlock: shadow.getElementById('tp-ai-tavily-block'),
-      openrouterApiKeyInput: shadow.getElementById('tp-openrouter-api-key-input'),
-      openrouterApiKeyReveal: shadow.getElementById('tp-openrouter-api-key-reveal'),
-      openrouterApiKeyEditor: shadow.getElementById('tp-openrouter-api-key-editor'),
-      openrouterApiKeyStatus: shadow.getElementById('tp-openrouter-api-key-status'),
-      openrouterModelInput: shadow.getElementById('tp-openrouter-model-input'),
-      openrouterEngineSelect: shadow.getElementById('tp-openrouter-engine-select'),
-      openrouterMaxResults: shadow.getElementById('tp-openrouter-max-results'),
-      batchAiTargetSelect: shadow.getElementById('tp-batch-ai-target-select'),
-      batchConfirmThresholdInput: shadow.getElementById('tp-batch-confirm-threshold-input')
-    };
-  }
-
-  function syncProviderBlockDimming(els) {
-    const prov = els.aiProviderSelect?.value || effectiveAiProvider(CONFIG);
-    if (els.openrouterBlock) els.openrouterBlock.classList.toggle('tp-provider-dimmed', prov !== 'openrouter');
-    if (els.tavilyBlock) els.tavilyBlock.classList.toggle('tp-provider-dimmed', prov !== 'tavily');
-  }
-
-  function syncAiSectionFromConfig(els) {
-    if (els.aiProviderSelect) els.aiProviderSelect.value = effectiveAiProvider(CONFIG);
-    if (els.openrouterApiKeyInput) els.openrouterApiKeyInput.value = '';
-    if (els.openrouterApiKeyEditor) els.openrouterApiKeyEditor.style.display = 'none';
-    if (els.openrouterApiKeyReveal) {
-      els.openrouterApiKeyReveal.style.display = '';
-      els.openrouterApiKeyReveal.setAttribute('aria-expanded', 'false');
-    }
-    if (els.openrouterApiKeyStatus) {
-      els.openrouterApiKeyStatus.textContent = (CONFIG.OPENROUTER_API_KEY && String(CONFIG.OPENROUTER_API_KEY).trim())
-        ? '✅ Key hinterlegt'
-        : 'Kein Key hinterlegt';
-    }
-    if (els.openrouterModelInput) els.openrouterModelInput.value = CONFIG.OPENROUTER_MODEL || 'google/gemini-2.5-flash';
-    if (els.openrouterEngineSelect) els.openrouterEngineSelect.value = CONFIG.OPENROUTER_SEARCH_ENGINE || 'auto';
-    if (els.openrouterMaxResults) els.openrouterMaxResults.value = String(CONFIG.OPENROUTER_MAX_RESULTS || 5);
-    if (els.batchAiTargetSelect) els.batchAiTargetSelect.value = CONFIG.BATCH_AI_TARGET || 'google-ai';
-    if (els.batchConfirmThresholdInput) els.batchConfirmThresholdInput.value = String(CONFIG.BATCH_CONFIRM_THRESHOLD ?? 10);
-    syncProviderBlockDimming(els);
-  }
-
-  function bindAiSectionEvents(els) {
-    els.openrouterApiKeyReveal?.addEventListener('click', e => {
-      if (e && !e.isTrusted) return;
-      if (!els.openrouterApiKeyEditor || !els.openrouterApiKeyInput) return;
-      els.openrouterApiKeyInput.value = '';
-      els.openrouterApiKeyEditor.style.display = '';
-      els.openrouterApiKeyReveal.style.display = 'none';
-      els.openrouterApiKeyReveal.setAttribute('aria-expanded', 'true');
-      els.openrouterApiKeyInput.focus();
-    });
-
-    els.aiProviderSelect?.addEventListener('change', () => {
-      const val = els.aiProviderSelect.value;
-      if (els.tavilyEnabledToggle) {
-        els.tavilyEnabledToggle.checked = val === 'tavily';
-      }
-      syncProviderBlockDimming(els);
-    });
-
-    els.tavilyEnabledToggle?.addEventListener('change', () => {
-      if (!els.aiProviderSelect) return;
-      if (els.tavilyEnabledToggle.checked) {
-        els.aiProviderSelect.value = 'tavily';
-      } else if (els.aiProviderSelect.value === 'tavily') {
-        els.aiProviderSelect.value = 'google';
-      }
-      syncProviderBlockDimming(els);
-    });
-  }
-
-  function collectAiSectionUpdates(els, updates) {
-    if (els.aiProviderSelect) {
-      const prov = els.aiProviderSelect.value;
-      updates.AI_SEARCH_PROVIDER = (prov === 'openrouter' || prov === 'tavily') ? prov : 'google';
-    }
-    if (els.openrouterApiKeyInput && els.openrouterApiKeyEditor && els.openrouterApiKeyEditor.style.display !== 'none') {
-      updates.OPENROUTER_API_KEY = String(els.openrouterApiKeyInput.value || '').trim();
-    }
-    if (els.openrouterModelInput) {
-      const m = String(els.openrouterModelInput.value || '').trim();
-      updates.OPENROUTER_MODEL = m || 'google/gemini-2.5-flash';
-    }
-    if (els.openrouterEngineSelect) {
-      updates.OPENROUTER_SEARCH_ENGINE = els.openrouterEngineSelect.value || 'auto';
-    }
-    if (els.openrouterMaxResults) {
-      const rawMax = parseInt(els.openrouterMaxResults.value, 10);
-      updates.OPENROUTER_MAX_RESULTS = Number.isFinite(rawMax) ? Math.max(1, Math.min(10, rawMax)) : 5;
-    }
-    if (els.batchAiTargetSelect) {
-      updates.BATCH_AI_TARGET = els.batchAiTargetSelect.value || 'google-ai';
-    }
-    if (els.batchConfirmThresholdInput) {
-      const rawThr = parseInt(els.batchConfirmThresholdInput.value, 10);
-      updates.BATCH_CONFIRM_THRESHOLD = Number.isFinite(rawThr) ? Math.max(1, Math.min(100, rawThr)) : 10;
-    }
-  }
-
-  // ─── MODULE: src/ui/modal-template.js ───────────────────────────────────────
-  /**
-   * Modal template (split from ui/modal.js): settings section HTML + collapse state.
-   */
-
-
-
-  // Injects the settings sections on first open; later calls are a no-op.
-  function ensureModalSection(shadow) {
-    let section = shadow.getElementById('tp-section-unified-suite');
-    if (!section) {
-      const sectionsHolder = shadow.getElementById('tp-settings-sections');
-      const tempDiv = document.createElement('div');
-      tempDiv.innerHTML = `
-        <div id="tp-section-unified-suite">
-        <section id="tp-section-display" class="tp-section-card tp-section-display">
-  <button type="button" class="tp-section-header" aria-expanded="true" aria-controls="tp-section-display-body" data-collapse="tp-section-display"><span class="tp-section-title">🖥️ Ansicht</span><span class="tp-chevron" aria-hidden="true"></span></button>
-  <div class="tp-section-body" id="tp-section-display-body">
-          <div class="tp-group-head-row">
-            <span>Anzeige & Dimmung</span>
-            <button type="button" class="tp-btn-group-reset" data-reset-group="display" title="Ansicht auf Standard zurücksetzen" aria-label="Ansicht auf Standard zurücksetzen">↺</button>
-          </div>
-          <div class="tp-settings-group" id="tp-dim-opacity-group">
-            <label title="Deckkraft gedimmter Karten (Filter-Modus Dimmen)">Deckkraft / Dimmung (Gedimmt & Gefiltert)</label>
-            <div class="tp-range-container">
-              <input type="range" id="tp-opacity-range" min="0.05" max="1" step="0.05" value="0.25">
-              <input type="number" id="tp-opacity-val" min="5" max="100" step="5" value="25">
-            </div>
-          </div>
-          <div class="tp-settings-group">
-            <label title="Stärke der Karten- und Badge-Farbe (subtil bei kleinen Rabatten, intensiv bei Top-Deals; 0% und Aufschläge bleiben farblos)">Deal-Intensität / Heatmap (%)</label>
-            <div class="tp-range-container tp-rose">
-              <input type="range" id="tp-heatmap-intensity-range" min="20" max="100" step="5" value="100">
-              <input type="number" id="tp-heatmap-intensity-val" min="20" max="100" step="5" value="100">
-            </div>
-          </div>
-          <div class="tp-settings-group tp-switch-container">
-            <div class="tp-switch-label">
-              <label title="Entfernt leere Werbeflächen und Banner oben und im Layout">Werbeplätze / Banner ausblenden</label>
-              <span class="tp-switch-desc">Entfernt leeren Platz über der Kopfzeile und Werbebanner</span>
-            </div>
-            <label class="tp-switch tp-purple">
-              <input type="checkbox" id="tp-hide-ads-toggle">
-              <span class="tp-slider"></span>
-            </label>
-          </div>
-  </div>
-        </section>
-        <section id="tp-section-review" class="tp-section-card tp-section-review">
-  <button type="button" class="tp-section-header" aria-expanded="true" aria-controls="tp-section-review-body" data-collapse="tp-section-review"><span class="tp-section-title">🌐 Web-Suche</span><span class="tp-chevron" aria-hidden="true"></span></button>
-  <div class="tp-section-body" id="tp-section-review-body">
-          <div class="tp-group-head-row">
-            <span>Web- & KI-Suche</span>
-            <button type="button" class="tp-btn-group-reset" data-reset-group="review" title="Web-Suche auf Standard zurücksetzen" aria-label="Web-Suche auf Standard zurücksetzen">↺</button>
-          </div>
-          <div class="tp-settings-group tp-switch-container">
-            <div class="tp-switch-label">
-              <label title="Hängt ans Ende jedes Produktnamens ein 🌐-Icon für die Web-Suche.">Web-Suche (🌐) anzeigen</label>
-              <span class="tp-switch-desc">Zeigt auf jeder Produktkarte ein Icon für die externe Web- und KI-Suche</span>
-            </div>
-            <label class="tp-switch tp-purple">
-              <input type="checkbox" id="tp-review-search-toggle">
-              <span class="tp-slider"></span>
-            </label>
-          </div>
-          <div class="tp-settings-group">
-            <label title="Dieser Begriff wird für die Google- und KI-Suche verwendet.">Suchbegriff / Prompt</label>
-            <div style="display:flex;gap:8px;align-items:center;">
-              <input type="text" id="tp-review-keyword-input" class="tp-field-dark" value="Testberichte zu: [Produkt]. Ist der Preis von {preis} ein guter Deal? Bewerte Preis-Leistung, Stärken und Schwächen kurz auf Deutsch." maxlength="150" placeholder="Suchbegriff eingeben…" spellcheck="false" autocomplete="off" style="flex:1;margin-top:0;">
-              <button type="button" id="tp-review-keyword-reset" class="tp-btn tp-btn-secondary" style="padding:6px 10px;font-size:var(--tp-fs-sm);height:32px;white-space:nowrap;" title="Auf Standard-Suchbegriff zurücksetzen">↺ Standard</button>
-            </div>
-            <span class="tp-switch-desc tp-field-hint">Wird für Web- und KI-Suche verwendet. Platzhalter: <code>[Produkt]</code> (wird sonst vorangestellt) und <code>{preis}</code> (ohne Preisdaten automatisch entfernt).</span>
-            <div class="tp-search-preview-box">
-              <div class="tp-search-preview-title">Live-Vorschau (Beispiel: Sony WH-1000XM5)</div>
-              <div class="tp-search-preview-row">
-                <span class="tp-search-preview-badge">Mit Deal-Preis:</span>
-                <span id="tp-review-keyword-preview" class="tp-search-preview-text"></span>
-              </div>
-              <div class="tp-search-preview-row" id="tp-review-keyword-preview-noprice-row">
-                <span class="tp-search-preview-badge">Ohne Preis:</span>
-                <span id="tp-review-keyword-preview-noprice" class="tp-search-preview-text tp-muted"></span>
-              </div>
-            </div>
-          </div>
-
-          <div class="tp-settings-subhead">Google-Suche</div>
-          <div class="tp-settings-group tp-switch-container">
-            <div class="tp-switch-label">
-              <label title="Öffnet die Suche in Googles KI-Modus (Parameter &udm=50).">Im Google KI-Modus öffnen</label>
-              <span class="tp-switch-desc">Google AI Overview Modus (&udm=50) statt klassischer Trefferliste</span>
-            </div>
-            <label class="tp-switch tp-purple">
-              <input type="checkbox" id="tp-review-ai-mode-toggle">
-              <span class="tp-slider"></span>
-            </label>
-          </div>
-
-  ${renderAiProviderTopMarkup()}
-          <div id="tp-ai-tavily-block" class="tp-ai-provider-block">
-            <div class="tp-settings-subhead">Tavily KI-Suche (Legacy-Direktfazit &amp; Discord)</div>
-            <div class="tp-settings-group tp-switch-container">
-              <div class="tp-switch-label">
-                <label title="Aktiviert Tavily KI-Zusammenfassungen für Direkt-Fazit auf der Karte und {ai} in Discord.">Tavily KI-Suche aktivieren</label>
-                <span class="tp-switch-desc">AUS = 🌐 öffnet Websuche direkt, kein KI-Fazit auf Karte & in Discord</span>
-              </div>
-              <label class="tp-switch tp-purple">
-                <input type="checkbox" id="tp-tavily-enabled-toggle">
-                <span class="tp-slider"></span>
-              </label>
-            </div>
-            <div class="tp-settings-group">
-              <label title="Kostenloser Tavily API Key (tavily.com, 1'000 Anfragen/Monat). Ermöglicht KI-Kurzfazit direkt auf der Karte (🌐) und im Discord-Share ({ai}).">API-Schlüssel</label>
-              <div id="tp-tavily-api-key-collapsed">
-                <span id="tp-tavily-api-key-status" class="tp-switch-desc"></span>
-                <button type="button" id="tp-tavily-api-key-reveal" class="tp-btn tp-btn-secondary" aria-expanded="false" aria-controls="tp-tavily-api-key-editor">🔑 Key ersetzen / entfernen</button>
-              </div>
-              <div id="tp-tavily-api-key-editor" style="display: none;">
-                <input type="password" id="tp-tavily-api-key-input" class="tp-field-dark" placeholder="tvly-…" autocomplete="new-password" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
-                <span class="tp-switch-desc tp-field-hint">Kostenloser Key von <a href="https://tavily.com" target="_blank" rel="noopener">tavily.com</a> (1'000 Anfragen/Monat). Ermöglicht KI-Kurzfazit per 1-Klick auf der Karte und <code>{ai}</code> im Discord-Post. Bleibt lokal im Browser.</span>
-              </div>
-            </div>
-            <div class="tp-settings-group" style="display:flex;gap:12px;flex-wrap:wrap;">
-              <div style="flex:1;min-width:140px;">
-                <label title="Suchtiefe: Basic ist schnell (~1-2s). Advanced durchsucht mehr Webquellen (~2-4s).">Tavily Suchtiefe</label>
-                <select id="tp-tavily-search-depth" class="tp-select tp-field-dark">
-                  <option value="basic">Basic (schnell, Standard)</option>
-                  <option value="advanced">Advanced (gründlich)</option>
-                </select>
-              </div>
-              <div style="flex:1;min-width:140px;">
-                <label title="Anzahl der Webseiten, die Tavily für die Antwort analysiert.">Max. Quellen (Ergebnisse)</label>
-                <select id="tp-tavily-max-results" class="tp-select tp-field-dark">
-                  <option value="3">3 Quellen</option>
-                  <option value="5" selected>5 Quellen (Standard)</option>
-                  <option value="8">8 Quellen</option>
-                  <option value="10">10 Quellen</option>
-                </select>
-              </div>
-            </div>
-          </div>
-  ${renderAiBatchSettingsMarkup()}
-  </div>
-        </section>
-        <section id="tp-section-deals" class="tp-section-card tp-section-deals">
-  <button type="button" class="tp-section-header" aria-expanded="true" aria-controls="tp-section-deals-body" data-collapse="tp-section-deals"><span class="tp-section-title">💎 Sortieren</span><span class="tp-chevron" aria-hidden="true"></span></button>
-  <div class="tp-section-body" id="tp-section-deals-body">
-          <div class="tp-group-head-row">
-            <span>Sortierung & Deals</span>
-            <button type="button" class="tp-btn-group-reset" data-reset-group="deals" title="Sortieren auf Standard zurücksetzen" aria-label="Sortieren auf Standard zurücksetzen">↺</button>
-          </div>
-          <div class="tp-settings-group tp-switch-container">
-            <div class="tp-switch-label">
-              <label><span class="tp-glossary-term" title="Sortiert Angebote nach echter Tiefstpreis-Qualität (Gewichtete Differenz). Entfernt keine Angebote.">Tiefstpreis-Sortierung</span></label>
-            </div>
-            <label class="tp-switch tp-purple">
-              <input type="checkbox" id="tp-bestpreise-mode-toggle">
-              <span class="tp-slider"></span>
-            </label>
-          </div>
-          <div class="tp-settings-group">
-            <label title="Angebotsanzahl- oder Rabatt-Sortierung (Toppreise-Liste)">Sortierung nach Angeboten / Rabatt</label>
-            <div class="tp-segmented-control">
-              <input type="radio" id="tp-sort-none" name="tp-sort-offers" value="none">
-              <label for="tp-sort-none">Standard</label>
-              <input type="radio" id="tp-sort-desc" name="tp-sort-offers" value="desc">
-              <label for="tp-sort-desc">Meiste ⬇</label>
-              <input type="radio" id="tp-sort-asc" name="tp-sort-offers" value="asc">
-              <label for="tp-sort-asc">Wenigste ⬆</label>
-              <input type="radio" id="tp-sort-discount" name="tp-sort-offers" value="discount-desc">
-              <label for="tp-sort-discount">% Rabatt ⬇</label>
-            </div>
-          </div>
+          </details>
   </div>
         </section>
         <section id="tp-section-filter" class="tp-section-card tp-section-filter">
   <button type="button" class="tp-section-header" aria-expanded="true" aria-controls="tp-section-filter-body" data-collapse="tp-section-filter"><span class="tp-section-title">🧹 Filtern</span><span class="tp-chevron" aria-hidden="true"></span></button>
   <div class="tp-section-body" id="tp-section-filter-body">
           <div class="tp-group-head-row">
-            <span>Filter & Profile</span>
+            <span>Filter &amp; Profile</span>
             <button type="button" class="tp-btn-group-reset" data-reset-group="filter" title="Filter auf Standard zurücksetzen" aria-label="Filter auf Standard zurücksetzen">↺</button>
           </div>
           <div class="tp-settings-group tp-switch-container">
             <div class="tp-switch-label">
-              <label title="Merkt sich Filter, Heatmap und Sortierung getrennt für Neue Toppreise vs. Suche & Katalog.">Einstellungen pro Seitentyp merken</label>
+              <label title="Merkt sich Filter, Heatmap und Sortierung getrennt für Neue Toppreise vs. Suche &amp; Katalog.">Einstellungen pro Seitentyp merken</label>
               <span class="tp-switch-desc">Eigene Filter, Heatmap und Sortierung für Neue Toppreise vs. Suche/Katalog</span>
             </div>
             <label class="tp-switch tp-purple">
@@ -15423,6 +15741,7 @@ const SHADOW_MODAL_STYLES = `
           </div>
   </div>
         </section>
+        ${renderReviewSection()}
         <section id="tp-section-alarm" class="tp-section-card tp-section-alarm">
   <button type="button" class="tp-section-header" aria-expanded="true" aria-controls="tp-section-alarm-body" data-collapse="tp-section-alarm"><span class="tp-section-title">🔔 Preisalarm</span><span class="tp-chevron" aria-hidden="true"></span></button>
   <div class="tp-section-body" id="tp-section-alarm-body">
@@ -15457,7 +15776,7 @@ const SHADOW_MODAL_STYLES = `
           </div>
           <div class="tp-settings-group tp-switch-container">
             <div class="tp-switch-label">
-              <label title="Alarmformular sofort einreichen und schliessen">Automatisch Absenden & Schliessen</label>
+              <label title="Alarmformular sofort einreichen und schliessen">Automatisch Absenden &amp; Schliessen</label>
               <span class="tp-switch-desc">Formular direkt einreichen und Dialog schliessen</span>
             </div>
             <label class="tp-switch tp-blue">
@@ -15469,6 +15788,7 @@ const SHADOW_MODAL_STYLES = `
         </section>
         ${renderDiscordSection()}
         ${renderDataSection()}
+        ${renderAboutSection()}
 
         </div>
       `;
@@ -15481,7 +15801,10 @@ const SHADOW_MODAL_STYLES = `
   // Independent per-section collapse, remembered outside CONFIG so it never
   // leaks into export/import/reset. GM primary, localStorage mirror.
   const COLLAPSE_KEY = 'tp_modal_collapsed';
-  const COLLAPSE_IDS = ['tp-section-display', 'tp-section-review', 'tp-section-deals', 'tp-section-filter', 'tp-section-alarm', 'tp-section-discord', 'tp-section-data'];
+  const COLLAPSE_IDS = ['tp-section-display', 'tp-section-deals', 'tp-section-filter', 'tp-section-review', 'tp-section-alarm', 'tp-section-discord', 'tp-section-data', 'tp-section-about'];
+  const SUB_OPEN_KEY = 'tp_modal_sub_open';
+  const SUB_DEFAULT_OPEN = ['deals-sort'];
+
   function readCollapsed() {
       try {
         if (typeof GM_getValue !== 'undefined') {
@@ -15505,13 +15828,38 @@ const SHADOW_MODAL_STYLES = `
       try { if (typeof GM_setValue !== 'undefined') GM_setValue('tp_suite_v2_' + COLLAPSE_KEY, clean); } catch {}
       try { if (typeof localStorage !== 'undefined') localStorage.setItem('tp_suite_v2_' + COLLAPSE_KEY, JSON.stringify(clean)); } catch {}
     };
+  function readOpenSubs() {
+    try {
+      if (typeof GM_getValue !== 'undefined') {
+        const gv = GM_getValue('tp_suite_v2_' + SUB_OPEN_KEY);
+        if (Array.isArray(gv)) return gv.map(String);
+      }
+    } catch {}
+    try {
+      if (typeof localStorage !== 'undefined') {
+        const raw = localStorage.getItem('tp_suite_v2_' + SUB_OPEN_KEY);
+        if (raw !== null) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) return parsed.map(String);
+        }
+      }
+    } catch {}
+    return [...SUB_DEFAULT_OPEN];
+  }
+  function writeOpenSubs(ids) {
+    const clean = [...new Set(ids.map(String))];
+    try { if (typeof GM_setValue !== 'undefined') GM_setValue('tp_suite_v2_' + SUB_OPEN_KEY, clean); } catch {}
+    try { if (typeof localStorage !== 'undefined') localStorage.setItem('tp_suite_v2_' + SUB_OPEN_KEY, JSON.stringify(clean)); } catch {}
+  }
   function clearCollapsedState() {
     try { if (typeof GM_deleteValue !== 'undefined') GM_deleteValue('tp_suite_v2_' + COLLAPSE_KEY); } catch {}
     try { if (typeof GM_deleteValue !== 'undefined') GM_deleteValue(COLLAPSE_KEY); } catch {}
+    try { if (typeof GM_deleteValue !== 'undefined') GM_deleteValue('tp_suite_v2_' + SUB_OPEN_KEY); } catch {}
     try {
       if (typeof localStorage !== 'undefined') {
         localStorage.removeItem('tp_suite_v2_' + COLLAPSE_KEY);
         localStorage.removeItem(COLLAPSE_KEY);
+        localStorage.removeItem('tp_suite_v2_' + SUB_OPEN_KEY);
       }
     } catch {}
   }
@@ -15522,10 +15870,24 @@ const SHADOW_MODAL_STYLES = `
         card.classList.add('tp-collapsed');
         card.querySelector('[data-collapse]')?.setAttribute('aria-expanded', 'false');
       }
+      const openSubs = new Set(readOpenSubs());
+      shadow.querySelectorAll('details.tp-subsection[data-sub]').forEach(det => {
+        det.open = openSubs.has(det.dataset.sub);
+      });
     };
+
+  function syncCollapseAllBtn(shadow) {
+    const btn = shadow?.getElementById('tp-btn-collapse-all');
+    const sectionsEl = shadow?.getElementById('tp-settings-sections');
+    if (!btn || !sectionsEl) return;
+    const cards = [...sectionsEl.querySelectorAll('section.tp-section-card')];
+    const anyCollapsed = cards.some(c => c.classList.contains('tp-collapsed'));
+    btn.textContent = anyCollapsed ? 'Alle ausklappen' : 'Alle einklappen';
+  }
 
   function initCollapse(shadow) {
     applyCollapsed(shadow);
+    syncCollapseAllBtn(shadow);
     const sectionsEl = shadow.getElementById('tp-settings-sections');
     if (sectionsEl && !sectionsEl.dataset.collapseBound) {
       sectionsEl.dataset.collapseBound = '1';
@@ -15537,6 +15899,27 @@ const SHADOW_MODAL_STYLES = `
         const collapsed = card.classList.toggle('tp-collapsed');
         header.setAttribute('aria-expanded', String(!collapsed));
         writeCollapsed([...sectionsEl.querySelectorAll('section.tp-collapsed')].map(s => s.id));
+        syncCollapseAllBtn(shadow);
+      });
+      sectionsEl.addEventListener('toggle', (e) => {
+        const det = e.target;
+        if (!det?.matches?.('details.tp-subsection[data-sub]')) return;
+        writeOpenSubs([...sectionsEl.querySelectorAll('details.tp-subsection[data-sub][open]')].map(d => d.dataset.sub));
+      }, true);
+    }
+    const collapseAllBtn = shadow.getElementById('tp-btn-collapse-all');
+    if (collapseAllBtn && !collapseAllBtn.dataset.bound) {
+      collapseAllBtn.dataset.bound = '1';
+      collapseAllBtn.addEventListener('click', () => {
+        if (!sectionsEl) return;
+        const cards = [...sectionsEl.querySelectorAll('section.tp-section-card')];
+        const shouldExpand = cards.some(c => c.classList.contains('tp-collapsed'));
+        for (const card of cards) {
+          card.classList.toggle('tp-collapsed', !shouldExpand);
+          card.querySelector('[data-collapse]')?.setAttribute('aria-expanded', String(shouldExpand));
+        }
+        writeCollapsed(shouldExpand ? [] : cards.map(c => c.id));
+        syncCollapseAllBtn(shadow);
       });
     }
   }
@@ -15635,7 +16018,10 @@ const SHADOW_MODAL_STYLES = `
     const exportBtn = shadow.getElementById('tp-export-config-btn');
     const importBtn = shadow.getElementById('tp-import-config-btn');
     const importFile = shadow.getElementById('tp-import-config-file');
-    return { shadow, dialog, fabButton, btnResetDefaults, btnClose, btnSave, marginRange, marginVal, filterRememberPerPageTypeToggle, profileActiveBadge, opacityRange, opacityVal, hideAdsToggle, shippingToggle, sortNone, sortDesc, sortAsc, sortDiscount, alarmEnabledToggle, alarmTargetRange, alarmTargetVal, alarmAutoSubmitToggle, heatmapIntensityRange, heatmapIntensityVal, bestpreiseModeToggle, bestpreiseWeightRange, bestpreiseWeightVal, bestpreiseWeightDesc, bestpreiseMinPointsRange, bestpreiseMinPointsVal, bestpreiseHorizonRange, bestpreiseHorizonVal, bestpreiseHorizonDesc, cacheTtlSelect, cacheNegTtlSelect, cacheMemoryRange, cacheMemoryVal, cacheDiskRange, cacheDiskVal, cacheStatsLabel, cacheClearBtn, dataResetBtn, realDealMinRange, realDealMinVal, sparklinesToggle, keepaChartToggle, reviewSearchToggle, reviewKeywordInput, reviewKeywordReset, reviewKeywordPreview, reviewKeywordPreviewNoPrice, reviewKeywordPreviewNoPriceRow, reviewAiModeToggle, tavilyEnabledToggle, tavilyApiKeyInput, tavilyApiKeyReveal, tavilyApiKeyEditor, tavilyApiKeyStatus, tavilySearchDepth, tavilyMaxResults, ...collectAiSectionElements(shadow), dealerAutofetchToggle, discordPrimaryName, discordChannelsList, discordExtraChannels, discordAddChannelBtn, discordWebhookInput, discordWebhookReveal, discordWebhookEditor, discordWebhookStatus, discordDealerEmbedToggle, discordProductEmbedToggle, discordForumTitleToggle, discordLayoutInput, discordLayoutPreview, discordLayoutCount, discordLayoutError, discordLayoutReset, exportBtn, importBtn, importFile, layoutTimer: 0 };
+    const aboutVersion = shadow.getElementById('tp-about-version');
+    const aboutHandler = shadow.getElementById('tp-about-handler');
+    const aboutOpenDiagBtn = shadow.getElementById('tp-about-open-diag-btn');
+    return { shadow, dialog, fabButton, btnResetDefaults, btnClose, btnSave, marginRange, marginVal, filterRememberPerPageTypeToggle, profileActiveBadge, opacityRange, opacityVal, hideAdsToggle, shippingToggle, sortNone, sortDesc, sortAsc, sortDiscount, alarmEnabledToggle, alarmTargetRange, alarmTargetVal, alarmAutoSubmitToggle, heatmapIntensityRange, heatmapIntensityVal, bestpreiseModeToggle, bestpreiseWeightRange, bestpreiseWeightVal, bestpreiseWeightDesc, bestpreiseMinPointsRange, bestpreiseMinPointsVal, bestpreiseHorizonRange, bestpreiseHorizonVal, bestpreiseHorizonDesc, cacheTtlSelect, cacheNegTtlSelect, cacheMemoryRange, cacheMemoryVal, cacheDiskRange, cacheDiskVal, cacheStatsLabel, cacheClearBtn, dataResetBtn, realDealMinRange, realDealMinVal, sparklinesToggle, keepaChartToggle, reviewSearchToggle, reviewKeywordInput, reviewKeywordReset, reviewKeywordPreview, reviewKeywordPreviewNoPrice, reviewKeywordPreviewNoPriceRow, reviewAiModeToggle, tavilyEnabledToggle, tavilyApiKeyInput, tavilyApiKeyReveal, tavilyApiKeyEditor, tavilyApiKeyStatus, tavilySearchDepth, tavilyMaxResults, ...collectAiSectionElements(shadow), dealerAutofetchToggle, discordPrimaryName, discordChannelsList, discordExtraChannels, discordAddChannelBtn, discordWebhookInput, discordWebhookReveal, discordWebhookEditor, discordWebhookStatus, discordDealerEmbedToggle, discordProductEmbedToggle, discordForumTitleToggle, discordLayoutInput, discordLayoutPreview, discordLayoutCount, discordLayoutError, discordLayoutReset, exportBtn, importBtn, importFile, aboutVersion, aboutHandler, aboutOpenDiagBtn, layoutTimer: 0 };
   }
 
   // Built lazily (was setupUI-local): kompakt reads DEFAULT_LAYOUT, which
@@ -15746,6 +16132,8 @@ const SHADOW_MODAL_STYLES = `
 
       renderLayoutPreview(els);
       updateKeywordPreview(els);
+      if (els.aboutVersion) els.aboutVersion.textContent = `v${(typeof GM_info !== 'undefined' && GM_info?.script?.version) || 'dev'}`;
+      if (els.aboutHandler) els.aboutHandler.textContent = (typeof GM_info !== 'undefined' && GM_info?.scriptHandler) || 'Browser';
   }
 
   function updateKeywordPreview(els) {
@@ -16080,6 +16468,7 @@ const SHADOW_MODAL_STYLES = `
     };
 
     bindDiagTrigger(els.fabButton, els.shadow);
+    els.aboutOpenDiagBtn?.addEventListener('click', () => openDiagModal(els.shadow));
     els.fabButton.addEventListener('click', openModal);
     els.btnResetDefaults?.addEventListener('click', () => {
       if (!window.confirm('Wirklich alle Einstellungen auf die Standardwerte zurücksetzen?')) return;
@@ -16166,13 +16555,15 @@ const SHADOW_MODAL_STYLES = `
       showToast(`${group.label} auf Standard zurückgesetzt`);
     });
     els.btnClose.addEventListener('click', closeModal);
-    // Native `close` (Escape on backdrop/frame, cancel event) bypasses both
-    // closeModal and the els.shadow keydown handler — reset the preview anyway.
-    els.dialog.addEventListener('close', () => {
+    // Native `cancel` (Escape) fires synchronously before `[open]` is removed,
+    // avoiding a race with async `close` delivery when clearing secret inputs.
+    const resetOnDismiss = () => {
       clearWebhookEditor();
       document.documentElement.style.setProperty('--tp-dim-opacity', CONFIG.DIM_OPACITY);
       document.documentElement.classList.toggle('tp-hide-ads', !!CONFIG.HIDE_ADS);
-    });
+    };
+    els.dialog.addEventListener('cancel', resetOnDismiss);
+    els.dialog.addEventListener('close', resetOnDismiss);
 
     els.hideAdsToggle?.addEventListener('change', e => {
       document.documentElement.classList.toggle('tp-hide-ads', e.target.checked);
@@ -16301,6 +16692,8 @@ const SHADOW_MODAL_STYLES = `
           if (els.discordLayoutError) els.discordLayoutError.textContent = err;
           els.shadow.getElementById('tp-section-discord')?.classList.remove('tp-collapsed');
           els.shadow.querySelector('#tp-section-discord [data-collapse]')?.setAttribute('aria-expanded', 'true');
+          const layoutSub = els.shadow.querySelector('#tp-section-discord details[data-sub="discord-layout"]');
+          if (layoutSub) layoutSub.open = true;
           els.discordLayoutInput.focus();
           return;
         }
@@ -16334,6 +16727,7 @@ const SHADOW_MODAL_STYLES = `
       const current = [...shadow.querySelectorAll('#tp-settings-sections section.tp-collapsed')].map(s => s.id);
       writeCollapsed(current);
     }
+    syncCollapseAllBtn(shadow);
     anchor.scrollIntoView({ block: 'start' });
     anchor.classList.add('tp-flash');
     setTimeout(() => anchor.classList.remove('tp-flash'), 2000);
@@ -16684,211 +17078,6 @@ const SHADOW_MODAL_STYLES = `
     setTimeout(() => commentInput?.focus(), 50);
 
     return controller;
-  }
-
-  // ─── MODULE: src/ui/toast.js ────────────────────────────────────────────────
-  /**
-   * Toast Notification Component
-   * Renders glassmorphic notifications inside Shadow DOM.
-   */
-
-
-  let lastToastMessage = '';
-
-  function getLastToastMessage() {
-    return lastToastMessage;
-  }
-
-  function showToast(message) {
-    lastToastMessage = message;
-    if (typeof document === 'undefined') return;
-    const { shadow } = ensureSkeleton();
-    const container = shadow?.getElementById('tp-toast-container');
-    if (!container) return;
-
-    const toast = document.createElement('div');
-    toast.className = 'tp-toast';
-    const textSpan = document.createElement('span');
-    textSpan.textContent = message;
-    toast.appendChild(textSpan);
-
-    container.appendChild(toast);
-    setTimeout(() => {
-      toast.classList.add('fade-out');
-      setTimeout(() => toast.remove(), 400);
-    }, 2500);
-  }
-
-  // ─── MODULE: src/ui/diag-modal.js ───────────────────────────────────────────
-  /**
-   * Dev Diagnostic Log Modal
-   * Triggered by 600ms long-press or Shift+Click on #tp-settings-fab, or ToppreiseSuite.openDiagLog().
-   * Displays live runtime snapshot and secret-redacted in-memory activity log.
-   */
-
-
-
-
-
-
-
-
-  let suppressNextFabClick = false;
-
-  function openDiagModal(shadow) {
-    if (!shadow) return;
-    let dialog = shadow.getElementById('tp-diag-dialog');
-    let unsub = null;
-
-    const renderSnapshotAndLog = () => {
-      if (!dialog) return;
-      const snapEl = dialog.querySelector('#tp-diag-snapshot');
-      const preEl = dialog.querySelector('#tp-diag-log-pre');
-      const debugToggle = dialog.querySelector('#tp-diag-debug-toggle');
-      if (debugToggle) debugToggle.checked = CONFIG.DEBUG === true;
-
-      const refresh = getFeedRefreshState();
-      const version = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || 'dev';
-      const snapLines = [
-        `v${version} | page=${getPageProfileType()} | DEBUG=${!!CONFIG.DEBUG}`,
-        `scan: active=${scanState.isBatchChecking} (${scanState.progress?.completed || 0}/${scanState.progress?.total || 0}) | activeFetches=${activeFetches.size}`,
-        `refresh: active=${refresh.active} stage=${refresh.stage} last=${refresh.lastOutcome || '-'}${refresh.lastError ? ` err=${refresh.lastError}` : ''}`,
-      ];
-      if (snapEl) snapEl.textContent = snapLines.join('\n');
-
-      const entries = getActivityLog();
-      const warnOnly = !!dialog.querySelector('#tp-diag-warn-filter')?.checked;
-      const filtered = warnOnly
-        ? entries.filter((e) => e.level === 'warn' || e.level === 'error')
-        : entries;
-      if (preEl) {
-        preEl.textContent = filtered.length > 0 ? formatActivityLogText(filtered) : '(keine Einträge)';
-        preEl.scrollTop = preEl.scrollHeight;
-      }
-    };
-
-    if (!dialog) {
-      dialog = document.createElement('dialog');
-      dialog.id = 'tp-diag-dialog';
-      dialog.setAttribute('role', 'dialog');
-      dialog.setAttribute('aria-modal', 'true');
-      dialog.setAttribute('aria-labelledby', 'tp-diag-title');
-      dialog.innerHTML = `
-        <div class="tp-diag-head">
-          <strong id="tp-diag-title">🛠️ Toppreise Dev-Diagnose-Log</strong>
-          <button type="button" id="tp-diag-close-btn" class="tp-btn tp-btn-secondary">Schliessen</button>
-        </div>
-        <pre id="tp-diag-snapshot"></pre>
-        <div class="tp-diag-toolbar">
-          <label><input type="checkbox" id="tp-diag-warn-filter"> Nur Warn+Err</label>
-          <label><input type="checkbox" id="tp-diag-debug-toggle"> Debug-Konsole</label>
-          <button type="button" id="tp-diag-refresh-btn" class="tp-btn tp-btn-secondary">Aktualisieren</button>
-          <button type="button" id="tp-diag-copy-btn" class="tp-btn tp-btn-secondary">Kopieren</button>
-          <button type="button" id="tp-diag-clear-btn" class="tp-btn tp-btn-secondary">Leeren</button>
-        </div>
-        <pre id="tp-diag-log-pre"></pre>
-      `;
-      shadow.appendChild(dialog);
-
-      dialog.querySelector('#tp-diag-close-btn').addEventListener('click', () => dialog.close());
-      dialog.querySelector('#tp-diag-refresh-btn').addEventListener('click', renderSnapshotAndLog);
-      dialog.querySelector('#tp-diag-clear-btn').addEventListener('click', () => {
-        clearActivityLog();
-        renderSnapshotAndLog();
-      });
-      dialog.querySelector('#tp-diag-warn-filter').addEventListener('change', () => {
-        renderSnapshotAndLog();
-      });
-      dialog.querySelector('#tp-diag-debug-toggle').addEventListener('change', (e) => {
-        const next = !!e.target.checked;
-        updateConfig('DEBUG', next);
-        showToast(next ? 'Debug-Konsole AN' : 'Debug-Konsole AUS');
-        renderSnapshotAndLog();
-      });
-      dialog.querySelector('#tp-diag-copy-btn').addEventListener('click', async () => {
-        const txt = `${dialog.querySelector('#tp-diag-snapshot')?.textContent || ''}\n\n${dialog.querySelector('#tp-diag-log-pre')?.textContent || ''}`;
-        try {
-          await navigator.clipboard?.writeText(txt);
-          showToast('Diagnose-Log kopiert');
-        } catch {
-          showToast('Kopieren fehlgeschlagen');
-        }
-      });
-      dialog.addEventListener('click', (e) => {
-        if (e.target === dialog) dialog.close();
-      });
-    }
-
-    renderSnapshotAndLog();
-    dialog._tpUnsub?.();
-    unsub = subscribeActivityLog(() => {
-      if (dialog.open) renderSnapshotAndLog();
-    });
-    dialog._tpUnsub = () => {
-      if (unsub) {
-        unsub();
-        unsub = null;
-      }
-    };
-    dialog.addEventListener('close', () => {
-      dialog._tpUnsub?.();
-    }, { once: true });
-
-    if (!dialog.open) {
-      if (typeof dialog.showModal === 'function') dialog.showModal();
-      else dialog.setAttribute('open', '');
-    }
-  }
-
-  function bindDiagTrigger(fabButton, shadow) {
-    if (!fabButton || !shadow || fabButton.dataset?.tpDiagBound) return;
-    if (fabButton.dataset) fabButton.dataset.tpDiagBound = '1';
-    fabButton.title = 'Toppreise Suite Einstellungen öffnen (Gedrückt halten / Shift+Klick = Dev-Log)';
-
-    let pressTimer = null;
-    let startX = 0;
-    let startY = 0;
-
-    const clearPress = () => {
-      if (pressTimer !== null) {
-        clearTimeout(pressTimer);
-        pressTimer = null;
-      }
-    };
-
-    fabButton.addEventListener('pointerdown', (e) => {
-      if (e.pointerType === 'mouse' && e.button !== 0) return;
-      suppressNextFabClick = false;
-      clearPress();
-      startX = e.clientX;
-      startY = e.clientY;
-      pressTimer = setTimeout(() => {
-        pressTimer = null;
-        suppressNextFabClick = true;
-        setTimeout(() => { suppressNextFabClick = false; }, 400);
-        openDiagModal(shadow);
-      }, 600);
-    });
-
-    fabButton.addEventListener('pointermove', (e) => {
-      if (pressTimer === null) return;
-      if (Math.hypot(e.clientX - startX, e.clientY - startY) > 10) {
-        clearPress();
-      }
-    });
-
-    fabButton.addEventListener('pointerup', clearPress);
-    fabButton.addEventListener('pointerleave', clearPress);
-    fabButton.addEventListener('pointercancel', clearPress);
-
-    fabButton.addEventListener('click', (e) => {
-      if (suppressNextFabClick || e.shiftKey) {
-        suppressNextFabClick = false;
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        if (e.shiftKey) openDiagModal(shadow);
-      }
-    });
   }
 
   // ─── MODULE: src/ui/calc-preset-data.js ─────────────────────────────────────
@@ -21290,7 +21479,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.555';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.556';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

@@ -1679,6 +1679,7 @@ def test_horizon_select_in_filter_bar(page: Page):
 
     # Modal round-trip: modal shows the bar value, saving there updates the bar.
     open_settings(page)
+    page.locator('#tp-root >> details[data-sub="deals-weights"] > summary').click()
     assert page.locator('#tp-root >> #tp-bestpreise-horizon-val').input_value() == '0'
     page.fill('#tp-root >> #tp-bestpreise-horizon-val', '180')
     page.click('#tp-root >> #tp-btn-save')

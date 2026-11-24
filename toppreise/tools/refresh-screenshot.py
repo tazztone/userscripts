@@ -929,6 +929,7 @@ def setup_settings_core(page, pids):
         if (s) { s.style.maxHeight = "none"; s.style.overflow = "visible"; }
         root.querySelector('#tp-section-discord').style.display = 'none';
         root.querySelector('#tp-section-data').style.display = 'none';
+        root.querySelector('#tp-section-about').style.display = 'none';
     }''')
     page.wait_for_timeout(300)
 
@@ -939,10 +940,10 @@ def setup_settings_core(page, pids):
     origin = {"x": clip["x"], "y": clip["y"]}
 
     controls = [
-        ("#tp-section-display .tp-section-title", "🖥️ Ansicht (Dimmung, Heatmap-Farben, Transparenz & Layout)", {"bx": 32}),
-        ("#tp-section-review .tp-section-title", "🌐 Web-Suche (1-Klick Google-Testberichte & optionaler KI-Modus)", {"bx": 32}),
-        ("#tp-section-deals .tp-section-title", "💎 Sortieren (Tiefstpreis-Rangfolge, Gewichtung Rekord vs. Median)", {"bx": 32}),
-        ("#tp-section-filter .tp-section-title", "🧹 Filtern (Negativfilter, Min-Rabatt Stepper & Händlerzeilen-Filter)", {"bx": 32}),
+        ("#tp-section-display .tp-section-title", "🖥️ Ansicht (Dimmung, Heatmap-Farben, Banner, Sparklines & Keepa)", {"bx": 32}),
+        ("#tp-section-deals .tp-section-title", "💎 Deals & Sortieren (Tiefstpreis-Rangfolge & Berechnungsparameter)", {"bx": 32}),
+        ("#tp-section-filter .tp-section-title", "🧹 Filtern (Seitentyp-Profile & Preis-Toleranz)", {"bx": 32}),
+        ("#tp-section-review .tp-section-title", "🌐 Web-Suche (1-Klick Google, OpenRouter/Tavily KI & Batch)", {"bx": 32}),
         ("#tp-section-alarm .tp-section-title", "🔔 Preisalarm (Auto-Fill Modus, Zielpreis in % & Alarm-Gültigkeit)", {"bx": 32}),
     ]
     callouts = []
@@ -956,7 +957,7 @@ def setup_settings_core(page, pids):
 
 
 def setup_settings_advanced(page, pids):
-    """Shot 04b: Settings dialog advanced sections 6–7 (Discord Share & Daten/Cache)."""
+    """Shot 04b: Settings dialog advanced sections 6–8 (Discord Share, Daten/Cache & Über)."""
     page.locator("#tp-root >> #tp-settings-fab").click()
     dlg = "#tp-root >> #tp-settings-dialog"
     page.wait_for_selector(dlg, state="visible", timeout=10000)
@@ -981,6 +982,7 @@ def setup_settings_advanced(page, pids):
         root.querySelector('#tp-section-deals').style.display = 'none';
         root.querySelector('#tp-section-filter').style.display = 'none';
         root.querySelector('#tp-section-alarm').style.display = 'none';
+        root.querySelectorAll('#tp-section-data details.tp-subsection, #tp-section-discord details.tp-subsection').forEach(det => { det.open = true; });
     }''')
     page.wait_for_timeout(300)
 
@@ -991,8 +993,9 @@ def setup_settings_advanced(page, pids):
     origin = {"x": clip["x"], "y": clip["y"]}
 
     controls = [
-        ("#tp-section-discord .tp-section-title", "💬 Discord Share (Webhook, Deal-Sharing & anpassbare Layout-Tokens)", {"bx": 32}),
-        ("#tp-section-data .tp-section-title", "💾 Daten & Cache (Händler-Autofetch, TTL-Speicher & Backup-Export)", {"bx": 32}),
+        ("#tp-section-discord .tp-section-title", "💬 Discord Share (Webhooks, Embeds & Layout-Baukasten)", {"bx": 32}),
+        ("#tp-section-data .tp-section-title", "💾 Daten & Cache (TTL-Speicher, Backup-Export & Gefahrenzone)", {"bx": 32}),
+        ("#tp-section-about .tp-section-title", "ℹ️ Über & Hilfe (Version, Repo-Links & Diagnose-Log)", {"bx": 32}),
     ]
     callouts = []
     for sel, cap, anchor in controls:

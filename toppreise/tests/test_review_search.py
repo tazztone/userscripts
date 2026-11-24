@@ -82,6 +82,7 @@ def test_review_empty_keyword_falls_back_to_default(page: Page):
 def test_review_ai_mode_appends_udm50(page: Page):
     """AI checkbox keeps the keyword suffix and opens Google AI Mode."""
     open_settings(page)
+    page.locator('#tp-root >> details[data-sub="review-google"] > summary').click()
     page.click('#tp-root >> #tp-review-ai-mode-toggle + .tp-slider')
     page.click('#tp-root >> #tp-btn-save')
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
@@ -176,6 +177,7 @@ def test_review_section_renamed_web_suche(page: Page):
 def test_tavily_key_settings_lifecycle(page: Page):
     """Tavily key can be revealed, entered, saved, and displayed as configured."""
     open_settings(page)
+    page.locator('#tp-root >> #tp-ai-tavily-block > summary').click()
     status = page.locator('#tp-root >> #tp-tavily-api-key-status')
     assert status.text_content() == 'Kein Key hinterlegt'
 
@@ -236,6 +238,7 @@ def test_review_ai_popover_open_and_close(page: Page):
 def test_tavily_parameters_settings_lifecycle(page: Page):
     """Tavily search depth and max results can be configured and persisted."""
     open_settings(page)
+    page.locator('#tp-root >> #tp-ai-tavily-block > summary').click()
     depth_select = page.locator('#tp-root >> #tp-tavily-search-depth')
     max_select = page.locator('#tp-root >> #tp-tavily-max-results')
 

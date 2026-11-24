@@ -29,7 +29,10 @@ export function ensureSkeleton() {
         </svg>
       </button>
       <dialog id="tp-settings-dialog" role="dialog" aria-modal="true" aria-labelledby="tp-settings-title">
-        <h3 id="tp-settings-title">Toppreise Suite Einstellungen</h3>
+        <div class="tp-modal-header">
+          <h3 id="tp-settings-title">Toppreise Suite Einstellungen</h3>
+          <button type="button" id="tp-btn-collapse-all" class="tp-btn tp-btn-secondary tp-btn-compact" aria-label="Alle Bereiche ein- oder ausklappen">Alle einklappen</button>
+        </div>
         <div id="tp-settings-sections"></div>
         <div class="tp-modal-actions">
           <button type="button" class="tp-btn tp-btn-secondary" id="tp-btn-reset-defaults" title="Setzt alle Einstellungen auf die Standardwerte zurück">Einstellungen auf Standardwerte zurücksetzen</button>

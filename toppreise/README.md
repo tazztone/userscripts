@@ -48,7 +48,7 @@ Requires a userscript manager browser extension:
 - [Violentmonkey](https://violentmonkey.github.io/) (recommended: [Firefox](https://addons.mozilla.org/en-US/firefox/addon/violentmonkey/) · [Chrome / Brave](https://chromewebstore.google.com/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag))
 - [Tampermonkey](https://www.tampermonkey.net/)
 
-### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.555)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
+### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.556)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
 
 > [!NOTE]
 > The userscript includes embedded `@updateURL` and `@downloadURL` metadata headers. Your userscript manager will automatically check GitHub in the background and keep your installation up to date.
@@ -197,34 +197,36 @@ The userscript dynamically tailors its UI to the current page type:
 
 Click the floating **gear icon (`⚙️`)** in the bottom-right corner to open the Shadow DOM settings dialog (`#tp-root`). Elevated via native HTML5 `<dialog>` (`showModal()`) to the browser Top Layer, it avoids z-index collisions with host site elements. Hold `⚙️` (600ms) or `Shift+Click` to open the **Dev-Diagnose-Log** (`#tp-diag-dialog`) with live state and redacted network/scanner logs. Split into Core and Advanced views for legibility:
 
-### Core Settings (Sections 1–5: Display, Web Search, Sorting, Filtering, Price Alarm)
+### Core Settings (Sections 1–5: Display, Deals & Sorting, Filtering, Web Search, Price Alarm)
 
 ![Shadow DOM Settings Dialog: Core Controls](docs/shots/04a-settings-core.webp)
 
 | # | Setting / Action | Description |
 |---|---|---|
-| ① | **🖥️ Ansicht (*Display*)** | Adjusts background opacity of filtered listings, deal intensity & layout styling. |
-| ② | **🌐 Web-Suche (*Web Search*)** | Configures 1-click Google search (keyword presets, `{preis}` token) with optional AI overview mode (`&udm=50`). |
-| ③ | **💎 Sortieren (*Sorting*)** | Enables authentic deal scoring ranking (`💎 Tiefstpreis-Sortierung`), weight blend & time horizon. |
-| ④ | **🧹 Filtern (*Filtering*)** | Sets price tolerance margin (%) for preferred merchants, negative keywords & discount steppers. |
-| ⑤ | **🔔 Preisalarm (*Price Alarm*)** | Auto-fills target price percentage (5%–99%) and duration (3–24 months). |
+| ① | **🖥️ Ansicht (*Display*)** | Adjusts filtered card opacity, deal intensity, ad hiding, mini sparklines & Keepa chart toggle. |
+| ② | **💎 Deals & Sortieren** | Authentic deal ranking (`💎 Tiefstpreis-Sortierung`), offer/discount sorting & collapsible calculation/verification parameters. |
+| ③ | **🧹 Filtern (*Filtering*)** | Per-page-type profile memory and preferred merchant price tolerance margin (%). |
+| ④ | **🌐 Web-Suche (*Web Search*)** | 1-click Google search (`{preis}` token) plus collapsible Google AI, OpenRouter, Tavily & Batch sub-cards. |
+| ⑤ | **🔔 Preisalarm (*Price Alarm*)** | Auto-fills target price percentage (5%–99%), duration (3–24 months) and auto-submit. |
 
-### Advanced Settings (Sections 6–7: Discord Share & Data/Cache)
+### Advanced Settings (Sections 6–8: Discord Share, Data & Cache, About & Help)
 
 ![Shadow DOM Settings Dialog: Advanced Controls](docs/shots/04b-settings-advanced.webp)
 
 | # | Setting / Action | Description |
 |---|---|---|
-| ① | **💬 Discord Share** | Configures confidential multi-channel webhooks, tokenized layout builder & live Markdown preview. |
-| ② | **💾 Daten & Cache (*Data & Cache*)** | Dealer background autoload, TTL controls, cache purge (`🗑️`), reset (`🧨`) & backup export. |
+| ① | **💬 Discord Share** | Confidential multi-channel webhooks plus collapsible embed options and tokenized layout builder. |
+| ② | **💾 Daten & Cache (*Data & Cache*)** | Collapsible cache/autofetch/TTL limits, JSON backup export/import, and bottom danger-zone reset (`🧨`). |
+| ③ | **ℹ️ Über & Hilfe (*About & Help*)** | Live script version & handler, links to repository/docs/issues/script update, and diagnostic log button. |
 
-1. **🖥️ Display (*Ansicht*):** Dimmer opacity for filtered cards, hide ad placeholders / banners (removes top blank space and layout ad slots), and deal intensity / heatmap strength (20%–100%).
-2. **🌐 Web Search & AI Verdict (*Web-Suche*):** Search toggle (`🌐`) on product titles, custom keyword with `{preis}` placeholder, inline default reset, live query preview, Google AI mode (`&udm=50`), **OpenRouter `openrouter:web_search`** (with model/engine/citation links) and legacy Tavily AI toggle for 1-click in-page AI verdicts and `{ai}` Discord sharing (48h cached), plus Batch AI target and confirmation threshold (`1–100`).
-3. **💎 Sorting (*Sortieren*):** Authentic deal scoring sort (`💎 Tiefstpreis-Sortierung`) and secondary offer/discount sorting (`Standard`, `Meiste ⬇`, `Wenigste ⬆`, `% Rabatt ⬇`).
-4. **🧹 Filtering (*Filtern*):** Preferred dealer price tolerance margin (%); note directing to filter bar popover for negative keywords, min offers, unverified, and fallback lows.
+1. **🖥️ Display (*Ansicht*):** Dimmer opacity for filtered cards, deal intensity / heatmap strength (20%–100%), hide ad placeholders/banners, mini trend sparklines, and Amazon Keepa chart display.
+2. **💎 Deals & Sorting (*Deals & Sortieren*):** Authentic deal scoring sort (`💎 Tiefstpreis-Sortierung`), offer/discount sorting (`Standard`, `Meiste ⬇`, `Wenigste ⬆`, `% Rabatt ⬇`), and collapsible **Berechnungsparameter & Prüfung** (weighted deal blend slider, minimum history data points, rolling median horizon, batch check discount threshold, shipping basis `inkl. Versand`).
+3. **🧹 Filtering (*Filtern*):** Per-page-type profile memory, active profile indicator, and preferred dealer price tolerance margin (%).
+4. **🌐 Web Search & AI Verdict (*Web-Suche*):** Search toggle (`🌐`), custom keyword with `{preis}` placeholder and live preview, AI provider selector, and collapsible sub-cards for **Google-Suche** (`&udm=50`), **OpenRouter `openrouter:web_search`**, **Tavily AI**, and **Batch-Aktionen** (AI target & confirmation threshold `1–100`).
 5. **🔔 Price Alarm (*Preisalarm*):** Target price percentage (5%–99%, default 60%), alarm duration (3, 6, 12, 24 months), and Auto-Submit toggle.
-6. **💬 Discord Share:** Confidential webhook channels (`GM_setValue` only), link embed suppression, layout token builder (`{title}`, `{price}`, `{ai}`, `{comment}`, etc.), presets, and live Markdown preview.
-7. **💾 Data & Cache (*Daten & Cache*):** Dealer background autoload, weighted deal blend slider (record vs. median), minimum history data points, rolling median horizon, batch check discount threshold, shipping basis (`inkl. Versand`), sparklines, configurable RAM & disk cache limits, cache TTL, cache purge (`🗑️`), full reset (`🧨`), and JSON configuration export/import.
+6. **💬 Discord Share:** Confidential webhook channels (`GM_setValue` only) plus collapsible **Embed- & Foren-Optionen** and **Nachrichten-Layout (Baukasten)** (`{title}`, `{price}`, `{ai}`, `{comment}`, etc.).
+7. **💾 Data & Cache (*Daten & Cache*):** Collapsible **Cache, Abruf & Limits** (cache stats/purge `🗑️`, dealer background autoload, TTLs, RAM & disk limits), **Sicherung** (JSON export/import), and **Gefahrenzone** (full reset `🧨`) at the bottom.
+8. **ℹ️ About & Help (*Über & Hilfe*):** Live version & userscript handler, author/MIT license, links to GitHub repository, documentation/demos, issue tracker, and userscript update URL, plus `🛠️ Dev-Diagnose-Log öffnen`.
 
 ---
 

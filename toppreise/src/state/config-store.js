@@ -119,7 +119,7 @@ export const PAGE_SCOPED_KEYS = Object.freeze(new Set([
 export const RESET_GROUPS = Object.freeze({
   display: {
     label: 'Ansicht',
-    keys: ['DIM_OPACITY', 'HEATMAP_INTENSITY', 'HEATMAP_ENABLED', 'HIDE_ADS']
+    keys: ['DIM_OPACITY', 'HEATMAP_INTENSITY', 'HEATMAP_ENABLED', 'HIDE_ADS', 'ENABLE_SPARKLINES', 'KEEPA_CHART_ENABLED']
   },
   review: {
     label: 'Web-Suche',
@@ -160,7 +160,7 @@ export const RESET_GROUPS = Object.freeze({
     label: 'Berechnungsparameter & Analyse',
     keys: [
       'BESTPREISE_WEIGHT_RECORD', 'BESTPREISE_MIN_POINTS', 'BESTPREISE_MEDIAN_HORIZON_DAYS',
-      'REAL_DEAL_MIN_DISCOUNT', 'USE_SHIPPING_PRICE', 'ENABLE_SPARKLINES', 'KEEPA_CHART_ENABLED',
+      'REAL_DEAL_MIN_DISCOUNT', 'USE_SHIPPING_PRICE',
       'OUTLIER_REJECTION_ENABLED', 'OUTLIER_DEVIATION_BAND', 'OUTLIER_MAX_GLITCH_HOURS'
     ]
   },

@@ -69,6 +69,8 @@ def test_pruef_vorauswahl_threshold_persists(page: Page):
     # Removed strictness toggle stays gone
     assert page.locator('#tp-root >> #tp-real-deal-filter-toggle').count() == 0
 
+    page.locator('#tp-root >> details[data-sub="deals-weights"] > summary').click()
+
     # Threshold still exists with default 30
     min_discount_input = page.locator('#tp-root >> #tp-real-deal-min-val')
     assert min_discount_input.input_value() == '30'
@@ -84,6 +86,7 @@ def test_pruef_vorauswahl_threshold_persists(page: Page):
 
 def test_shipping_basis_toggle_persists(page: Page):
     open_settings(page)
+    page.locator('#tp-root >> details[data-sub="deals-weights"] > summary').click()
     toggle = page.locator('#tp-root >> #tp-shipping-toggle')
     initial = toggle.is_checked()
     # Toggle via slider click (checkbox itself is visually hidden)
@@ -295,6 +298,7 @@ def test_sparklines_settings_toggle(page: Page):
 
 def test_dealer_autofetch_settings_toggle(page: Page):
     open_settings(page)
+    page.locator('#tp-root >> details[data-sub="data-cache"] > summary').click()
 
     toggle = page.locator('#tp-root >> #tp-dealer-autofetch-toggle')
     assert not toggle.is_checked()
@@ -315,9 +319,11 @@ def test_data_reset_clears_cache_and_settings(page: Page):
     page.evaluate("() => window.ToppreiseSuite.updateConfig('REAL_DEAL_MIN_DISCOUNT', 40, {skipRender: true})")
     open_settings(page)
 
+    page.locator('#tp-root >> details[data-sub="data-danger"] > summary').click()
     page.on('dialog', lambda dialog: dialog.accept())
     page.click('#tp-root >> #tp-data-reset-btn')
 
+    page.locator('#tp-root >> details[data-sub="data-cache"] > summary').click()
     stats_label = page.locator('#tp-root >> #tp-cache-stats-label')
     assert '0 Einträge' in (stats_label.text_content() or '')
     assert page.evaluate("() => localStorage.getItem('tp_hist_v1_item1')") is None
@@ -332,10 +338,11 @@ def test_bestpreise_settings_weight_slider(page: Page):
     toggle = page.locator('#tp-root >> #tp-bestpreise-mode-toggle')
     assert not toggle.is_checked()
 
-    # Toggle on -> Weight slider group should become visible
+    # Toggle on -> Weight slider group should become visible inside weights subsection
     page.click('#tp-root >> #tp-bestpreise-mode-toggle + .tp-slider')
     assert toggle.is_checked()
 
+    page.locator('#tp-root >> details[data-sub="deals-weights"] > summary').click()
     weight_group = page.locator('#tp-root >> #tp-bestpreise-weight-group')
     assert weight_group.is_visible()
 
@@ -368,6 +375,7 @@ def test_bestpreise_settings_horizon_selection_persistence(page: Page):
     if not toggle.is_checked():
         page.click('#tp-root >> #tp-bestpreise-mode-toggle + .tp-slider')
 
+    page.locator('#tp-root >> details[data-sub="deals-weights"] > summary').click()
     horizon_group = page.locator('#tp-root >> #tp-bestpreise-horizon-group')
     assert horizon_group.is_visible()
 
@@ -408,6 +416,7 @@ def test_horizon_change_recomputes_cached_price_stats(page: Page):
     toggle = page.locator('#tp-root >> #tp-bestpreise-mode-toggle')
     if not toggle.is_checked():
         page.click('#tp-root >> #tp-bestpreise-mode-toggle + .tp-slider')
+    page.locator('#tp-root >> details[data-sub="deals-weights"] > summary').click()
     page.fill('#tp-root >> #tp-bestpreise-horizon-val', '90')
     page.click('#tp-root >> #tp-btn-save')
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
@@ -426,6 +435,7 @@ def test_cache_settings_and_clear_button(page: Page):
 
     # Open settings modal
     open_settings(page)
+    page.locator('#tp-root >> details[data-sub="data-cache"] > summary').click()
 
     # Verify cache count label displays 2 items with disk limit
     stats_label = page.locator('#tp-root >> #tp-cache-stats-label')
@@ -541,22 +551,32 @@ def test_config_dispatcher_syncs_toolbar_and_modal(page: Page):
 def test_settings_grouped_sections_visible_without_expanding(page: Page):
     open_settings(page)
 
-    # Seven toggle-button headers, all expanded on first open (fresh localStorage)
-    assert page.locator('#tp-root >> button.tp-section-header').count() == 7
-    for section in ['display', 'review', 'deals', 'filter', 'alarm', 'discord', 'data']:
+    # Eight toggle-button headers, all expanded on first open (fresh localStorage)
+    assert page.locator('#tp-root >> button.tp-section-header').count() == 8
+    for section in ['display', 'deals', 'filter', 'review', 'alarm', 'discord', 'data', 'about']:
         header = page.locator(f'#tp-root >> #tp-section-{section} >> button.tp-section-header')
         assert header.count() == 1
         assert header.get_attribute('aria-expanded') == 'true'
         assert page.locator(f'#tp-root >> #tp-section-{section} >> .tp-section-body').is_visible()
     assert page.locator('#tp-root >> #tp-advanced-details').count() == 0
 
-    # Former Feintuning controls need no expanding
+    # Display controls (including moved Sparklines/Keepa) need no expanding
     assert page.locator('#tp-root >> #tp-margin-range').is_visible()
-    assert page.locator('#tp-root >> #tp-cache-ttl-select').is_visible()
     assert page.locator('#tp-root >> #tp-section-filter >> #tp-margin-range').is_visible()
     assert page.locator('#tp-root >> #tp-section-deals >> label[for="tp-sort-discount"]').is_visible()
-    assert page.locator('#tp-root >> #tp-section-data >> #tp-real-deal-min-range').is_visible()
+    assert page.locator('#tp-root >> #tp-section-display >> #tp-sparklines-toggle').count() == 1
+    assert page.locator('#tp-root >> #tp-section-display >> #tp-keepa-chart-toggle').count() == 1
     assert page.locator('#tp-root >> #tp-btn-save').is_visible()
+
+    # Subsections start collapsed (except deals-sort) and expand cleanly
+    assert page.locator('#tp-root >> details[data-sub="deals-sort"]').get_attribute('open') is not None
+    assert page.locator('#tp-root >> details[data-sub="deals-weights"]').get_attribute('open') is None
+    assert page.locator('#tp-root >> details[data-sub="data-cache"]').get_attribute('open') is None
+    page.locator('#tp-root >> details[data-sub="deals-weights"] > summary').click()
+    page.locator('#tp-root >> details[data-sub="discord-embeds"] > summary').click()
+    page.locator('#tp-root >> details[data-sub="data-cache"] > summary').click()
+    assert page.locator('#tp-root >> #tp-section-deals >> #tp-real-deal-min-range').is_visible()
+    assert page.locator('#tp-root >> #tp-cache-ttl-select').is_visible()
 
     # Discord controls live in their own section; secret stays collapsed until reveal
     for control in ['#tp-discord-webhook-reveal', '#tp-discord-dealer-embed-toggle', '#tp-discord-product-embed-toggle']:
@@ -632,6 +652,7 @@ def test_open_settings_at_expands_collapsed_section(page: Page):
 
 def test_discord_layout_editor(page: Page):
     open_settings(page)
+    page.locator('#tp-root >> details[data-sub="discord-layout"] > summary').click()
     preview = page.locator('#tp-root >> #tp-section-discord >> #tp-discord-layout-preview')
     page.fill('#tp-root >> #tp-discord-layout-input', '## {title}\n# {price}')
     expect(preview).to_contain_text('URBANISTA Porto')
@@ -712,6 +733,7 @@ def test_multi_channel_settings(page: Page):
 
 def test_tavily_enabled_toggle_persists(page: Page):
     open_settings(page)
+    page.locator('#tp-root >> details[data-sub="review-tavily"] > summary').click()
     toggle = page.locator('#tp-root >> #tp-tavily-enabled-toggle')
     # Default is false
     assert toggle.is_checked() is False
@@ -803,6 +825,7 @@ def test_settings_reset_to_default_button(page: Page):
     margin_input = page.locator('#tp-root >> #tp-margin-val')
     margin_input.fill('15')
 
+    page.locator('#tp-root >> details[data-sub="deals-weights"] > summary').click()
     discount_input = page.locator('#tp-root >> #tp-real-deal-min-val')
     discount_input.fill('45')
 
@@ -854,6 +877,7 @@ def test_group_level_reset_buttons(page: Page):
     assert reset_buttons.count() == 9
 
     # Modify settings in 'weights' group (BESTPREISE_WEIGHT_RECORD) and 'display' group (DIM_OPACITY)
+    page.locator('#tp-root >> details[data-sub="deals-weights"] > summary').click()
     weight_input = page.locator('#tp-root >> #tp-bestpreise-weight-val')
     weight_input.fill('80')
 
@@ -905,11 +929,14 @@ def test_settings_dialog_has_no_double_scrollbars(page: Page):
     dialog = page.locator('#tp-root >> #tp-settings-dialog')
     assert dialog.is_visible()
 
-    # Expand all sections to maximize content height
+    # Expand all sections and subsections to maximize content height
     page.evaluate("""() => {
         const root = document.getElementById('tp-root').shadowRoot;
         root.querySelectorAll('#tp-settings-sections section.tp-collapsed').forEach(s => {
             s.classList.remove('tp-collapsed');
+        });
+        root.querySelectorAll('#tp-settings-sections details.tp-subsection').forEach(d => {
+            d.open = true;
         });
     }""")
 
@@ -1018,6 +1045,7 @@ def test_ai_provider_save_roundtrip_and_batch_reset_group(page: Page):
     page.fill('#tp-root >> #tp-openrouter-model-input', 'openai/gpt-4o-mini')
     page.select_option('#tp-root >> #tp-openrouter-engine-select', 'exa')
     page.select_option('#tp-root >> #tp-openrouter-max-results', '8')
+    page.locator('#tp-root >> details[data-sub="review-batch"] > summary').click()
     page.select_option('#tp-root >> #tp-batch-ai-target-select', 'claude')
     page.fill('#tp-root >> #tp-batch-confirm-threshold-input', '25')
 
@@ -1048,6 +1076,100 @@ def test_ai_provider_save_roundtrip_and_batch_reset_group(page: Page):
 
     page.click('#tp-root >> #tp-btn-close')
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
+
+
+def test_about_section_metadata_links_and_diag_button(page: Page):
+    open_settings(page)
+    about = page.locator('#tp-root >> #tp-section-about')
+    assert about.is_visible()
+    expect(page.locator('#tp-root >> #tp-about-version')).to_have_text('vdev')
+    expect(page.locator('#tp-root >> #tp-about-handler')).to_have_text('Browser')
+    assert 'tazztone' in (about.text_content() or '')
+    assert 'MIT' in (about.text_content() or '')
+
+    links = page.locator('#tp-root >> #tp-section-about a.tp-about-link')
+    assert links.count() == 4
+    expected_urls = [
+        'https://github.com/tazztone/userscripts',
+        'https://tazztone.github.io/userscripts/',
+        'https://github.com/tazztone/userscripts/issues',
+        'https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js',
+    ]
+    for i, url in enumerate(expected_urls):
+        assert links.nth(i).get_attribute('href') == url
+        assert links.nth(i).get_attribute('target') == '_blank'
+        assert 'noopener' in (links.nth(i).get_attribute('rel') or '')
+
+    page.click('#tp-root >> #tp-about-open-diag-btn')
+    diag = page.locator('#tp-root >> #tp-diag-dialog')
+    diag.wait_for(state='visible')
+    page.click('#tp-root >> #tp-diag-close-btn')
+    diag.wait_for(state='hidden')
+    page.click('#tp-root >> #tp-btn-close')
+
+
+def test_subsections_collapse_persist_and_collapse_all_button(page: Page):
+    open_settings(page)
+
+    # Heavy subsections start collapsed; deals-sort starts open
+    assert page.locator('#tp-root >> details[data-sub="deals-sort"]').get_attribute('open') is not None
+    assert page.locator('#tp-root >> details[data-sub="review-tavily"]').get_attribute('open') is None
+    assert page.locator('#tp-root >> details[data-sub="data-danger"]').get_attribute('open') is None
+
+    # Expand a subsection and verify persistence across close/reopen
+    page.locator('#tp-root >> details[data-sub="data-backup"] > summary').click()
+    assert page.locator('#tp-root >> #tp-export-config-btn').is_visible()
+    page.click('#tp-root >> #tp-btn-close')
+    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
+
+    open_settings(page)
+    assert page.locator('#tp-root >> details[data-sub="data-backup"]').get_attribute('open') is not None
+    assert page.locator('#tp-root >> #tp-export-config-btn').is_visible()
+
+    # Collapse All / Expand All header button
+    collapse_btn = page.locator('#tp-root >> #tp-btn-collapse-all')
+    assert collapse_btn.text_content().strip() == 'Alle einklappen'
+    collapse_btn.click()
+    assert page.locator('#tp-root >> section.tp-collapsed').count() == 8
+    assert collapse_btn.text_content().strip() == 'Alle ausklappen'
+
+    collapse_btn.click()
+    assert page.locator('#tp-root >> section.tp-collapsed').count() == 0
+    assert collapse_btn.text_content().strip() == 'Alle einklappen'
+
+    page.click('#tp-root >> #tp-btn-close')
+
+
+def test_reorganized_section_order_and_control_placement(page: Page):
+    open_settings(page)
+    order = page.evaluate("""() => {
+        const root = document.getElementById('tp-root').shadowRoot;
+        return [...root.querySelectorAll('#tp-settings-sections section.tp-section-card')].map(s => s.id);
+    }""")
+    assert order == [
+        'tp-section-display',
+        'tp-section-deals',
+        'tp-section-filter',
+        'tp-section-review',
+        'tp-section-alarm',
+        'tp-section-discord',
+        'tp-section-data',
+        'tp-section-about',
+    ]
+    assert page.locator('#tp-root >> #tp-section-display >> #tp-sparklines-toggle').count() == 1
+    assert page.locator('#tp-root >> #tp-section-display >> #tp-keepa-chart-toggle').count() == 1
+    assert page.locator('#tp-root >> #tp-section-deals >> #tp-bestpreise-weight-range').count() == 1
+    assert page.locator('#tp-root >> #tp-section-deals >> #tp-real-deal-min-range').count() == 1
+    assert page.locator('#tp-root >> #tp-section-data >> #tp-data-reset-btn').count() == 1
+    # Danger zone sits at the very end of tp-section-data
+    last_sub = page.evaluate("""() => {
+        const root = document.getElementById('tp-root').shadowRoot;
+        const subs = root.querySelectorAll('#tp-section-data details.tp-subsection');
+        return subs[subs.length - 1]?.dataset?.sub || '';
+    }""")
+    assert last_sub == 'data-danger'
+    page.click('#tp-root >> #tp-btn-close')
+
 
 
 
