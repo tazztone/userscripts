@@ -83,6 +83,7 @@ export function buildBundle() {
     'features/discord-recipe.js',
     'features/tavily-search.js',
     'features/openrouter-search.js',
+    'features/batch-actions.js',
     'features/share-discord.js',
     'page/sort.js',
     'page/feed-refresh.js',
