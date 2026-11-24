@@ -49,10 +49,19 @@ export const DEFAULTS = Object.freeze({
   REVIEW_SEARCH_ENABLED: true,
   REVIEW_SEARCH_KEYWORD: 'Testberichte zu: [Produkt]. Ist der Preis von {preis} ein guter Deal? Bewerte Preis-Leistung, Stärken und Schwächen kurz auf Deutsch.',
   REVIEW_SEARCH_AI_MODE: false,
+  AI_SEARCH_PROVIDER: 'google',
   TAVILY_ENABLED: false,
   TAVILY_API_KEY: '',
   TAVILY_SEARCH_DEPTH: 'basic',
   TAVILY_MAX_RESULTS: 5,
+  OPENROUTER_API_KEY: '',
+  OPENROUTER_MODEL: 'google/gemini-2.5-flash',
+  OPENROUTER_SEARCH_ENGINE: 'auto',
+  OPENROUTER_MAX_RESULTS: 5,
+  BATCH_CONFIRM_THRESHOLD: 10,
+  BATCH_SCOPE_DEFAULT: 'non-dimmed',
+  BATCH_COPY_FORMAT: 'markdown',
+  BATCH_AI_TARGET: 'google-ai',
   DEALER_AUTOFETCH: false,
   NEGATIVE_TERMS: '',
   DISCORD_WEBHOOK_URL: '',
@@ -114,7 +123,15 @@ export const RESET_GROUPS = Object.freeze({
   },
   review: {
     label: 'Web-Suche',
-    keys: ['REVIEW_SEARCH_ENABLED', 'REVIEW_SEARCH_KEYWORD', 'REVIEW_SEARCH_AI_MODE', 'TAVILY_ENABLED', 'TAVILY_SEARCH_DEPTH', 'TAVILY_MAX_RESULTS']
+    keys: [
+      'REVIEW_SEARCH_ENABLED', 'REVIEW_SEARCH_KEYWORD', 'REVIEW_SEARCH_AI_MODE',
+      'AI_SEARCH_PROVIDER', 'TAVILY_ENABLED', 'TAVILY_SEARCH_DEPTH', 'TAVILY_MAX_RESULTS',
+      'OPENROUTER_MODEL', 'OPENROUTER_SEARCH_ENGINE', 'OPENROUTER_MAX_RESULTS'
+    ]
+  },
+  batch: {
+    label: 'Batch-Aktionen',
+    keys: ['BATCH_CONFIRM_THRESHOLD', 'BATCH_SCOPE_DEFAULT', 'BATCH_COPY_FORMAT', 'BATCH_AI_TARGET']
   },
   deals: {
     label: 'Sortieren',
@@ -164,8 +181,15 @@ const safeJsonParse = (raw, fallback) => {
     return fallback;
   }
 };
-// Bearer-Secrets (Discord-Webhook, Tavily-API-Key) bleiben GM-privat: nie ins page-lesbare localStorage.
-export const SECRET_KEYS = new Set(['DISCORD_WEBHOOK_URL', 'DISCORD_CHANNELS', 'TAVILY_API_KEY']);
+// Bearer-Secrets (Discord-Webhook, Tavily/OpenRouter API-Keys) bleiben GM-privat: nie ins page-lesbare localStorage.
+export const SECRET_KEYS = new Set(['DISCORD_WEBHOOK_URL', 'DISCORD_CHANNELS', 'TAVILY_API_KEY', 'OPENROUTER_API_KEY']);
+
+export function effectiveAiProvider(cfg) {
+  const p = cfg?.AI_SEARCH_PROVIDER;
+  if (p === 'openrouter' || p === 'tavily') return p;
+  if (cfg?.TAVILY_ENABLED === true) return 'tavily';
+  return 'google';
+}
 
 export const _getValue = (k, def) => {
   try {
@@ -235,10 +259,19 @@ export const SETTING_SCHEMA = {
   REVIEW_SEARCH_ENABLED: { type: 'bool', default: true },
   REVIEW_SEARCH_KEYWORD: { type: 'string', default: 'Testberichte zu: [Produkt]. Ist der Preis von {preis} ein guter Deal? Bewerte Preis-Leistung, Stärken und Schwächen kurz auf Deutsch.' },
   REVIEW_SEARCH_AI_MODE: { type: 'bool', default: false },
+  AI_SEARCH_PROVIDER: { type: 'enum', default: 'google', allowed: ['google', 'openrouter', 'tavily'] },
   TAVILY_ENABLED: { type: 'bool', default: false },
   TAVILY_API_KEY: { type: 'string', default: '' },
   TAVILY_SEARCH_DEPTH: { type: 'enum', default: 'basic', allowed: ['basic', 'advanced'] },
   TAVILY_MAX_RESULTS: { type: 'int', default: 5, min: 1, max: 10 },
+  OPENROUTER_API_KEY: { type: 'string', default: '' },
+  OPENROUTER_MODEL: { type: 'string', default: 'google/gemini-2.5-flash' },
+  OPENROUTER_SEARCH_ENGINE: { type: 'enum', default: 'auto', allowed: ['auto', 'native', 'exa', 'parallel', 'perplexity', 'firecrawl'] },
+  OPENROUTER_MAX_RESULTS: { type: 'int', default: 5, min: 1, max: 10 },
+  BATCH_CONFIRM_THRESHOLD: { type: 'int', default: 10, min: 1, max: 100 },
+  BATCH_SCOPE_DEFAULT: { type: 'enum', default: 'non-dimmed', allowed: ['non-dimmed', 'visible', 'deals'] },
+  BATCH_COPY_FORMAT: { type: 'enum', default: 'markdown', allowed: ['markdown', 'tsv'] },
+  BATCH_AI_TARGET: { type: 'enum', default: 'google-ai', allowed: ['openrouter', 'google-ai', 'chatgpt', 'perplexity', 'claude'] },
   DEALER_AUTOFETCH: { type: 'bool', default: false },
   NEGATIVE_TERMS: { type: 'string', default: '' },
   DISCORD_WEBHOOK_URL: { type: 'string', default: '' },

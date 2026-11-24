@@ -8,6 +8,7 @@ import { DEFAULT_LAYOUT, renderLayout, validateLayoutRecipe, getLayoutRecipeNoti
 import { isDiscordWebhookUrl } from '../features/share-discord.js';
 import { countCachedPriceStats } from '../scanner/cache.js';
 import { expandKeywordWithPrice, formatSearchQuery } from '../features/tavily-search.js';
+import { collectAiSectionElements, syncAiSectionFromConfig } from './modal-ai-section.js';
 
 // Element-lookup table: one record, shared by sync/bind/actions.
 export function collectModalElements(shadow) {
@@ -91,7 +92,7 @@ export function collectModalElements(shadow) {
   const exportBtn = shadow.getElementById('tp-export-config-btn');
   const importBtn = shadow.getElementById('tp-import-config-btn');
   const importFile = shadow.getElementById('tp-import-config-file');
-  return { shadow, dialog, fabButton, btnResetDefaults, btnClose, btnSave, marginRange, marginVal, filterRememberPerPageTypeToggle, profileActiveBadge, opacityRange, opacityVal, hideAdsToggle, shippingToggle, sortNone, sortDesc, sortAsc, sortDiscount, alarmEnabledToggle, alarmTargetRange, alarmTargetVal, alarmAutoSubmitToggle, heatmapIntensityRange, heatmapIntensityVal, bestpreiseModeToggle, bestpreiseWeightRange, bestpreiseWeightVal, bestpreiseWeightDesc, bestpreiseMinPointsRange, bestpreiseMinPointsVal, bestpreiseHorizonRange, bestpreiseHorizonVal, bestpreiseHorizonDesc, cacheTtlSelect, cacheNegTtlSelect, cacheMemoryRange, cacheMemoryVal, cacheDiskRange, cacheDiskVal, cacheStatsLabel, cacheClearBtn, dataResetBtn, realDealMinRange, realDealMinVal, sparklinesToggle, keepaChartToggle, reviewSearchToggle, reviewKeywordInput, reviewKeywordReset, reviewKeywordPreview, reviewKeywordPreviewNoPrice, reviewKeywordPreviewNoPriceRow, reviewAiModeToggle, tavilyEnabledToggle, tavilyApiKeyInput, tavilyApiKeyReveal, tavilyApiKeyEditor, tavilyApiKeyStatus, tavilySearchDepth, tavilyMaxResults, dealerAutofetchToggle, discordPrimaryName, discordChannelsList, discordExtraChannels, discordAddChannelBtn, discordWebhookInput, discordWebhookReveal, discordWebhookEditor, discordWebhookStatus, discordDealerEmbedToggle, discordProductEmbedToggle, discordForumTitleToggle, discordLayoutInput, discordLayoutPreview, discordLayoutCount, discordLayoutError, discordLayoutReset, exportBtn, importBtn, importFile, layoutTimer: 0 };
+  return { shadow, dialog, fabButton, btnResetDefaults, btnClose, btnSave, marginRange, marginVal, filterRememberPerPageTypeToggle, profileActiveBadge, opacityRange, opacityVal, hideAdsToggle, shippingToggle, sortNone, sortDesc, sortAsc, sortDiscount, alarmEnabledToggle, alarmTargetRange, alarmTargetVal, alarmAutoSubmitToggle, heatmapIntensityRange, heatmapIntensityVal, bestpreiseModeToggle, bestpreiseWeightRange, bestpreiseWeightVal, bestpreiseWeightDesc, bestpreiseMinPointsRange, bestpreiseMinPointsVal, bestpreiseHorizonRange, bestpreiseHorizonVal, bestpreiseHorizonDesc, cacheTtlSelect, cacheNegTtlSelect, cacheMemoryRange, cacheMemoryVal, cacheDiskRange, cacheDiskVal, cacheStatsLabel, cacheClearBtn, dataResetBtn, realDealMinRange, realDealMinVal, sparklinesToggle, keepaChartToggle, reviewSearchToggle, reviewKeywordInput, reviewKeywordReset, reviewKeywordPreview, reviewKeywordPreviewNoPrice, reviewKeywordPreviewNoPriceRow, reviewAiModeToggle, tavilyEnabledToggle, tavilyApiKeyInput, tavilyApiKeyReveal, tavilyApiKeyEditor, tavilyApiKeyStatus, tavilySearchDepth, tavilyMaxResults, ...collectAiSectionElements(shadow), dealerAutofetchToggle, discordPrimaryName, discordChannelsList, discordExtraChannels, discordAddChannelBtn, discordWebhookInput, discordWebhookReveal, discordWebhookEditor, discordWebhookStatus, discordDealerEmbedToggle, discordProductEmbedToggle, discordForumTitleToggle, discordLayoutInput, discordLayoutPreview, discordLayoutCount, discordLayoutError, discordLayoutReset, exportBtn, importBtn, importFile, layoutTimer: 0 };
 }
 
 // Built lazily (was setupUI-local): kompakt reads DEFAULT_LAYOUT, which
@@ -184,6 +185,7 @@ export function syncFieldsFromConfig(els) {
     if (els.tavilyApiKeyInput) els.tavilyApiKeyInput.value = '';
     if (els.tavilyApiKeyEditor) els.tavilyApiKeyEditor.style.display = 'none';
     if (els.tavilyApiKeyReveal) { els.tavilyApiKeyReveal.style.display = ''; els.tavilyApiKeyReveal.setAttribute('aria-expanded', 'false'); }
+    syncAiSectionFromConfig(els);
 
     const channels = Array.isArray(CONFIG.DISCORD_CHANNELS) && CONFIG.DISCORD_CHANNELS.length > 0
       ? CONFIG.DISCORD_CHANNELS

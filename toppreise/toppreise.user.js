@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.545
+// @version      2.18.546
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -13,8 +13,10 @@
 // @grant        GM_setValue
 // @grant        GM_deleteValue
 // @grant        GM_xmlhttpRequest
+// @grant        GM_openInTab
 // @connect      discord.com
 // @connect      api.tavily.com
+// @connect      openrouter.ai
 // @connect      toppreise.ch
 // @connect      amazon.de
 // @connect      amazon.com
@@ -4732,10 +4734,19 @@ const SHADOW_MODAL_STYLES = `
     REVIEW_SEARCH_ENABLED: true,
     REVIEW_SEARCH_KEYWORD: 'Testberichte zu: [Produkt]. Ist der Preis von {preis} ein guter Deal? Bewerte Preis-Leistung, Stärken und Schwächen kurz auf Deutsch.',
     REVIEW_SEARCH_AI_MODE: false,
+    AI_SEARCH_PROVIDER: 'google',
     TAVILY_ENABLED: false,
     TAVILY_API_KEY: '',
     TAVILY_SEARCH_DEPTH: 'basic',
     TAVILY_MAX_RESULTS: 5,
+    OPENROUTER_API_KEY: '',
+    OPENROUTER_MODEL: 'google/gemini-2.5-flash',
+    OPENROUTER_SEARCH_ENGINE: 'auto',
+    OPENROUTER_MAX_RESULTS: 5,
+    BATCH_CONFIRM_THRESHOLD: 10,
+    BATCH_SCOPE_DEFAULT: 'non-dimmed',
+    BATCH_COPY_FORMAT: 'markdown',
+    BATCH_AI_TARGET: 'google-ai',
     DEALER_AUTOFETCH: false,
     NEGATIVE_TERMS: '',
     DISCORD_WEBHOOK_URL: '',
@@ -4797,7 +4808,15 @@ const SHADOW_MODAL_STYLES = `
     },
     review: {
       label: 'Web-Suche',
-      keys: ['REVIEW_SEARCH_ENABLED', 'REVIEW_SEARCH_KEYWORD', 'REVIEW_SEARCH_AI_MODE', 'TAVILY_ENABLED', 'TAVILY_SEARCH_DEPTH', 'TAVILY_MAX_RESULTS']
+      keys: [
+        'REVIEW_SEARCH_ENABLED', 'REVIEW_SEARCH_KEYWORD', 'REVIEW_SEARCH_AI_MODE',
+        'AI_SEARCH_PROVIDER', 'TAVILY_ENABLED', 'TAVILY_SEARCH_DEPTH', 'TAVILY_MAX_RESULTS',
+        'OPENROUTER_MODEL', 'OPENROUTER_SEARCH_ENGINE', 'OPENROUTER_MAX_RESULTS'
+      ]
+    },
+    batch: {
+      label: 'Batch-Aktionen',
+      keys: ['BATCH_CONFIRM_THRESHOLD', 'BATCH_SCOPE_DEFAULT', 'BATCH_COPY_FORMAT', 'BATCH_AI_TARGET']
     },
     deals: {
       label: 'Sortieren',
@@ -4847,8 +4866,15 @@ const SHADOW_MODAL_STYLES = `
       return fallback;
     }
   };
-  // Bearer-Secrets (Discord-Webhook, Tavily-API-Key) bleiben GM-privat: nie ins page-lesbare localStorage.
-  const SECRET_KEYS = new Set(['DISCORD_WEBHOOK_URL', 'DISCORD_CHANNELS', 'TAVILY_API_KEY']);
+  // Bearer-Secrets (Discord-Webhook, Tavily/OpenRouter API-Keys) bleiben GM-privat: nie ins page-lesbare localStorage.
+  const SECRET_KEYS = new Set(['DISCORD_WEBHOOK_URL', 'DISCORD_CHANNELS', 'TAVILY_API_KEY', 'OPENROUTER_API_KEY']);
+
+  function effectiveAiProvider(cfg) {
+    const p = cfg?.AI_SEARCH_PROVIDER;
+    if (p === 'openrouter' || p === 'tavily') return p;
+    if (cfg?.TAVILY_ENABLED === true) return 'tavily';
+    return 'google';
+  }
 
   const _getValue = (k, def) => {
     try {
@@ -4918,10 +4944,19 @@ const SHADOW_MODAL_STYLES = `
     REVIEW_SEARCH_ENABLED: { type: 'bool', default: true },
     REVIEW_SEARCH_KEYWORD: { type: 'string', default: 'Testberichte zu: [Produkt]. Ist der Preis von {preis} ein guter Deal? Bewerte Preis-Leistung, Stärken und Schwächen kurz auf Deutsch.' },
     REVIEW_SEARCH_AI_MODE: { type: 'bool', default: false },
+    AI_SEARCH_PROVIDER: { type: 'enum', default: 'google', allowed: ['google', 'openrouter', 'tavily'] },
     TAVILY_ENABLED: { type: 'bool', default: false },
     TAVILY_API_KEY: { type: 'string', default: '' },
     TAVILY_SEARCH_DEPTH: { type: 'enum', default: 'basic', allowed: ['basic', 'advanced'] },
     TAVILY_MAX_RESULTS: { type: 'int', default: 5, min: 1, max: 10 },
+    OPENROUTER_API_KEY: { type: 'string', default: '' },
+    OPENROUTER_MODEL: { type: 'string', default: 'google/gemini-2.5-flash' },
+    OPENROUTER_SEARCH_ENGINE: { type: 'enum', default: 'auto', allowed: ['auto', 'native', 'exa', 'parallel', 'perplexity', 'firecrawl'] },
+    OPENROUTER_MAX_RESULTS: { type: 'int', default: 5, min: 1, max: 10 },
+    BATCH_CONFIRM_THRESHOLD: { type: 'int', default: 10, min: 1, max: 100 },
+    BATCH_SCOPE_DEFAULT: { type: 'enum', default: 'non-dimmed', allowed: ['non-dimmed', 'visible', 'deals'] },
+    BATCH_COPY_FORMAT: { type: 'enum', default: 'markdown', allowed: ['markdown', 'tsv'] },
+    BATCH_AI_TARGET: { type: 'enum', default: 'google-ai', allowed: ['openrouter', 'google-ai', 'chatgpt', 'perplexity', 'claude'] },
     DEALER_AUTOFETCH: { type: 'bool', default: false },
     NEGATIVE_TERMS: { type: 'string', default: '' },
     DISCORD_WEBHOOK_URL: { type: 'string', default: '' },
@@ -5615,6 +5650,41 @@ const SHADOW_MODAL_STYLES = `
           case 'TAVILY_MAX_RESULTS': {
             const select = shadow.getElementById('tp-tavily-max-results');
             if (select) select.value = String(val || 5);
+            break;
+          }
+          case 'AI_SEARCH_PROVIDER': {
+            const select = shadow.getElementById('tp-ai-provider-select');
+            if (select) select.value = val || 'google';
+            break;
+          }
+          case 'OPENROUTER_API_KEY': {
+            const status = shadow.getElementById('tp-openrouter-api-key-status');
+            if (status) status.textContent = (val && String(val).trim()) ? '✅ Key hinterlegt' : 'Kein Key hinterlegt';
+            break;
+          }
+          case 'OPENROUTER_MODEL': {
+            const input = shadow.getElementById('tp-openrouter-model-input');
+            if (input) input.value = val || 'google/gemini-2.5-flash';
+            break;
+          }
+          case 'OPENROUTER_SEARCH_ENGINE': {
+            const select = shadow.getElementById('tp-openrouter-engine-select');
+            if (select) select.value = val || 'auto';
+            break;
+          }
+          case 'OPENROUTER_MAX_RESULTS': {
+            const select = shadow.getElementById('tp-openrouter-max-results');
+            if (select) select.value = String(val || 5);
+            break;
+          }
+          case 'BATCH_AI_TARGET': {
+            const select = shadow.getElementById('tp-batch-ai-target-select');
+            if (select) select.value = val || 'google-ai';
+            break;
+          }
+          case 'BATCH_CONFIRM_THRESHOLD': {
+            const input = shadow.getElementById('tp-batch-confirm-threshold-input');
+            if (input) input.value = String(val ?? 10);
             break;
           }
           case 'DISCORD_SUPPRESS_DEALER_EMBED': {
@@ -10114,6 +10184,334 @@ const SHADOW_MODAL_STYLES = `
     };
   }
 
+  // ─── MODULE: src/features/openrouter-search.js ──────────────────────────────
+  /**
+   * OpenRouter Web Search Client & Unified AI Summary Facade
+   * Uses OpenRouter Chat Completions with `openrouter:web_search` server tool
+   * and dispatches between OpenRouter and legacy Tavily for card/Discord/batch AI.
+   */
+
+
+
+
+
+  const OPENROUTER_API_ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions';
+  const OPENROUTER_CACHE_KEY_PREFIX = 'tp_suite_v2_or_';
+  const OPENROUTER_CACHE_TTL_MS = 48 * 60 * 60 * 1000; // 48h
+
+  const orMemCache = new Map();
+  const orInFlight = new Map();
+
+  function normalizeOpenRouterPrompt(prompt) {
+    return String(prompt ?? '').replace(/\s+/g, ' ').trim();
+  }
+
+  function openRouterCacheKey(prompt, model, engine, maxResults) {
+    const norm = normalizeOpenRouterPrompt(prompt).toLowerCase();
+    if (!norm) return '';
+    return `${model || 'google/gemini-2.5-flash'}::${engine || 'auto'}::${maxResults || 5}::${norm}`;
+  }
+
+  function extractOpenRouterCitations(annotations) {
+    if (!Array.isArray(annotations)) return [];
+    const seen = new Set();
+    const out = [];
+    for (const ann of annotations) {
+      if (!ann || (ann.type ? ann.type !== 'url_citation' : !ann.url_citation)) continue;
+      const raw = ann.url_citation || ann;
+      const url = typeof raw.url === 'string' ? raw.url.trim() : '';
+      if (!/^https?:\/\//i.test(url) || seen.has(url)) continue;
+      seen.add(url);
+      const title = typeof raw.title === 'string' && raw.title.trim() ? raw.title.trim() : url;
+      out.push({ url, title });
+    }
+    return out;
+  }
+
+  function getCachedOpenRouter(cacheKey) {
+    if (!cacheKey) return null;
+    const now = Date.now();
+    const mem = orMemCache.get(cacheKey);
+    if (mem && (now - mem.timestamp < OPENROUTER_CACHE_TTL_MS)) {
+      return mem;
+    }
+    if (typeof localStorage !== 'undefined') {
+      try {
+        const raw = localStorage.getItem(OPENROUTER_CACHE_KEY_PREFIX + cacheKey);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed.answer === 'string' && (now - (parsed.timestamp || 0) < OPENROUTER_CACHE_TTL_MS)) {
+            const entry = {
+              answer: parsed.answer,
+              citations: Array.isArray(parsed.citations) ? parsed.citations : [],
+              timestamp: parsed.timestamp
+            };
+            lruSet(orMemCache, cacheKey, entry, 200);
+            return entry;
+          }
+          localStorage.removeItem(OPENROUTER_CACHE_KEY_PREFIX + cacheKey);
+        }
+      } catch { /* ignore storage read error */ }
+    }
+    return null;
+  }
+
+  function pruneOpenRouterCache(maxEntries = 100, storage = null) {
+    const store = storage || (typeof localStorage !== 'undefined' ? localStorage : null);
+    if (!store) return 0;
+    let removed = 0;
+    try {
+      const now = Date.now();
+      const valid = [];
+      const keys = [];
+      for (let i = 0; i < store.length; i++) {
+        const k = store.key(i);
+        if (k && k.startsWith(OPENROUTER_CACHE_KEY_PREFIX)) keys.push(k);
+      }
+      for (const k of keys) {
+        try {
+          const raw = store.getItem(k);
+          const parsed = raw ? JSON.parse(raw) : null;
+          if (!parsed || typeof parsed.answer !== 'string' || !Number.isFinite(parsed.timestamp) || (now - parsed.timestamp >= OPENROUTER_CACHE_TTL_MS)) {
+            store.removeItem(k);
+            removed++;
+          } else {
+            valid.push({ key: k, timestamp: parsed.timestamp });
+          }
+        } catch {
+          store.removeItem(k);
+          removed++;
+        }
+      }
+      if (Number.isFinite(maxEntries) && maxEntries >= 0 && valid.length > maxEntries) {
+        valid.sort((a, b) => a.timestamp - b.timestamp);
+        const excess = valid.length - maxEntries;
+        for (let i = 0; i < excess; i++) {
+          store.removeItem(valid[i].key);
+          removed++;
+        }
+      }
+    } catch { /* ignore */ }
+    return removed;
+  }
+
+  function setCachedOpenRouter(cacheKey, result, storage = null) {
+    if (!cacheKey || !result || typeof result.answer !== 'string') return;
+    const entry = {
+      answer: result.answer.trim(),
+      citations: Array.isArray(result.citations) ? result.citations : [],
+      timestamp: Date.now()
+    };
+    lruSet(orMemCache, cacheKey, entry, 200);
+    const store = storage || (typeof localStorage !== 'undefined' ? localStorage : null);
+    if (store) {
+      const payload = JSON.stringify(entry);
+      try {
+        store.setItem(OPENROUTER_CACHE_KEY_PREFIX + cacheKey, payload);
+        pruneOpenRouterCache(100, store);
+      } catch {
+        pruneOpenRouterCache(50, store);
+        try {
+          store.setItem(OPENROUTER_CACHE_KEY_PREFIX + cacheKey, payload);
+        } catch { /* ignore */ }
+      }
+    }
+  }
+
+  function clearOpenRouterCache() {
+    orMemCache.clear();
+    if (typeof localStorage !== 'undefined') {
+      try {
+        const keys = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith(OPENROUTER_CACHE_KEY_PREFIX)) keys.push(k);
+        }
+        for (const k of keys) localStorage.removeItem(k);
+      } catch { /* ignore */ }
+    }
+  }
+
+  function mapOpenRouterHttpError(status) {
+    if (status === 401 || status === 403) return 'OpenRouter API-Key ungültig';
+    if (status === 402) return 'OpenRouter Guthaben erschöpft (402)';
+    if (status === 429) return 'OpenRouter Rate-Limit erreicht (429)';
+    return `OpenRouter HTTP-Fehler ${status}`;
+  }
+
+  function fetchOpenRouterWebSearch(apiKey, prompt, options = {}) {
+    const trimmedKey = String(apiKey || '').trim();
+    if (!trimmedKey) return Promise.reject(new Error('OpenRouter API-Key fehlt'));
+
+    const normalized = normalizeOpenRouterPrompt(prompt);
+    if (!normalized) return Promise.reject(new Error('Suchanfrage ist leer'));
+
+    if (options.signal?.aborted) {
+      return Promise.reject(Object.assign(new Error('Abgebrochen'), { cancelled: true }));
+    }
+
+    const timeoutMs = typeof options.timeoutMs === 'number' ? options.timeoutMs : 60000;
+    const model = String(options.model || CONFIG?.OPENROUTER_MODEL || 'google/gemini-2.5-flash').trim() || 'google/gemini-2.5-flash';
+    const engine = String(options.engine || CONFIG?.OPENROUTER_SEARCH_ENGINE || 'auto').trim() || 'auto';
+    const maxResults = typeof options.maxResults === 'number'
+      ? options.maxResults
+      : (CONFIG?.OPENROUTER_MAX_RESULTS || 5);
+    const searchContextSize = options.searchContextSize || 'medium';
+
+    const cacheKey = openRouterCacheKey(normalized, model, engine, maxResults);
+    const cached = getCachedOpenRouter(cacheKey);
+    if (cached?.answer) {
+      return Promise.resolve({ answer: cached.answer, citations: cached.citations || [] });
+    }
+
+    const flightKey = `${trimmedKey}:${cacheKey}`;
+    const existing = orInFlight.get(flightKey);
+    if (existing && existing.timeoutMs >= timeoutMs && !options.signal) {
+      return existing.promise;
+    }
+
+    const promise = new Promise((resolve, reject) => {
+      const payload = JSON.stringify({
+        model,
+        messages: [{ role: 'user', content: normalized }],
+        tools: [{
+          type: 'openrouter:web_search',
+          parameters: {
+            engine,
+            max_results: maxResults,
+            search_context_size: searchContextSize
+          }
+        }]
+      });
+
+      const handleSuccess = (rawText) => {
+        try {
+          const data = JSON.parse(rawText || '{}');
+          const msg = data?.choices?.[0]?.message;
+          const rawContent = msg?.content;
+          const answer = (typeof rawContent === 'string'
+            ? rawContent
+            : Array.isArray(rawContent)
+              ? rawContent.map(p => (typeof p === 'string' ? p : p?.text || '')).join('')
+              : ''
+          ).trim();
+          if (!answer) {
+            reject(new Error('Kein Fazit von OpenRouter erhalten'));
+            return;
+          }
+          const citations = extractOpenRouterCitations(msg?.annotations);
+          const result = { answer, citations };
+          setCachedOpenRouter(cacheKey, result);
+          resolve(result);
+        } catch {
+          reject(new Error('Antwort von OpenRouter konnte nicht gelesen werden'));
+        }
+      };
+
+      const headers = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${trimmedKey}`,
+        'HTTP-Referer': 'https://www.toppreise.ch',
+        'X-Title': 'Toppreise.ch Suite'
+      };
+
+      if (typeof GM_xmlhttpRequest !== 'undefined') {
+        gmRequestWithTimeout({
+          method: 'POST',
+          url: OPENROUTER_API_ENDPOINT,
+          headers,
+          data: payload,
+        }, { timeoutMs, signal: options.signal, source: 'openrouter', label: 'web_search' })
+          .then((res) => {
+            if (res.status >= 200 && res.status < 300) handleSuccess(res.responseText);
+            else reject(new Error(mapOpenRouterHttpError(res.status)));
+          })
+          .catch((err) => {
+            if (err?.cancelled) reject(Object.assign(new Error('Abgebrochen'), { cancelled: true }));
+            else reject(new Error(err?.timeout ? 'Zeitüberschreitung bei OpenRouter' : 'Netzwerkfehler bei Verbindung zu OpenRouter'));
+          });
+      } else if (typeof fetch !== 'undefined') {
+        fetchWithTimeout(OPENROUTER_API_ENDPOINT, {
+          method: 'POST',
+          headers,
+          body: payload,
+        }, { timeoutMs, signal: options.signal, source: 'openrouter', label: 'web_search', readAs: 'text' })
+          .then(({ res, body }) => {
+            if (res.ok) handleSuccess(body);
+            else reject(new Error(mapOpenRouterHttpError(res.status)));
+          })
+          .catch((err) => {
+            if (err?.cancelled) reject(Object.assign(new Error('Abgebrochen'), { cancelled: true }));
+            else reject(new Error(err?.timeout ? 'Zeitüberschreitung bei OpenRouter' : 'Netzwerkfehler bei Verbindung zu OpenRouter'));
+          });
+      } else {
+        reject(new Error('Kein HTTP-Transport für OpenRouter verfügbar'));
+      }
+    }).finally(() => {
+      if (orInFlight.get(flightKey)?.promise === promise) {
+        orInFlight.delete(flightKey);
+      }
+    });
+
+    if (!options.signal) {
+      orInFlight.set(flightKey, { promise, timeoutMs });
+    }
+    return promise;
+  }
+
+  function isConfiguredAiActive(cfg = CONFIG) {
+    const provider = effectiveAiProvider(cfg);
+    if (provider === 'openrouter') return !!(cfg?.OPENROUTER_API_KEY && String(cfg.OPENROUTER_API_KEY).trim());
+    if (provider === 'tavily') return !!(cfg?.TAVILY_API_KEY && String(cfg.TAVILY_API_KEY).trim());
+    return false;
+  }
+
+  function getCachedConfiguredAiSummary(title, keyword = '', priceText = '', opts = {}) {
+    const cfg = opts.config || CONFIG;
+    const provider = opts.provider || effectiveAiProvider(cfg);
+    const query = buildTavilyQuery(title, keyword, priceText);
+    if (!query) return null;
+    if (provider === 'openrouter') {
+      const model = opts.model || cfg?.OPENROUTER_MODEL || 'google/gemini-2.5-flash';
+      const engine = opts.engine || cfg?.OPENROUTER_SEARCH_ENGINE || 'auto';
+      const maxResults = opts.maxResults || cfg?.OPENROUTER_MAX_RESULTS || 5;
+      return getCachedOpenRouter(openRouterCacheKey(query, model, engine, maxResults));
+    }
+    if (provider === 'tavily') {
+      const depth = opts.searchDepth || cfg?.TAVILY_SEARCH_DEPTH || 'basic';
+      const maxResults = opts.maxResults || cfg?.TAVILY_MAX_RESULTS || 5;
+      const cacheKey = (depth === 'basic' && maxResults === 5) ? query : `${query}::${depth}::${maxResults}`;
+      const cached = getCachedTavily(cacheKey);
+      return cached?.answer ? { answer: cached.answer, citations: [] } : null;
+    }
+    return null;
+  }
+
+  function fetchConfiguredAiSummary(title, keyword = '', priceText = '', opts = {}) {
+    const cfg = opts.config || CONFIG;
+    const provider = opts.provider || effectiveAiProvider(cfg);
+    const query = buildTavilyQuery(title, keyword, priceText);
+    if (provider === 'openrouter') {
+      return fetchOpenRouterWebSearch(cfg?.OPENROUTER_API_KEY, query, {
+        timeoutMs: opts.timeoutMs ?? 60000,
+        model: opts.model || cfg?.OPENROUTER_MODEL,
+        engine: opts.engine || cfg?.OPENROUTER_SEARCH_ENGINE,
+        maxResults: opts.maxResults ?? cfg?.OPENROUTER_MAX_RESULTS,
+        searchContextSize: opts.searchContextSize || 'medium',
+        signal: opts.signal
+      });
+    }
+    if (provider === 'tavily') {
+      return fetchTavilySummary(cfg?.TAVILY_API_KEY, query, {
+        timeoutMs: opts.timeoutMs ?? 60000,
+        searchDepth: opts.searchDepth || cfg?.TAVILY_SEARCH_DEPTH,
+        maxResults: opts.maxResults ?? cfg?.TAVILY_MAX_RESULTS
+      }).then(answer => ({ answer, citations: [] }));
+    }
+    return Promise.reject(new Error('Kein KI-Anbieter aktiviert'));
+  }
+
   // ─── MODULE: src/features/share-discord.js ──────────────────────────────────
   /**
    * Discord Deal-Sharing
@@ -12565,13 +12963,14 @@ const SHADOW_MODAL_STYLES = `
       try {
         const productDl = imageUrl ? fetchImageBlob(imageUrl).catch(() => null) : null;
         let aiPromise = null;
-        if (CONFIG.TAVILY_ENABLED && String(CONFIG.DISCORD_LAYOUT || '').includes('{ai}') && CONFIG.TAVILY_API_KEY && CONFIG.TAVILY_API_KEY.trim()) {
-          const query = buildTavilyQuery(title, CONFIG.REVIEW_SEARCH_KEYWORD, priceText);
-          const cached = getCachedTavily(query);
+        if (isConfiguredAiActive(CONFIG) && String(CONFIG.DISCORD_LAYOUT || '').includes('{ai}')) {
+          const cached = getCachedConfiguredAiSummary(title, CONFIG.REVIEW_SEARCH_KEYWORD, priceText);
           if (cached?.answer) {
             aiPromise = Promise.resolve(cached.answer);
           } else {
-            aiPromise = fetchTavilySummary(CONFIG.TAVILY_API_KEY, query, { timeoutMs: 4000 }).catch(() => '');
+            aiPromise = fetchConfiguredAiSummary(title, CONFIG.REVIEW_SEARCH_KEYWORD, priceText, { timeoutMs: 4000 })
+              .then(r => r?.answer || '')
+              .catch(() => '');
           }
         }
         if ((!dealer || !dealerUrl || !offers) && url) {
@@ -12704,6 +13103,7 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   function formatVerdictHtml(text) {
     if (!text) return '';
     const escaped = String(text)
@@ -12752,8 +13152,9 @@ const SHADOW_MODAL_STYLES = `
 
     const { title = '', priceText = '', googleUrl = '', card = null } = options;
 
+    const activeProv = effectiveAiProvider(CONFIG) === 'openrouter' ? 'openrouter' : 'tavily';
     const query = buildTavilyQuery(title, CONFIG.REVIEW_SEARCH_KEYWORD, priceText);
-    const cached = getCachedTavily(query);
+    const cached = getCachedConfiguredAiSummary(title, CONFIG.REVIEW_SEARCH_KEYWORD, priceText, { provider: activeProv });
 
     let statusTimers = [];
     const clearTimers = () => {
@@ -12797,11 +13198,31 @@ const SHADOW_MODAL_STYLES = `
 
     let currentVerdict = '';
 
-    const renderVerdict = (text) => {
+    const renderVerdict = (text, citations = []) => {
       clearTimers();
       currentVerdict = text;
       contentEl.className = 'tp-ai-body';
       contentEl.innerHTML = formatVerdictHtml(text);
+      if (Array.isArray(citations) && citations.length > 0) {
+        const citeWrap = document.createElement('div');
+        citeWrap.className = 'tp-ai-citations';
+        citeWrap.style.cssText = 'margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.12);font-size:12px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;';
+        const lbl = document.createElement('span');
+        lbl.textContent = 'Quellen:';
+        lbl.style.opacity = '0.75';
+        citeWrap.appendChild(lbl);
+        for (const c of citations) {
+          if (!c?.url || !/^https?:\/\//i.test(c.url)) continue;
+          const a = document.createElement('a');
+          a.href = c.url;
+          a.target = '_blank';
+          a.rel = 'noopener';
+          a.textContent = c.title || c.url;
+          a.style.cssText = 'color:#93c5fd;text-decoration:underline;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;';
+          citeWrap.appendChild(a);
+        }
+        contentEl.appendChild(citeWrap);
+      }
       copyBtn.disabled = false;
       retryBtn.hidden = true;
     };
@@ -12842,14 +13263,13 @@ const SHADOW_MODAL_STYLES = `
         }
       }, 12000));
 
-      fetchTavilySummary(CONFIG.TAVILY_API_KEY, query, {
+      fetchConfiguredAiSummary(title, CONFIG.REVIEW_SEARCH_KEYWORD, priceText, {
         timeoutMs: 60000,
-        searchDepth: CONFIG.TAVILY_SEARCH_DEPTH,
-        maxResults: CONFIG.TAVILY_MAX_RESULTS
+        provider: activeProv
       })
-        .then(answer => {
+        .then(result => {
           if (backdrop.isConnected) {
-            renderVerdict(answer);
+            renderVerdict(result?.answer || '', result?.citations || []);
           }
         })
         .catch(err => {
@@ -12902,7 +13322,7 @@ const SHADOW_MODAL_STYLES = `
     });
 
     if (cached?.answer) {
-      renderVerdict(cached.answer);
+      renderVerdict(cached.answer, cached.citations || []);
     } else {
       contentEl.innerHTML = '<span style="opacity:0.75;">🤖 Analysiere Testberichte & Preiseinschätzung...</span>';
     }
@@ -13238,6 +13658,7 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   // Mini price-trend sparkline + history strip (step 5).
   function renderSparklineRow(ctx) {
     const { card, pid: rawPid, cardPrice, cardPriceEl, stats } = ctx;
@@ -13373,7 +13794,8 @@ const SHADOW_MODAL_STYLES = `
       const priceText = (ctx.cardPrice > 0 && hasUsablePriceStats(ctx.stats)) ? `CHF ${ctx.cardPrice.toFixed(2)}` : '';
       const fullQuery = formatSearchQuery(reviewName, rawKw, priceText);
       const aiMode = CONFIG.REVIEW_SEARCH_AI_MODE === true;
-      const hasTavily = !!(CONFIG.TAVILY_ENABLED && CONFIG.TAVILY_API_KEY && CONFIG.TAVILY_API_KEY.trim());
+      const activeProvider = effectiveAiProvider(CONFIG);
+      const hasAiSummary = isConfiguredAiActive(CONFIG);
       let reviewBtn = card.querySelector('.tp-review-search-btn');
       if (!reviewBtn) {
         reviewBtn = document.createElement('a');
@@ -13383,8 +13805,9 @@ const SHADOW_MODAL_STYLES = `
         reviewBtn.rel = 'noopener';
         reviewBtn.addEventListener('click', e => {
           e.stopPropagation();
-          if (CONFIG.TAVILY_ENABLED) {
-            if (CONFIG.TAVILY_API_KEY && CONFIG.TAVILY_API_KEY.trim()) {
+          const prov = effectiveAiProvider(CONFIG);
+          if (prov === 'openrouter' || prov === 'tavily') {
+            if (isConfiguredAiActive(CONFIG)) {
               e.preventDefault();
               const aiCtx = reviewBtn._tpAiCtx || {};
               openAiPopover({
@@ -13394,6 +13817,8 @@ const SHADOW_MODAL_STYLES = `
                 card: aiCtx.card || card,
                 pid: aiCtx.pid || ctx.pid
               });
+            } else if (prov === 'openrouter') {
+              showToast('💡 Tipp: OpenRouter API-Key in den Einstellungen (⚙️) hinterlegen für Direkt-Fazit auf der Karte');
             } else {
               showToast('💡 Tipp: Kostenlosen Tavily-Key in den Einstellungen (⚙️) hinterlegen für Direkt-Fazit auf der Karte');
             }
@@ -13402,7 +13827,7 @@ const SHADOW_MODAL_STYLES = `
       }
       reviewBtn._tpAiCtx = { title: reviewName, priceText, card, pid: ctx.pid };
       reviewBtn.href = 'https://www.google.com/search?q=' + encodeURIComponent(fullQuery) + (aiMode ? '&udm=50' : '');
-      const { title: tipTitle, ariaLabel } = formatReviewTooltip(fullQuery, { hasTavily, aiMode });
+      const { title: tipTitle, ariaLabel } = formatReviewTooltip(fullQuery, { hasTavily: hasAiSummary || activeProvider !== 'google', aiMode });
       setTitleIfChanged(reviewBtn, tipTitle);
       reviewBtn.setAttribute('aria-label', ariaLabel);
       const titleEl = findCardTitleElement(card);
@@ -13799,10 +14224,179 @@ const SHADOW_MODAL_STYLES = `
     `;
   }
 
+  // ─── MODULE: src/ui/modal-ai-section.js ─────────────────────────────────────
+  /**
+   * Settings Modal: OpenRouter Web Search & Batch Settings Section
+   * Extracted to keep modal-template.js, modal-bindings.js & modal-actions.js < 25 KB.
+   */
+
+
+  function renderAiBatchSettingsMarkup() {
+    return `
+          <div class="tp-settings-subhead">KI-Anbieter (Direkt-Fazit, Discord & Batch)</div>
+          <div class="tp-settings-group">
+            <label for="tp-ai-provider-select" title="Wähle, ob 🌐 auf der Karte direkt ein KI-Fazit via OpenRouter/Tavily lädt oder Google-Suche öffnet.">Aktiver KI-Anbieter</label>
+            <select id="tp-ai-provider-select" class="tp-select tp-field-dark">
+              <option value="google">Google Web-Suche (Standard, kein Key)</option>
+              <option value="openrouter">OpenRouter (openrouter:web_search + Quellen)</option>
+              <option value="tavily">Tavily (Legacy-Direktfazit)</option>
+            </select>
+          </div>
+
+          <div class="tp-settings-subhead">OpenRouter Web-Suche</div>
+          <div class="tp-settings-group">
+            <label title="OpenRouter API-Key (openrouter.ai). Ermöglicht openrouter:web_search mit Quellenlinks auf Karte, Discord {ai} und Batch-KI.">OpenRouter API-Schlüssel</label>
+            <div id="tp-openrouter-api-key-collapsed">
+              <span id="tp-openrouter-api-key-status" class="tp-switch-desc"></span>
+              <button type="button" id="tp-openrouter-api-key-reveal" class="tp-btn tp-btn-secondary" aria-expanded="false" aria-controls="tp-openrouter-api-key-editor">🔑 Key ersetzen / entfernen</button>
+            </div>
+            <div id="tp-openrouter-api-key-editor" style="display: none;">
+              <input type="password" id="tp-openrouter-api-key-input" class="tp-field-dark" placeholder="sk-or-v1-…" autocomplete="new-password" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
+              <span class="tp-switch-desc tp-field-hint">Key von <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai</a>. Bleibt lokal & GM-privat im Browser.</span>
+            </div>
+          </div>
+          <div class="tp-settings-group">
+            <label for="tp-openrouter-model-input" title="OpenRouter Modell-ID für Web-Suche & Batch-Vergleich.">OpenRouter Modell</label>
+            <input type="text" id="tp-openrouter-model-input" class="tp-field-dark" placeholder="google/gemini-2.5-flash" spellcheck="false">
+          </div>
+          <div class="tp-settings-group" style="display:flex;gap:12px;flex-wrap:wrap;">
+            <div style="flex:1;min-width:140px;">
+              <label for="tp-openrouter-engine-select" title="Web-Search Engine für openrouter:web_search.">Such-Engine</label>
+              <select id="tp-openrouter-engine-select" class="tp-select tp-field-dark">
+                <option value="auto">Auto (Standard)</option>
+                <option value="native">Native</option>
+                <option value="exa">Exa</option>
+                <option value="parallel">Parallel</option>
+                <option value="perplexity">Perplexity</option>
+                <option value="firecrawl">Firecrawl</option>
+              </select>
+            </div>
+            <div style="flex:1;min-width:140px;">
+              <label for="tp-openrouter-max-results" title="Maximale Web-Quellen pro OpenRouter-Anfrage.">Max. Quellen</label>
+              <select id="tp-openrouter-max-results" class="tp-select tp-field-dark">
+                <option value="3">3 Quellen</option>
+                <option value="5" selected>5 Quellen (Standard)</option>
+                <option value="8">8 Quellen</option>
+                <option value="10">10 Quellen</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="tp-settings-subhead">Batch-Aktionen</div>
+          <div class="tp-settings-group" style="display:flex;gap:12px;flex-wrap:wrap;">
+            <div style="flex:1;min-width:150px;">
+              <label for="tp-batch-ai-target-select" title="Ziel-Plattform für 🤖 KI-Vergleich im Batch-Menü.">Batch KI-Vergleich Ziel</label>
+              <select id="tp-batch-ai-target-select" class="tp-select tp-field-dark">
+                <option value="google-ai">Google AI-Modus (&udm=50)</option>
+                <option value="openrouter">OpenRouter (In-Page)</option>
+                <option value="chatgpt">ChatGPT</option>
+                <option value="perplexity">Perplexity</option>
+                <option value="claude">Claude</option>
+              </select>
+            </div>
+            <div style="flex:1;min-width:140px;">
+              <label for="tp-batch-confirm-threshold-input" title="Ab dieser Anzahl Karten fragt Batch vor Tabs, Händler-Laden oder API-Calls nach (1–100).">Bestätigung ab N Karten</label>
+              <input type="number" id="tp-batch-confirm-threshold-input" class="tp-field-dark" min="1" max="100" step="1" value="10">
+            </div>
+          </div>`;
+  }
+
+  function collectAiSectionElements(shadow) {
+    return {
+      aiProviderSelect: shadow.getElementById('tp-ai-provider-select'),
+      openrouterApiKeyInput: shadow.getElementById('tp-openrouter-api-key-input'),
+      openrouterApiKeyReveal: shadow.getElementById('tp-openrouter-api-key-reveal'),
+      openrouterApiKeyEditor: shadow.getElementById('tp-openrouter-api-key-editor'),
+      openrouterApiKeyStatus: shadow.getElementById('tp-openrouter-api-key-status'),
+      openrouterModelInput: shadow.getElementById('tp-openrouter-model-input'),
+      openrouterEngineSelect: shadow.getElementById('tp-openrouter-engine-select'),
+      openrouterMaxResults: shadow.getElementById('tp-openrouter-max-results'),
+      batchAiTargetSelect: shadow.getElementById('tp-batch-ai-target-select'),
+      batchConfirmThresholdInput: shadow.getElementById('tp-batch-confirm-threshold-input')
+    };
+  }
+
+  function syncAiSectionFromConfig(els) {
+    if (els.aiProviderSelect) els.aiProviderSelect.value = effectiveAiProvider(CONFIG);
+    if (els.openrouterApiKeyInput) els.openrouterApiKeyInput.value = '';
+    if (els.openrouterApiKeyEditor) els.openrouterApiKeyEditor.style.display = 'none';
+    if (els.openrouterApiKeyReveal) {
+      els.openrouterApiKeyReveal.style.display = '';
+      els.openrouterApiKeyReveal.setAttribute('aria-expanded', 'false');
+    }
+    if (els.openrouterApiKeyStatus) {
+      els.openrouterApiKeyStatus.textContent = (CONFIG.OPENROUTER_API_KEY && String(CONFIG.OPENROUTER_API_KEY).trim())
+        ? '✅ Key hinterlegt'
+        : 'Kein Key hinterlegt';
+    }
+    if (els.openrouterModelInput) els.openrouterModelInput.value = CONFIG.OPENROUTER_MODEL || 'google/gemini-2.5-flash';
+    if (els.openrouterEngineSelect) els.openrouterEngineSelect.value = CONFIG.OPENROUTER_SEARCH_ENGINE || 'auto';
+    if (els.openrouterMaxResults) els.openrouterMaxResults.value = String(CONFIG.OPENROUTER_MAX_RESULTS || 5);
+    if (els.batchAiTargetSelect) els.batchAiTargetSelect.value = CONFIG.BATCH_AI_TARGET || 'google-ai';
+    if (els.batchConfirmThresholdInput) els.batchConfirmThresholdInput.value = String(CONFIG.BATCH_CONFIRM_THRESHOLD ?? 10);
+  }
+
+  function bindAiSectionEvents(els) {
+    els.openrouterApiKeyReveal?.addEventListener('click', e => {
+      if (e && !e.isTrusted) return;
+      if (!els.openrouterApiKeyEditor || !els.openrouterApiKeyInput) return;
+      els.openrouterApiKeyInput.value = '';
+      els.openrouterApiKeyEditor.style.display = '';
+      els.openrouterApiKeyReveal.style.display = 'none';
+      els.openrouterApiKeyReveal.setAttribute('aria-expanded', 'true');
+      els.openrouterApiKeyInput.focus();
+    });
+
+    els.aiProviderSelect?.addEventListener('change', () => {
+      const val = els.aiProviderSelect.value;
+      if (els.tavilyEnabledToggle) {
+        els.tavilyEnabledToggle.checked = val === 'tavily';
+      }
+    });
+
+    els.tavilyEnabledToggle?.addEventListener('change', () => {
+      if (!els.aiProviderSelect) return;
+      if (els.tavilyEnabledToggle.checked) {
+        els.aiProviderSelect.value = 'tavily';
+      } else if (els.aiProviderSelect.value === 'tavily') {
+        els.aiProviderSelect.value = 'google';
+      }
+    });
+  }
+
+  function collectAiSectionUpdates(els, updates) {
+    if (els.aiProviderSelect) {
+      const prov = els.aiProviderSelect.value;
+      updates.AI_SEARCH_PROVIDER = (prov === 'openrouter' || prov === 'tavily') ? prov : 'google';
+    }
+    if (els.openrouterApiKeyInput && els.openrouterApiKeyEditor && els.openrouterApiKeyEditor.style.display !== 'none') {
+      updates.OPENROUTER_API_KEY = String(els.openrouterApiKeyInput.value || '').trim();
+    }
+    if (els.openrouterModelInput) {
+      const m = String(els.openrouterModelInput.value || '').trim();
+      updates.OPENROUTER_MODEL = m || 'google/gemini-2.5-flash';
+    }
+    if (els.openrouterEngineSelect) {
+      updates.OPENROUTER_SEARCH_ENGINE = els.openrouterEngineSelect.value || 'auto';
+    }
+    if (els.openrouterMaxResults) {
+      const rawMax = parseInt(els.openrouterMaxResults.value, 10);
+      updates.OPENROUTER_MAX_RESULTS = Number.isFinite(rawMax) ? Math.max(1, Math.min(10, rawMax)) : 5;
+    }
+    if (els.batchAiTargetSelect) {
+      updates.BATCH_AI_TARGET = els.batchAiTargetSelect.value || 'google-ai';
+    }
+    if (els.batchConfirmThresholdInput) {
+      const rawThr = parseInt(els.batchConfirmThresholdInput.value, 10);
+      updates.BATCH_CONFIRM_THRESHOLD = Number.isFinite(rawThr) ? Math.max(1, Math.min(100, rawThr)) : 10;
+    }
+  }
+
   // ─── MODULE: src/ui/modal-template.js ───────────────────────────────────────
   /**
    * Modal template (split from ui/modal.js): settings section HTML + collapse state.
    */
+
 
 
   // Injects the settings sections on first open; later calls are a no-op.
@@ -13935,6 +14529,7 @@ const SHADOW_MODAL_STYLES = `
               </select>
             </div>
           </div>
+  ${renderAiBatchSettingsMarkup()}
   </div>
         </section>
         <section id="tp-section-deals" class="tp-section-card tp-section-deals">
@@ -14129,6 +14724,7 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   // Element-lookup table: one record, shared by sync/bind/actions.
   function collectModalElements(shadow) {
     const dialog = shadow.getElementById('tp-settings-dialog');
@@ -14211,7 +14807,7 @@ const SHADOW_MODAL_STYLES = `
     const exportBtn = shadow.getElementById('tp-export-config-btn');
     const importBtn = shadow.getElementById('tp-import-config-btn');
     const importFile = shadow.getElementById('tp-import-config-file');
-    return { shadow, dialog, fabButton, btnResetDefaults, btnClose, btnSave, marginRange, marginVal, filterRememberPerPageTypeToggle, profileActiveBadge, opacityRange, opacityVal, hideAdsToggle, shippingToggle, sortNone, sortDesc, sortAsc, sortDiscount, alarmEnabledToggle, alarmTargetRange, alarmTargetVal, alarmAutoSubmitToggle, heatmapIntensityRange, heatmapIntensityVal, bestpreiseModeToggle, bestpreiseWeightRange, bestpreiseWeightVal, bestpreiseWeightDesc, bestpreiseMinPointsRange, bestpreiseMinPointsVal, bestpreiseHorizonRange, bestpreiseHorizonVal, bestpreiseHorizonDesc, cacheTtlSelect, cacheNegTtlSelect, cacheMemoryRange, cacheMemoryVal, cacheDiskRange, cacheDiskVal, cacheStatsLabel, cacheClearBtn, dataResetBtn, realDealMinRange, realDealMinVal, sparklinesToggle, keepaChartToggle, reviewSearchToggle, reviewKeywordInput, reviewKeywordReset, reviewKeywordPreview, reviewKeywordPreviewNoPrice, reviewKeywordPreviewNoPriceRow, reviewAiModeToggle, tavilyEnabledToggle, tavilyApiKeyInput, tavilyApiKeyReveal, tavilyApiKeyEditor, tavilyApiKeyStatus, tavilySearchDepth, tavilyMaxResults, dealerAutofetchToggle, discordPrimaryName, discordChannelsList, discordExtraChannels, discordAddChannelBtn, discordWebhookInput, discordWebhookReveal, discordWebhookEditor, discordWebhookStatus, discordDealerEmbedToggle, discordProductEmbedToggle, discordForumTitleToggle, discordLayoutInput, discordLayoutPreview, discordLayoutCount, discordLayoutError, discordLayoutReset, exportBtn, importBtn, importFile, layoutTimer: 0 };
+    return { shadow, dialog, fabButton, btnResetDefaults, btnClose, btnSave, marginRange, marginVal, filterRememberPerPageTypeToggle, profileActiveBadge, opacityRange, opacityVal, hideAdsToggle, shippingToggle, sortNone, sortDesc, sortAsc, sortDiscount, alarmEnabledToggle, alarmTargetRange, alarmTargetVal, alarmAutoSubmitToggle, heatmapIntensityRange, heatmapIntensityVal, bestpreiseModeToggle, bestpreiseWeightRange, bestpreiseWeightVal, bestpreiseWeightDesc, bestpreiseMinPointsRange, bestpreiseMinPointsVal, bestpreiseHorizonRange, bestpreiseHorizonVal, bestpreiseHorizonDesc, cacheTtlSelect, cacheNegTtlSelect, cacheMemoryRange, cacheMemoryVal, cacheDiskRange, cacheDiskVal, cacheStatsLabel, cacheClearBtn, dataResetBtn, realDealMinRange, realDealMinVal, sparklinesToggle, keepaChartToggle, reviewSearchToggle, reviewKeywordInput, reviewKeywordReset, reviewKeywordPreview, reviewKeywordPreviewNoPrice, reviewKeywordPreviewNoPriceRow, reviewAiModeToggle, tavilyEnabledToggle, tavilyApiKeyInput, tavilyApiKeyReveal, tavilyApiKeyEditor, tavilyApiKeyStatus, tavilySearchDepth, tavilyMaxResults, ...collectAiSectionElements(shadow), dealerAutofetchToggle, discordPrimaryName, discordChannelsList, discordExtraChannels, discordAddChannelBtn, discordWebhookInput, discordWebhookReveal, discordWebhookEditor, discordWebhookStatus, discordDealerEmbedToggle, discordProductEmbedToggle, discordForumTitleToggle, discordLayoutInput, discordLayoutPreview, discordLayoutCount, discordLayoutError, discordLayoutReset, exportBtn, importBtn, importFile, layoutTimer: 0 };
   }
 
   // Built lazily (was setupUI-local): kompakt reads DEFAULT_LAYOUT, which
@@ -14304,6 +14900,7 @@ const SHADOW_MODAL_STYLES = `
       if (els.tavilyApiKeyInput) els.tavilyApiKeyInput.value = '';
       if (els.tavilyApiKeyEditor) els.tavilyApiKeyEditor.style.display = 'none';
       if (els.tavilyApiKeyReveal) { els.tavilyApiKeyReveal.style.display = ''; els.tavilyApiKeyReveal.setAttribute('aria-expanded', 'false'); }
+      syncAiSectionFromConfig(els);
 
       const channels = Array.isArray(CONFIG.DISCORD_CHANNELS) && CONFIG.DISCORD_CHANNELS.length > 0
         ? CONFIG.DISCORD_CHANNELS
@@ -14436,17 +15033,22 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
+
   function wireModalActions(els) {
     els.cacheClearBtn?.addEventListener('click', () => {
       const removed = clearPriceStatsCache();
       clearDealerMemory();
       clearMemoryAsinCache();
       clearTavilyCache();
+      clearOpenRouterCache();
       const diskLimit = (els.cacheDiskVal && parseInt(els.cacheDiskVal.value, 10)) || CONFIG.CACHE_DISK_LIMIT || 300;
       if (els.cacheStatsLabel) els.cacheStatsLabel.textContent = `Lokaler Cache: 0 / ${diskLimit} Einträge`;
       triggerProcessListings();
       showToast(`Cache geleert (${removed} Produkte entfernt)`);
     });
+
+    bindAiSectionEvents(els);
 
     els.tavilyApiKeyReveal?.addEventListener('click', e => {
       if (e && !e.isTrusted) return;
@@ -14537,6 +15139,7 @@ const SHADOW_MODAL_STYLES = `
       clearDealerMemory();
       clearMemoryAsinCache();
       clearTavilyCache();
+      clearOpenRouterCache();
       clearCollapsedState();
       getProductCards().forEach(clearCardCache);
       try { localStorage.removeItem('tp_vcat_ident_v1'); } catch (e) {}
@@ -14572,8 +15175,8 @@ const SHADOW_MODAL_STYLES = `
           version: (typeof GM_info !== 'undefined' && GM_info?.script?.version) || 'dev',
           exported: new Date().toISOString()
         },
-        // Bearer-Secret nie exportieren (JSON.stringify droppt undefined).
-        config: { ...CONFIG, DISCORD_WEBHOOK_URL: undefined, DISCORD_CHANNELS: undefined, TAVILY_API_KEY: undefined },
+        // Bearer-Secrets nie exportieren (dynamisch aus SECRET_KEYS strippen).
+        config: Object.fromEntries(Object.entries(CONFIG).filter(([k]) => !SECRET_KEYS.has(k))),
       };
       const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
@@ -14810,6 +15413,7 @@ const SHADOW_MODAL_STYLES = `
         const rawMax = parseInt(els.tavilyMaxResults.value, 10);
         updates.TAVILY_MAX_RESULTS = Number.isFinite(rawMax) ? Math.max(1, Math.min(10, rawMax)) : 5;
       }
+      collectAiSectionUpdates(els, updates);
       let primaryUrl = CONFIG.DISCORD_CHANNELS?.[0]?.url || CONFIG.DISCORD_WEBHOOK_URL || '';
       if (els.discordWebhookInput && els.discordWebhookEditor && els.discordWebhookEditor.style.display !== 'none') {
         const rawWebhook = String(els.discordWebhookInput.value || '').trim();
@@ -18417,7 +19021,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.545';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.546';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

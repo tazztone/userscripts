@@ -53,7 +53,8 @@ import {
 } from '../../page/product-offers.js';
 import { showToast } from '../toast.js';
 import { isShippingPriceActive, scheduleProcessListings, getDetailProductId } from '../../page/adapter.js';
-import { buildTavilyQuery, fetchTavilySummary, getCachedTavily } from '../../features/tavily-search.js';
+import { buildTavilyQuery } from '../../features/tavily-search.js';
+import { isConfiguredAiActive, getCachedConfiguredAiSummary, fetchConfiguredAiSummary } from '../../features/openrouter-search.js';
 
 async function sendDealToChannel(channel, payload, stillFresh) {
   const hook = channel.url.trim();
@@ -303,13 +304,14 @@ export async function triggerDiscordShare({
     try {
       const productDl = imageUrl ? fetchImageBlob(imageUrl).catch(() => null) : null;
       let aiPromise = null;
-      if (CONFIG.TAVILY_ENABLED && String(CONFIG.DISCORD_LAYOUT || '').includes('{ai}') && CONFIG.TAVILY_API_KEY && CONFIG.TAVILY_API_KEY.trim()) {
-        const query = buildTavilyQuery(title, CONFIG.REVIEW_SEARCH_KEYWORD, priceText);
-        const cached = getCachedTavily(query);
+      if (isConfiguredAiActive(CONFIG) && String(CONFIG.DISCORD_LAYOUT || '').includes('{ai}')) {
+        const cached = getCachedConfiguredAiSummary(title, CONFIG.REVIEW_SEARCH_KEYWORD, priceText);
         if (cached?.answer) {
           aiPromise = Promise.resolve(cached.answer);
         } else {
-          aiPromise = fetchTavilySummary(CONFIG.TAVILY_API_KEY, query, { timeoutMs: 4000 }).catch(() => '');
+          aiPromise = fetchConfiguredAiSummary(title, CONFIG.REVIEW_SEARCH_KEYWORD, priceText, { timeoutMs: 4000 })
+            .then(r => r?.answer || '')
+            .catch(() => '');
         }
       }
       if ((!dealer || !dealerUrl || !offers) && url) {

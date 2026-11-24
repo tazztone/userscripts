@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { _getValue, _setValue, weightText, horizonUiToStored, horizonStoredToUi, DEFAULTS, CONFIG, SECRET_KEYS, RESET_GROUPS, migrateLegacyDebug, migrateHideToDimDefaults, migrateDiscordChannels, getDiscordChannels, sanitizeChannels, realDealMinDiscount, sanitizeConfigValue, FILTER_CYCLE, cycleStateOf, syncUiControl, initPageProfiles, saveConfigKey, resetConfigToDefaults } from '../../src/state/config.js';
+import { _getValue, _setValue, weightText, horizonUiToStored, horizonStoredToUi, DEFAULTS, CONFIG, SECRET_KEYS, RESET_GROUPS, effectiveAiProvider, migrateLegacyDebug, migrateHideToDimDefaults, migrateDiscordChannels, getDiscordChannels, sanitizeChannels, realDealMinDiscount, sanitizeConfigValue, FILTER_CYCLE, cycleStateOf, syncUiControl, initPageProfiles, saveConfigKey, resetConfigToDefaults } from '../../src/state/config.js';
 import { SETTING_SCHEMA } from '../../src/state/config-store.js';
 
 describe('Config dual-layer storage', () => {
@@ -438,8 +438,8 @@ describe('FILTER_CYCLE deal discount mapping', () => {
   });
 
   describe('RESET_GROUPS schema & invariants', () => {
-    it('defines exactly the 8 expected functional groups', () => {
-      const expected = ['display', 'review', 'deals', 'filter', 'alarm', 'discord', 'weights', 'cache'];
+    it('defines exactly the 9 expected functional groups', () => {
+      const expected = ['display', 'review', 'batch', 'deals', 'filter', 'alarm', 'discord', 'weights', 'cache'];
       assert.deepEqual(Object.keys(RESET_GROUPS), expected);
     });
 
@@ -493,6 +493,45 @@ describe('FILTER_CYCLE deal discount mapping', () => {
       } finally {
         globalThis.document = prevDoc;
       }
+    });
+  });
+
+  describe('OpenRouter & Batch config keys', () => {
+    it('keeps OPENROUTER_API_KEY in SECRET_KEYS and out of localStorage', () => {
+      const gmStore = {};
+      const lsStore = {};
+      const prevGet = globalThis.GM_getValue;
+      const prevSet = globalThis.GM_setValue;
+      const prevLS = globalThis.localStorage;
+      globalThis.GM_getValue = k => gmStore[k];
+      globalThis.GM_setValue = (k, v) => { gmStore[k] = v; };
+      globalThis.localStorage = { getItem: k => lsStore[k] ?? null, setItem: (k, v) => { lsStore[k] = String(v); }, removeItem: k => { delete lsStore[k]; } };
+      try {
+        assert.ok(SECRET_KEYS.has('OPENROUTER_API_KEY'));
+        _setValue('OPENROUTER_API_KEY', 'sk-or-secret');
+        assert.equal(gmStore['OPENROUTER_API_KEY'], 'sk-or-secret');
+        assert.equal(lsStore['tp_suite_v2_OPENROUTER_API_KEY'], undefined);
+      } finally {
+        if (prevGet === undefined) delete globalThis.GM_getValue; else globalThis.GM_getValue = prevGet;
+        if (prevSet === undefined) delete globalThis.GM_setValue; else globalThis.GM_setValue = prevSet;
+        if (prevLS === undefined) delete globalThis.localStorage; else globalThis.localStorage = prevLS;
+      }
+    });
+
+    it('sanitizes batch & OpenRouter settings within schema bounds', () => {
+      assert.equal(sanitizeConfigValue('BATCH_CONFIRM_THRESHOLD', 0), 1);
+      assert.equal(sanitizeConfigValue('BATCH_CONFIRM_THRESHOLD', 150), 100);
+      assert.equal(sanitizeConfigValue('BATCH_CONFIRM_THRESHOLD', 25), 25);
+      assert.equal(sanitizeConfigValue('BATCH_SCOPE_DEFAULT', 'deals'), 'deals');
+      assert.equal(sanitizeConfigValue('BATCH_SCOPE_DEFAULT', 'bogus'), 'non-dimmed');
+      assert.equal(sanitizeConfigValue('OPENROUTER_SEARCH_ENGINE', 'exa'), 'exa');
+      assert.equal(sanitizeConfigValue('OPENROUTER_SEARCH_ENGINE', 'nope'), 'auto');
+    });
+
+    it('resolves effectiveAiProvider with Tavily backward compatibility', () => {
+      assert.equal(effectiveAiProvider({ AI_SEARCH_PROVIDER: 'google', TAVILY_ENABLED: false }), 'google');
+      assert.equal(effectiveAiProvider({ AI_SEARCH_PROVIDER: 'google', TAVILY_ENABLED: true }), 'tavily');
+      assert.equal(effectiveAiProvider({ AI_SEARCH_PROVIDER: 'openrouter', TAVILY_ENABLED: true }), 'openrouter');
     });
   });
 });

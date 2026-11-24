@@ -4,8 +4,9 @@
  * Tavily test report verdict and quick-action buttons (Google, Copy, Discord).
  */
 
-import { CONFIG } from '../../state/config.js';
-import { buildTavilyQuery, fetchTavilySummary, getCachedTavily } from '../../features/tavily-search.js';
+import { CONFIG, effectiveAiProvider } from '../../state/config.js';
+import { buildTavilyQuery } from '../../features/tavily-search.js';
+import { getCachedConfiguredAiSummary, fetchConfiguredAiSummary } from '../../features/openrouter-search.js';
 import { createPopoutDialog } from '../popout-dialog.js';
 import { showToast } from '../toast.js';
 
@@ -57,8 +58,9 @@ export function openAiPopover(options = {}) {
 
   const { title = '', priceText = '', googleUrl = '', card = null } = options;
 
+  const activeProv = effectiveAiProvider(CONFIG) === 'openrouter' ? 'openrouter' : 'tavily';
   const query = buildTavilyQuery(title, CONFIG.REVIEW_SEARCH_KEYWORD, priceText);
-  const cached = getCachedTavily(query);
+  const cached = getCachedConfiguredAiSummary(title, CONFIG.REVIEW_SEARCH_KEYWORD, priceText, { provider: activeProv });
 
   let statusTimers = [];
   const clearTimers = () => {
@@ -102,11 +104,31 @@ export function openAiPopover(options = {}) {
 
   let currentVerdict = '';
 
-  const renderVerdict = (text) => {
+  const renderVerdict = (text, citations = []) => {
     clearTimers();
     currentVerdict = text;
     contentEl.className = 'tp-ai-body';
     contentEl.innerHTML = formatVerdictHtml(text);
+    if (Array.isArray(citations) && citations.length > 0) {
+      const citeWrap = document.createElement('div');
+      citeWrap.className = 'tp-ai-citations';
+      citeWrap.style.cssText = 'margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.12);font-size:12px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;';
+      const lbl = document.createElement('span');
+      lbl.textContent = 'Quellen:';
+      lbl.style.opacity = '0.75';
+      citeWrap.appendChild(lbl);
+      for (const c of citations) {
+        if (!c?.url || !/^https?:\/\//i.test(c.url)) continue;
+        const a = document.createElement('a');
+        a.href = c.url;
+        a.target = '_blank';
+        a.rel = 'noopener';
+        a.textContent = c.title || c.url;
+        a.style.cssText = 'color:#93c5fd;text-decoration:underline;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;';
+        citeWrap.appendChild(a);
+      }
+      contentEl.appendChild(citeWrap);
+    }
     copyBtn.disabled = false;
     retryBtn.hidden = true;
   };
@@ -147,14 +169,13 @@ export function openAiPopover(options = {}) {
       }
     }, 12000));
 
-    fetchTavilySummary(CONFIG.TAVILY_API_KEY, query, {
+    fetchConfiguredAiSummary(title, CONFIG.REVIEW_SEARCH_KEYWORD, priceText, {
       timeoutMs: 60000,
-      searchDepth: CONFIG.TAVILY_SEARCH_DEPTH,
-      maxResults: CONFIG.TAVILY_MAX_RESULTS
+      provider: activeProv
     })
-      .then(answer => {
+      .then(result => {
         if (backdrop.isConnected) {
-          renderVerdict(answer);
+          renderVerdict(result?.answer || '', result?.citations || []);
         }
       })
       .catch(err => {
@@ -207,7 +228,7 @@ export function openAiPopover(options = {}) {
   });
 
   if (cached?.answer) {
-    renderVerdict(cached.answer);
+    renderVerdict(cached.answer, cached.citations || []);
   } else {
     contentEl.innerHTML = '<span style="opacity:0.75;">🤖 Analysiere Testberichte & Preiseinschätzung...</span>';
   }

@@ -183,6 +183,41 @@ export function syncUiControl(key, val, opts = {}, shadowRoot = null) {
           if (select) select.value = String(val || 5);
           break;
         }
+        case 'AI_SEARCH_PROVIDER': {
+          const select = shadow.getElementById('tp-ai-provider-select');
+          if (select) select.value = val || 'google';
+          break;
+        }
+        case 'OPENROUTER_API_KEY': {
+          const status = shadow.getElementById('tp-openrouter-api-key-status');
+          if (status) status.textContent = (val && String(val).trim()) ? '✅ Key hinterlegt' : 'Kein Key hinterlegt';
+          break;
+        }
+        case 'OPENROUTER_MODEL': {
+          const input = shadow.getElementById('tp-openrouter-model-input');
+          if (input) input.value = val || 'google/gemini-2.5-flash';
+          break;
+        }
+        case 'OPENROUTER_SEARCH_ENGINE': {
+          const select = shadow.getElementById('tp-openrouter-engine-select');
+          if (select) select.value = val || 'auto';
+          break;
+        }
+        case 'OPENROUTER_MAX_RESULTS': {
+          const select = shadow.getElementById('tp-openrouter-max-results');
+          if (select) select.value = String(val || 5);
+          break;
+        }
+        case 'BATCH_AI_TARGET': {
+          const select = shadow.getElementById('tp-batch-ai-target-select');
+          if (select) select.value = val || 'google-ai';
+          break;
+        }
+        case 'BATCH_CONFIRM_THRESHOLD': {
+          const input = shadow.getElementById('tp-batch-confirm-threshold-input');
+          if (input) input.value = String(val ?? 10);
+          break;
+        }
         case 'DISCORD_SUPPRESS_DEALER_EMBED': {
           const toggle = shadow.getElementById('tp-discord-dealer-embed-toggle');
           if (toggle) toggle.checked = val === false;

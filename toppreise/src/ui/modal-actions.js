@@ -10,6 +10,8 @@ import { clearDealerMemory } from './badges.js';
 import { triggerProcessListings, clearCardCache } from '../page/adapter.js';
 import { clearMemoryAsinCache } from '../page/product-offers.js';
 import { clearTavilyCache } from '../features/tavily-search.js';
+import { clearOpenRouterCache } from '../features/openrouter-search.js';
+import { bindAiSectionEvents, collectAiSectionUpdates } from './modal-ai-section.js';
 import { getProductCards } from '../page/cards.js';
 import { cancelBatchDealCheck } from '../scanner/scanner.js';
 import { DEFAULT_LAYOUT, validateLayoutRecipe } from '../features/discord-recipe.js';
@@ -25,11 +27,14 @@ export function wireModalActions(els) {
     clearDealerMemory();
     clearMemoryAsinCache();
     clearTavilyCache();
+    clearOpenRouterCache();
     const diskLimit = (els.cacheDiskVal && parseInt(els.cacheDiskVal.value, 10)) || CONFIG.CACHE_DISK_LIMIT || 300;
     if (els.cacheStatsLabel) els.cacheStatsLabel.textContent = `Lokaler Cache: 0 / ${diskLimit} Einträge`;
     triggerProcessListings();
     showToast(`Cache geleert (${removed} Produkte entfernt)`);
   });
+
+  bindAiSectionEvents(els);
 
   els.tavilyApiKeyReveal?.addEventListener('click', e => {
     if (e && !e.isTrusted) return;
@@ -120,6 +125,7 @@ export function wireModalActions(els) {
     clearDealerMemory();
     clearMemoryAsinCache();
     clearTavilyCache();
+    clearOpenRouterCache();
     clearCollapsedState();
     getProductCards().forEach(clearCardCache);
     try { localStorage.removeItem('tp_vcat_ident_v1'); } catch (e) {}
@@ -155,8 +161,8 @@ export function wireModalActions(els) {
         version: (typeof GM_info !== 'undefined' && GM_info?.script?.version) || 'dev',
         exported: new Date().toISOString()
       },
-      // Bearer-Secret nie exportieren (JSON.stringify droppt undefined).
-      config: { ...CONFIG, DISCORD_WEBHOOK_URL: undefined, DISCORD_CHANNELS: undefined, TAVILY_API_KEY: undefined },
+      // Bearer-Secrets nie exportieren (dynamisch aus SECRET_KEYS strippen).
+      config: Object.fromEntries(Object.entries(CONFIG).filter(([k]) => !SECRET_KEYS.has(k))),
     };
     const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -393,6 +399,7 @@ export function wireModalActions(els) {
       const rawMax = parseInt(els.tavilyMaxResults.value, 10);
       updates.TAVILY_MAX_RESULTS = Number.isFinite(rawMax) ? Math.max(1, Math.min(10, rawMax)) : 5;
     }
+    collectAiSectionUpdates(els, updates);
     let primaryUrl = CONFIG.DISCORD_CHANNELS?.[0]?.url || CONFIG.DISCORD_WEBHOOK_URL || '';
     if (els.discordWebhookInput && els.discordWebhookEditor && els.discordWebhookEditor.style.display !== 'none') {
       const rawWebhook = String(els.discordWebhookInput.value || '').trim();

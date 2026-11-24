@@ -324,7 +324,7 @@ export function resetConfigToDefaults({ includeSecrets = false, skipRender = fal
 }
 // Re-exports: storage/schema/migrate symbols moved to siblings — every
 // existing `from './state/config.js'` / `'../state/config.js'` path keeps working.
-import { SETTING_SCHEMA, sanitizeChannels, RESET_GROUPS } from './config-store.js';
-export { SECRET_KEYS, _getValue, _setValue, DEFAULTS, PAGE_SCOPED_KEYS, RESET_GROUPS, SETTING_SCHEMA, sanitizeConfigValue, sanitizeChannels, weightText, horizonText, horizonUiToStored, horizonStoredToUi };
+import { SETTING_SCHEMA, sanitizeChannels, RESET_GROUPS, effectiveAiProvider } from './config-store.js';
+export { SECRET_KEYS, _getValue, _setValue, DEFAULTS, PAGE_SCOPED_KEYS, RESET_GROUPS, SETTING_SCHEMA, sanitizeConfigValue, sanitizeChannels, effectiveAiProvider, weightText, horizonText, horizonUiToStored, horizonStoredToUi };
 export { migrateLegacyDebug, migrateHideToDimDefaults, migrateFilterSplit, migrateDiscordChannels };
 

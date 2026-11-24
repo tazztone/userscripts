@@ -3,6 +3,7 @@
  */
 
 import { renderDiscordSection, renderDataSection } from './modal-template-sections.js';
+import { renderAiBatchSettingsMarkup } from './modal-ai-section.js';
 
 // Injects the settings sections on first open; later calls are a no-op.
 export function ensureModalSection(shadow) {
@@ -134,6 +135,7 @@ export function ensureModalSection(shadow) {
             </select>
           </div>
         </div>
+${renderAiBatchSettingsMarkup()}
 </div>
       </section>
       <section id="tp-section-deals" class="tp-section-card tp-section-deals">
