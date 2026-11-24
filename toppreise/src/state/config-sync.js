@@ -146,6 +146,10 @@ export function syncUiControl(key, val, opts = {}, shadowRoot = null) {
         case 'DEALER_AUTOFETCH': {
           const toggle = shadow.getElementById('tp-dealer-autofetch-toggle');
           if (toggle) toggle.checked = !!val;
+          if (typeof document !== 'undefined') {
+            const batchToggle = document.getElementById('tp-batch-dealer-autofetch');
+            if (batchToggle && document.activeElement !== batchToggle) batchToggle.checked = !!val;
+          }
           break;
         }
         case 'REVIEW_SEARCH_ENABLED': {

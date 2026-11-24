@@ -3,7 +3,7 @@
  */
 
 import { renderDiscordSection, renderDataSection } from './modal-template-sections.js';
-import { renderAiBatchSettingsMarkup } from './modal-ai-section.js';
+import { renderAiProviderTopMarkup, renderAiBatchSettingsMarkup } from './modal-ai-section.js';
 
 // Injects the settings sections on first open; later calls are a no-op.
 export function ensureModalSection(shadow) {
@@ -95,44 +95,47 @@ export function ensureModalSection(shadow) {
           </label>
         </div>
 
-        <div class="tp-settings-subhead">Tavily KI-Suche (Direkt-Fazit & Discord)</div>
-        <div class="tp-settings-group tp-switch-container">
-          <div class="tp-switch-label">
-            <label title="Aktiviert Tavily KI-Zusammenfassungen für Direkt-Fazit auf der Karte und {ai} in Discord.">Tavily KI-Suche aktivieren</label>
-            <span class="tp-switch-desc">AUS = 🌐 öffnet Websuche direkt, kein KI-Fazit auf Karte & in Discord</span>
+${renderAiProviderTopMarkup()}
+        <div id="tp-ai-tavily-block" class="tp-ai-provider-block">
+          <div class="tp-settings-subhead">Tavily KI-Suche (Legacy-Direktfazit &amp; Discord)</div>
+          <div class="tp-settings-group tp-switch-container">
+            <div class="tp-switch-label">
+              <label title="Aktiviert Tavily KI-Zusammenfassungen für Direkt-Fazit auf der Karte und {ai} in Discord.">Tavily KI-Suche aktivieren</label>
+              <span class="tp-switch-desc">AUS = 🌐 öffnet Websuche direkt, kein KI-Fazit auf Karte & in Discord</span>
+            </div>
+            <label class="tp-switch tp-purple">
+              <input type="checkbox" id="tp-tavily-enabled-toggle">
+              <span class="tp-slider"></span>
+            </label>
           </div>
-          <label class="tp-switch tp-purple">
-            <input type="checkbox" id="tp-tavily-enabled-toggle">
-            <span class="tp-slider"></span>
-          </label>
-        </div>
-        <div class="tp-settings-group">
-          <label title="Kostenloser Tavily API Key (tavily.com, 1'000 Anfragen/Monat). Ermöglicht KI-Kurzfazit direkt auf der Karte (🌐) und im Discord-Share ({ai}).">API-Schlüssel</label>
-          <div id="tp-tavily-api-key-collapsed">
-            <span id="tp-tavily-api-key-status" class="tp-switch-desc"></span>
-            <button type="button" id="tp-tavily-api-key-reveal" class="tp-btn tp-btn-secondary" aria-expanded="false" aria-controls="tp-tavily-api-key-editor">🔑 Key ersetzen / entfernen</button>
+          <div class="tp-settings-group">
+            <label title="Kostenloser Tavily API Key (tavily.com, 1'000 Anfragen/Monat). Ermöglicht KI-Kurzfazit direkt auf der Karte (🌐) und im Discord-Share ({ai}).">API-Schlüssel</label>
+            <div id="tp-tavily-api-key-collapsed">
+              <span id="tp-tavily-api-key-status" class="tp-switch-desc"></span>
+              <button type="button" id="tp-tavily-api-key-reveal" class="tp-btn tp-btn-secondary" aria-expanded="false" aria-controls="tp-tavily-api-key-editor">🔑 Key ersetzen / entfernen</button>
+            </div>
+            <div id="tp-tavily-api-key-editor" style="display: none;">
+              <input type="password" id="tp-tavily-api-key-input" class="tp-field-dark" placeholder="tvly-…" autocomplete="new-password" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
+              <span class="tp-switch-desc tp-field-hint">Kostenloser Key von <a href="https://tavily.com" target="_blank" rel="noopener">tavily.com</a> (1'000 Anfragen/Monat). Ermöglicht KI-Kurzfazit per 1-Klick auf der Karte und <code>{ai}</code> im Discord-Post. Bleibt lokal im Browser.</span>
+            </div>
           </div>
-          <div id="tp-tavily-api-key-editor" style="display: none;">
-            <input type="password" id="tp-tavily-api-key-input" class="tp-field-dark" placeholder="tvly-…" autocomplete="new-password" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
-            <span class="tp-switch-desc tp-field-hint">Kostenloser Key von <a href="https://tavily.com" target="_blank" rel="noopener">tavily.com</a> (1'000 Anfragen/Monat). Ermöglicht KI-Kurzfazit per 1-Klick auf der Karte und <code>{ai}</code> im Discord-Post. Bleibt lokal im Browser.</span>
-          </div>
-        </div>
-        <div class="tp-settings-group" style="display:flex;gap:12px;flex-wrap:wrap;">
-          <div style="flex:1;min-width:140px;">
-            <label title="Suchtiefe: Basic ist schnell (~1-2s). Advanced durchsucht mehr Webquellen (~2-4s).">Tavily Suchtiefe</label>
-            <select id="tp-tavily-search-depth" class="tp-select tp-field-dark">
-              <option value="basic">Basic (schnell, Standard)</option>
-              <option value="advanced">Advanced (gründlich)</option>
-            </select>
-          </div>
-          <div style="flex:1;min-width:140px;">
-            <label title="Anzahl der Webseiten, die Tavily für die Antwort analysiert.">Max. Quellen (Ergebnisse)</label>
-            <select id="tp-tavily-max-results" class="tp-select tp-field-dark">
-              <option value="3">3 Quellen</option>
-              <option value="5" selected>5 Quellen (Standard)</option>
-              <option value="8">8 Quellen</option>
-              <option value="10">10 Quellen</option>
-            </select>
+          <div class="tp-settings-group" style="display:flex;gap:12px;flex-wrap:wrap;">
+            <div style="flex:1;min-width:140px;">
+              <label title="Suchtiefe: Basic ist schnell (~1-2s). Advanced durchsucht mehr Webquellen (~2-4s).">Tavily Suchtiefe</label>
+              <select id="tp-tavily-search-depth" class="tp-select tp-field-dark">
+                <option value="basic">Basic (schnell, Standard)</option>
+                <option value="advanced">Advanced (gründlich)</option>
+              </select>
+            </div>
+            <div style="flex:1;min-width:140px;">
+              <label title="Anzahl der Webseiten, die Tavily für die Antwort analysiert.">Max. Quellen (Ergebnisse)</label>
+              <select id="tp-tavily-max-results" class="tp-select tp-field-dark">
+                <option value="3">3 Quellen</option>
+                <option value="5" selected>5 Quellen (Standard)</option>
+                <option value="8">8 Quellen</option>
+                <option value="10">10 Quellen</option>
+              </select>
+            </div>
           </div>
         </div>
 ${renderAiBatchSettingsMarkup()}

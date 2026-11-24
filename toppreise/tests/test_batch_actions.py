@@ -145,7 +145,7 @@ def test_batch_price_alarms_always_confirms_and_submits_sequentially(page: Page)
     page.click('#tp-batch-confirm-go')
 
     # Wait for toast confirming alarm set + overridden 75% target price on 1000.00 -> 750.00
-    page.wait_for_selector('#tp-root >> .tp-toast:has-text("1 Preisalarme gesetzt")', timeout=5000)
+    page.wait_for_selector('#tp-root >> .tp-toast:has-text("1 Preisalarm gesetzt")', timeout=5000)
     assert page.locator('#f_NewInfoMailForm_priceFrom').input_value() == '750.00'
 
 

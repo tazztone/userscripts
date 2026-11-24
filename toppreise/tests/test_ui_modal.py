@@ -849,9 +849,9 @@ def test_settings_reset_to_default_button(page: Page):
 def test_group_level_reset_buttons(page: Page):
     open_settings(page)
 
-    # Verify reset buttons exist for all 8 groups
+    # Verify reset buttons exist for all 9 groups
     reset_buttons = page.locator('#tp-root >> .tp-btn-group-reset')
-    assert reset_buttons.count() == 8
+    assert reset_buttons.count() == 9
 
     # Modify settings in 'weights' group (BESTPREISE_WEIGHT_RECORD) and 'display' group (DIM_OPACITY)
     weight_input = page.locator('#tp-root >> #tp-bestpreise-weight-val')

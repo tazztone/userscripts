@@ -5,9 +5,9 @@
 
 import { CONFIG, effectiveAiProvider } from '../state/config.js';
 
-export function renderAiBatchSettingsMarkup() {
+export function renderAiProviderTopMarkup() {
   return `
-        <div class="tp-settings-subhead">KI-Anbieter (Direkt-Fazit, Discord & Batch)</div>
+        <div class="tp-settings-subhead">KI-Anbieter (Direkt-Fazit, Discord &amp; Batch)</div>
         <div class="tp-settings-group">
           <label for="tp-ai-provider-select" title="Wähle, ob 🌐 auf der Karte direkt ein KI-Fazit via OpenRouter/Tavily lädt oder Google-Suche öffnet.">Aktiver KI-Anbieter</label>
           <select id="tp-ai-provider-select" class="tp-select tp-field-dark">
@@ -17,51 +17,59 @@ export function renderAiBatchSettingsMarkup() {
           </select>
         </div>
 
-        <div class="tp-settings-subhead">OpenRouter Web-Suche</div>
-        <div class="tp-settings-group">
-          <label title="OpenRouter API-Key (openrouter.ai). Ermöglicht openrouter:web_search mit Quellenlinks auf Karte, Discord {ai} und Batch-KI.">OpenRouter API-Schlüssel</label>
-          <div id="tp-openrouter-api-key-collapsed">
-            <span id="tp-openrouter-api-key-status" class="tp-switch-desc"></span>
-            <button type="button" id="tp-openrouter-api-key-reveal" class="tp-btn tp-btn-secondary" aria-expanded="false" aria-controls="tp-openrouter-api-key-editor">🔑 Key ersetzen / entfernen</button>
+        <div id="tp-ai-openrouter-block" class="tp-ai-provider-block">
+          <div class="tp-settings-subhead">OpenRouter Web-Suche</div>
+          <div class="tp-settings-group">
+            <label title="OpenRouter API-Key (openrouter.ai). Ermöglicht openrouter:web_search mit Quellenlinks auf Karte, Discord {ai} und Batch-KI.">OpenRouter API-Schlüssel</label>
+            <div id="tp-openrouter-api-key-collapsed">
+              <span id="tp-openrouter-api-key-status" class="tp-switch-desc"></span>
+              <button type="button" id="tp-openrouter-api-key-reveal" class="tp-btn tp-btn-secondary" aria-expanded="false" aria-controls="tp-openrouter-api-key-editor">🔑 Key ersetzen / entfernen</button>
+            </div>
+            <div id="tp-openrouter-api-key-editor" style="display: none;">
+              <input type="password" id="tp-openrouter-api-key-input" class="tp-field-dark" placeholder="sk-or-v1-…" autocomplete="new-password" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
+              <span class="tp-switch-desc tp-field-hint">Key von <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai</a>. Bleibt lokal &amp; GM-privat im Browser.</span>
+            </div>
           </div>
-          <div id="tp-openrouter-api-key-editor" style="display: none;">
-            <input type="password" id="tp-openrouter-api-key-input" class="tp-field-dark" placeholder="sk-or-v1-…" autocomplete="new-password" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
-            <span class="tp-switch-desc tp-field-hint">Key von <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai</a>. Bleibt lokal & GM-privat im Browser.</span>
+          <div class="tp-settings-group">
+            <label for="tp-openrouter-model-input" title="OpenRouter Modell-ID für Web-Suche &amp; Batch-Vergleich.">OpenRouter Modell</label>
+            <input type="text" id="tp-openrouter-model-input" class="tp-field-dark" placeholder="google/gemini-2.5-flash" spellcheck="false">
           </div>
-        </div>
-        <div class="tp-settings-group">
-          <label for="tp-openrouter-model-input" title="OpenRouter Modell-ID für Web-Suche & Batch-Vergleich.">OpenRouter Modell</label>
-          <input type="text" id="tp-openrouter-model-input" class="tp-field-dark" placeholder="google/gemini-2.5-flash" spellcheck="false">
-        </div>
-        <div class="tp-settings-group" style="display:flex;gap:12px;flex-wrap:wrap;">
-          <div style="flex:1;min-width:140px;">
-            <label for="tp-openrouter-engine-select" title="Web-Search Engine für openrouter:web_search.">Such-Engine</label>
-            <select id="tp-openrouter-engine-select" class="tp-select tp-field-dark">
-              <option value="auto">Auto (Standard)</option>
-              <option value="native">Native</option>
-              <option value="exa">Exa</option>
-              <option value="parallel">Parallel</option>
-              <option value="perplexity">Perplexity</option>
-              <option value="firecrawl">Firecrawl</option>
-            </select>
+          <div class="tp-settings-group" style="display:flex;gap:12px;flex-wrap:wrap;">
+            <div style="flex:1;min-width:140px;">
+              <label for="tp-openrouter-engine-select" title="Web-Search Engine für openrouter:web_search.">Such-Engine</label>
+              <select id="tp-openrouter-engine-select" class="tp-select tp-field-dark">
+                <option value="auto">Auto (Standard)</option>
+                <option value="native">Native</option>
+                <option value="exa">Exa</option>
+                <option value="parallel">Parallel</option>
+                <option value="perplexity">Perplexity</option>
+                <option value="firecrawl">Firecrawl</option>
+              </select>
+            </div>
+            <div style="flex:1;min-width:140px;">
+              <label for="tp-openrouter-max-results" title="Maximale Web-Quellen pro OpenRouter-Anfrage.">Max. Quellen</label>
+              <select id="tp-openrouter-max-results" class="tp-select tp-field-dark">
+                <option value="3">3 Quellen</option>
+                <option value="5" selected>5 Quellen (Standard)</option>
+                <option value="8">8 Quellen</option>
+                <option value="10">10 Quellen</option>
+              </select>
+            </div>
           </div>
-          <div style="flex:1;min-width:140px;">
-            <label for="tp-openrouter-max-results" title="Maximale Web-Quellen pro OpenRouter-Anfrage.">Max. Quellen</label>
-            <select id="tp-openrouter-max-results" class="tp-select tp-field-dark">
-              <option value="3">3 Quellen</option>
-              <option value="5" selected>5 Quellen (Standard)</option>
-              <option value="8">8 Quellen</option>
-              <option value="10">10 Quellen</option>
-            </select>
-          </div>
-        </div>
+        </div>`;
+}
 
-        <div class="tp-settings-subhead">Batch-Aktionen</div>
+export function renderAiBatchSettingsMarkup() {
+  return `
+        <div class="tp-group-head-row" style="margin-top:12px;">
+          <span>Batch-Aktionen</span>
+          <button type="button" class="tp-btn-group-reset" data-reset-group="batch" title="Batch-Aktionen auf Standard zurücksetzen" aria-label="Batch-Aktionen auf Standard zurücksetzen">↺</button>
+        </div>
         <div class="tp-settings-group" style="display:flex;gap:12px;flex-wrap:wrap;">
           <div style="flex:1;min-width:150px;">
             <label for="tp-batch-ai-target-select" title="Ziel-Plattform für 🤖 KI-Vergleich im Batch-Menü.">Batch KI-Vergleich Ziel</label>
             <select id="tp-batch-ai-target-select" class="tp-select tp-field-dark">
-              <option value="google-ai">Google AI-Modus (&udm=50)</option>
+              <option value="google-ai">Google AI-Modus (&amp;udm=50)</option>
               <option value="openrouter">OpenRouter (In-Page)</option>
               <option value="chatgpt">ChatGPT</option>
               <option value="perplexity">Perplexity</option>
@@ -78,6 +86,8 @@ export function renderAiBatchSettingsMarkup() {
 export function collectAiSectionElements(shadow) {
   return {
     aiProviderSelect: shadow.getElementById('tp-ai-provider-select'),
+    openrouterBlock: shadow.getElementById('tp-ai-openrouter-block'),
+    tavilyBlock: shadow.getElementById('tp-ai-tavily-block'),
     openrouterApiKeyInput: shadow.getElementById('tp-openrouter-api-key-input'),
     openrouterApiKeyReveal: shadow.getElementById('tp-openrouter-api-key-reveal'),
     openrouterApiKeyEditor: shadow.getElementById('tp-openrouter-api-key-editor'),
@@ -88,6 +98,12 @@ export function collectAiSectionElements(shadow) {
     batchAiTargetSelect: shadow.getElementById('tp-batch-ai-target-select'),
     batchConfirmThresholdInput: shadow.getElementById('tp-batch-confirm-threshold-input')
   };
+}
+
+function syncProviderBlockDimming(els) {
+  const prov = els.aiProviderSelect?.value || effectiveAiProvider(CONFIG);
+  if (els.openrouterBlock) els.openrouterBlock.classList.toggle('tp-provider-dimmed', prov !== 'openrouter');
+  if (els.tavilyBlock) els.tavilyBlock.classList.toggle('tp-provider-dimmed', prov !== 'tavily');
 }
 
 export function syncAiSectionFromConfig(els) {
@@ -108,6 +124,7 @@ export function syncAiSectionFromConfig(els) {
   if (els.openrouterMaxResults) els.openrouterMaxResults.value = String(CONFIG.OPENROUTER_MAX_RESULTS || 5);
   if (els.batchAiTargetSelect) els.batchAiTargetSelect.value = CONFIG.BATCH_AI_TARGET || 'google-ai';
   if (els.batchConfirmThresholdInput) els.batchConfirmThresholdInput.value = String(CONFIG.BATCH_CONFIRM_THRESHOLD ?? 10);
+  syncProviderBlockDimming(els);
 }
 
 export function bindAiSectionEvents(els) {
@@ -126,6 +143,7 @@ export function bindAiSectionEvents(els) {
     if (els.tavilyEnabledToggle) {
       els.tavilyEnabledToggle.checked = val === 'tavily';
     }
+    syncProviderBlockDimming(els);
   });
 
   els.tavilyEnabledToggle?.addEventListener('change', () => {
@@ -135,6 +153,7 @@ export function bindAiSectionEvents(els) {
     } else if (els.aiProviderSelect.value === 'tavily') {
       els.aiProviderSelect.value = 'google';
     }
+    syncProviderBlockDimming(els);
   });
 }
 

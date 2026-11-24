@@ -31,7 +31,8 @@ import { triggerProcessListings } from "../page/adapter.js";
 import { markFreshVerified, armFreshDismiss } from "./fresh-dismiss.js";
 import { getCardProductId } from "../page/cards.js";
 import { refreshFeed, isFeedRefreshing, cancelFeedRefresh, getFeedRefreshState } from "../page/feed-refresh.js";
-import { collectScopedCards } from "../features/batch-actions.js";
+import { getBatchScopeCounts } from "../features/batch-actions.js";
+import { getActiveBatchJob } from "../features/batch-runners.js";
 import { toggleBatchPopover, closeBatchPopover, syncBatchPopover } from "./batch-popover.js";
 
 export const FLOATING_CTA_ID = 'tp-floating-check-cta';
@@ -197,7 +198,7 @@ function ensureCta() {
         <span id="tp-floating-check-count">🔍</span>
       </button>
     </div>
-    <button type="button" id="tp-floating-batch-btn" aria-expanded="false" aria-haspopup="true" title="Batch-Aktionen für gelistete Angebote">⚡ <span id="tp-floating-batch-count">0</span> ▴</button>
+    <button type="button" id="tp-floating-batch-btn" aria-expanded="false" aria-haspopup="true" title="Batch-Aktionen für gelistete Angebote">⚡ <span id="tp-floating-batch-count">0</span> <span class="tp-batch-caret">▴</span></button>
     <button type="button" id="tp-floating-refresh-btn" class="tp-floating-refresh-btn" title="Feed nach neuen Deals durchsuchen" aria-label="Feed aktualisieren">🔄</button>
     <input type="text" id="tp-floating-threshold-input" inputmode="numeric" size="4" title="Nur Differenzen ab Schwelle prüfen (z.B. 20%)" aria-label="Mindestrabatt in Prozent" autocomplete="off" spellcheck="false">
     <button type="button" id="tp-floating-cta-collapse" title="Minimieren">«</button>
@@ -330,12 +331,20 @@ function syncFloatingCTA() {
       ? `Nur Differenzen ≥ ${minDisc}% prüfen (ungeprüft ≠ Tiefstpreis)`
       : `Nur Produkte mit Differenz ≥ ${minDisc}% prüfen`;
   }
+  const counts = getBatchScopeCounts();
+  const batchBtnEl = el.querySelector('#tp-floating-batch-btn');
   const batchCountEl = el.querySelector('#tp-floating-batch-count');
+  const activeBatch = getActiveBatchJob();
+  if (batchBtnEl) batchBtnEl.classList.toggle('tp-batch-running', !!activeBatch);
   if (batchCountEl) {
-    const scopeCount = collectScopedCards(CONFIG.BATCH_SCOPE_DEFAULT || 'non-dimmed').length;
-    setTextIfChanged(batchCountEl, String(scopeCount));
+    if (activeBatch) {
+      setTextIfChanged(batchCountEl, `⏳ ${activeBatch.done}/${activeBatch.total}`);
+    } else {
+      const scopeKey = CONFIG.BATCH_SCOPE_DEFAULT || 'non-dimmed';
+      setTextIfChanged(batchCountEl, String(counts[scopeKey] ?? 0));
+    }
   }
-  syncBatchPopover();
+  syncBatchPopover(counts);
 }
 
 /**

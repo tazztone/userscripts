@@ -19,6 +19,7 @@ export function formatVerdictHtml(text) {
     .replace(/"/g, '&quot;');
 
   return escaped
+    .replace(/^#{1,3}[ \t]+(.+)$/gm, '<strong class="tp-ai-h">$1</strong>')
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
     .replace(/__(.+?)__/g, '<strong>$1</strong>')
     .replace(/(^|\n)[ \t]*[-*][ \t]+/g, '$1• ');

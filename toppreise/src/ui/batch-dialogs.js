@@ -4,6 +4,7 @@
  */
 
 import { CONFIG, getDiscordChannels } from '../state/config.js';
+import { isDiscordWebhookUrl } from '../features/share-discord.js';
 import { createPopoutDialog } from './popout-dialog.js';
 import { formatVerdictHtml } from './badges/card-ai-popover.js';
 import { copyTextToClipboard } from '../features/batch-actions.js';
@@ -68,8 +69,10 @@ export function openBatchConfirmDialog(opts = {}) {
     body.appendChild(warn);
   }
 
+  const maxItems = mode === 'discord' ? Math.max(0, qualifiedCount) : count;
+
   let limitInput = null;
-  if (count > 1) {
+  if (maxItems > 1) {
     const limitRow = document.createElement('div');
     limitRow.className = 'tp-batch-dialog-row';
     const lbl = document.createElement('label');
@@ -79,8 +82,8 @@ export function openBatchConfirmDialog(opts = {}) {
     limitInput.type = 'number';
     limitInput.id = 'tp-batch-limit-input';
     limitInput.min = '1';
-    limitInput.max = String(count);
-    limitInput.value = String(count);
+    limitInput.max = String(maxItems);
+    limitInput.value = String(maxItems);
     limitRow.append(lbl, limitInput);
     body.appendChild(limitRow);
   }
@@ -129,23 +132,45 @@ export function openBatchConfirmDialog(opts = {}) {
     durRow.append(durLbl, pills);
     body.appendChild(durRow);
 
-    const samplePrice = items.find(it => it.cardPrice > 0)?.cardPrice || 0;
-    if (samplePrice > 0) {
-      const sampleEl = document.createElement('div');
-      sampleEl.className = 'tp-batch-dialog-hint';
-      const updateSample = () => {
+    const pricedItems = items.filter(it => it.cardPrice > 0);
+    if (pricedItems.length > 0) {
+      const previewEl = document.createElement('div');
+      previewEl.className = 'tp-batch-alarm-preview';
+      const updatePreview = () => {
         const p = Math.max(5, Math.min(99, parseInt(pctInput.value, 10) || 60));
-        sampleEl.textContent = `Beispiel (1. Produkt): CHF ${samplePrice.toFixed(2)} → Ziel CHF ${(samplePrice * (p / 100)).toFixed(2)}`;
+        const lim = limitInput ? Math.max(1, Math.min(maxItems, parseInt(limitInput.value, 10) || maxItems)) : pricedItems.length;
+        const shown = pricedItems.slice(0, Math.min(3, lim));
+        previewEl.replaceChildren();
+        for (const it of shown) {
+          const row = document.createElement('div');
+          row.className = 'tp-batch-alarm-preview-row';
+          const t = document.createElement('span');
+          t.className = 'tp-batch-alarm-preview-title';
+          t.textContent = it.title || 'Produkt';
+          const pr = document.createElement('span');
+          pr.textContent = `CHF ${it.cardPrice.toFixed(2)} → ${(it.cardPrice * (p / 100)).toFixed(2)}`;
+          row.append(t, pr);
+          previewEl.appendChild(row);
+        }
+        const extra = Math.min(pricedItems.length, lim) - shown.length;
+        if (extra > 0) {
+          const more = document.createElement('div');
+          more.className = 'tp-batch-dialog-hint';
+          more.textContent = `+ ${extra} weitere`;
+          previewEl.appendChild(more);
+        }
       };
-      updateSample();
-      pctInput.addEventListener('input', updateSample);
-      body.appendChild(sampleEl);
+      updatePreview();
+      pctInput.addEventListener('input', updatePreview);
+      limitInput?.addEventListener('input', updatePreview);
+      body.appendChild(previewEl);
     }
   }
 
   let channelSelect = null;
+  let validChannels = [];
   if (mode === 'discord') {
-    const channels = getDiscordChannels(CONFIG);
+    validChannels = getDiscordChannels(CONFIG).filter(c => isDiscordWebhookUrl(c.url));
     const chRow = document.createElement('div');
     chRow.className = 'tp-batch-dialog-row';
     const chLbl = document.createElement('label');
@@ -153,7 +178,7 @@ export function openBatchConfirmDialog(opts = {}) {
     chLbl.textContent = 'Discord-Kanal:';
     channelSelect = document.createElement('select');
     channelSelect.id = 'tp-batch-discord-channel';
-    for (const ch of channels) {
+    for (const ch of validChannels) {
       const opt = document.createElement('option');
       opt.value = ch.id;
       opt.textContent = ch.name || ch.id;
@@ -164,7 +189,9 @@ export function openBatchConfirmDialog(opts = {}) {
 
     const note = document.createElement('div');
     note.className = 'tp-batch-dialog-hint';
-    note.textContent = `${qualifiedCount} verifizierte, noch nicht geteilte Deals qualifizieren sich für Discord.`;
+    note.textContent = qualifiedCount === 0
+      ? 'Keine verifizierten, noch nicht geteilten Deals im aktuellen Scope.'
+      : `${qualifiedCount} verifizierte, noch nicht geteilte Deals qualifizieren sich für Discord.`;
     body.appendChild(note);
   }
 
@@ -183,17 +210,23 @@ export function openBatchConfirmDialog(opts = {}) {
   confirmBtn.type = 'button';
   confirmBtn.id = 'tp-batch-confirm-go';
   confirmBtn.className = 'tp-popout-btn tp-batch-btn-primary';
-  confirmBtn.textContent = actionLabel;
+  const currentLimit = () => (limitInput
+    ? Math.max(1, Math.min(maxItems, parseInt(limitInput.value, 10) || maxItems))
+    : maxItems);
+  const updateConfirmLabel = () => {
+    const n = currentLimit();
+    confirmBtn.textContent = n > 0 ? `${actionLabel} (${n})` : actionLabel;
+    confirmBtn.disabled = (mode === 'discord' && (qualifiedCount === 0 || validChannels.length === 0));
+  };
+  updateConfirmLabel();
+  limitInput?.addEventListener('input', updateConfirmLabel);
   confirmBtn.addEventListener('click', () => {
-    const limit = limitInput
-      ? Math.max(1, Math.min(count, parseInt(limitInput.value, 10) || count))
-      : count;
+    const limit = currentLimit();
     const targetPct = pctInput
       ? Math.max(5, Math.min(99, parseInt(pctInput.value, 10) || 60)) / 100
       : undefined;
-    const channels = getDiscordChannels(CONFIG);
     const channel = channelSelect
-      ? (channels.find(c => c.id === channelSelect.value) || channels[0] || null)
+      ? (validChannels.find(c => c.id === channelSelect.value) || validChannels[0] || null)
       : undefined;
     close();
     onConfirm?.({ limit, targetPct, durationDays: selectedDuration, channel });
@@ -277,7 +310,17 @@ export function openBatchAiPopout(opts = {}) {
       card.className = 'tp-batch-ai-item';
       const h = document.createElement('div');
       h.className = 'tp-batch-ai-item-title';
-      h.textContent = `${r.item?.title || 'Produkt'}${r.item?.priceText ? ` (${r.item.priceText})` : ''}`;
+      const titleLabel = `${r.item?.title || 'Produkt'}${r.item?.priceText ? ` (${r.item.priceText})` : ''}`;
+      if (r.item?.url && /^https?:\/\//i.test(r.item.url)) {
+        const a = document.createElement('a');
+        a.href = r.item.url;
+        a.target = '_blank';
+        a.rel = 'noopener';
+        a.textContent = titleLabel;
+        h.appendChild(a);
+      } else {
+        h.textContent = titleLabel;
+      }
       card.appendChild(h);
 
       const txt = document.createElement('div');

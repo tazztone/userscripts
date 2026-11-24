@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.552
+// @version      2.18.553
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -2763,6 +2763,18 @@ const STYLES_BATCH = `
     background: rgba(139, 92, 246, 0.14) !important;
     border-color: rgba(139, 92, 246, 0.45) !important;
   }
+  #tp-floating-batch-btn.tp-batch-running {
+    background: rgba(245, 158, 11, 0.16) !important;
+    border-color: rgba(217, 119, 6, 0.5) !important;
+    color: #92400e !important;
+  }
+  #tp-floating-batch-btn .tp-batch-caret {
+    display: inline-block !important;
+    transition: transform 0.15s ease !important;
+  }
+  #tp-floating-batch-btn[aria-expanded="true"] .tp-batch-caret {
+    transform: rotate(180deg) !important;
+  }
   #tp-floating-batch-btn:focus-visible {
     outline: 2px solid var(--tp-focus) !important;
     outline-offset: 2px !important;
@@ -2776,126 +2788,275 @@ const STYLES_BATCH = `
     left: 20px !important;
     bottom: 62px !important;
     z-index: 99991 !important;
-    width: 340px !important;
+    width: 324px !important;
     max-width: calc(100vw - 24px) !important;
-    background: var(--tp-bg-elev, #0f172a) !important;
-    color: var(--tp-txt-inv, #f8fafc) !important;
-    border: 1px solid rgba(148, 163, 184, 0.28) !important;
-    border-radius: 12px !important;
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.38) !important;
+    max-height: calc(100vh - 84px) !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain !important;
+    background: rgba(255, 255, 255, 0.97) !important;
+    backdrop-filter: blur(16px) !important;
+    -webkit-backdrop-filter: blur(16px) !important;
+    color: var(--tp-txt, #0f172a) !important;
+    border: 1px solid var(--tp-line-soft, rgba(15, 23, 42, 0.14)) !important;
+    border-radius: 14px !important;
+    box-shadow: 0 14px 36px rgba(15, 23, 42, 0.18) !important;
     padding: 10px 12px !important;
     font-family: var(--tp-font) !important;
     font-size: 12px !important;
     display: none !important;
     flex-direction: column !important;
-    gap: 10px !important;
+    gap: 8px !important;
     box-sizing: border-box !important;
   }
   #tp-batch-popover.tp-open {
     display: flex !important;
+    animation: tp-bp-in 0.14s ease-out !important;
+  }
+  @keyframes tp-bp-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
   }
   .tp-bp-header {
     display: flex !important;
     flex-direction: column !important;
-    gap: 6px !important;
-    border-bottom: 1px solid rgba(148, 163, 184, 0.18) !important;
+    gap: 7px !important;
+    border-bottom: 1px solid rgba(15, 23, 42, 0.1) !important;
     padding-bottom: 8px !important;
+  }
+  .tp-bp-title-row {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 8px !important;
   }
   .tp-bp-title {
     font-weight: 700 !important;
-    font-size: 12.5px !important;
-    color: #f8fafc !important;
+    font-size: 13px !important;
+    color: var(--tp-txt, #0f172a) !important;
+  }
+  .tp-bp-close {
+    width: 24px !important;
+    height: 24px !important;
+    border-radius: 6px !important;
+    border: 1px solid transparent !important;
+    background: transparent !important;
+    color: var(--tp-txt-soft, #64748b) !important;
+    font-size: 13px !important;
+    line-height: 1 !important;
+    cursor: pointer !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+  .tp-bp-close:hover {
+    background: rgba(15, 23, 42, 0.06) !important;
+    color: var(--tp-txt, #0f172a) !important;
   }
   .tp-bp-scopes {
-    display: flex !important;
-    gap: 4px !important;
-    flex-wrap: wrap !important;
+    display: grid !important;
+    grid-template-columns: 1.35fr 0.85fr 0.85fr !important;
+    gap: 2px !important;
+    background: var(--tp-bg-sub, #f1f5f9) !important;
+    padding: 2px !important;
+    border-radius: 9px !important;
+    border: 1px solid rgba(15, 23, 42, 0.08) !important;
   }
   .tp-bp-scope {
-    flex: 1 1 auto !important;
-    padding: 4px 6px !important;
-    border-radius: 999px !important;
-    border: 1px solid rgba(148, 163, 184, 0.25) !important;
-    background: rgba(255, 255, 255, 0.05) !important;
-    color: #cbd5e1 !important;
+    padding: 5px 4px !important;
+    border-radius: 7px !important;
+    border: none !important;
+    background: transparent !important;
+    color: var(--tp-txt-mid, #475569) !important;
+    font-family: inherit !important;
     font-size: 11px !important;
     font-weight: 600 !important;
     cursor: pointer !important;
     white-space: nowrap !important;
+    text-align: center !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    transition: background 0.12s ease, color 0.12s ease, box-shadow 0.12s ease !important;
   }
   .tp-bp-scope.tp-active {
-    background: #7c3aed !important;
-    border-color: #8b5cf6 !important;
-    color: #ffffff !important;
+    background: #ffffff !important;
+    color: var(--tp-acc2, #6d28d9) !important;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12) !important;
   }
   .tp-bp-group {
     display: flex !important;
     flex-direction: column !important;
-    gap: 5px !important;
+    gap: 3px !important;
   }
   .tp-bp-group-label {
     font-size: 10px !important;
     text-transform: uppercase !important;
     letter-spacing: 0.05em !important;
-    color: #94a3b8 !important;
+    color: var(--tp-txt-soft, #64748b) !important;
     font-weight: 700 !important;
+    padding: 2px 2px 1px !important;
   }
   .tp-bp-row {
     display: flex !important;
     gap: 6px !important;
     align-items: center !important;
   }
-  .tp-bp-btn,
-  .tp-bp-mini-btn {
-    padding: 6px 8px !important;
-    border-radius: 7px !important;
-    border: 1px solid rgba(148, 163, 184, 0.22) !important;
-    background: rgba(255, 255, 255, 0.07) !important;
-    color: #f1f5f9 !important;
+  .tp-bp-row[hidden] { display: none !important; }
+  .tp-bp-item {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    min-height: 34px !important;
+    padding: 6px 9px !important;
+    border-radius: 8px !important;
+    border: 1px solid rgba(15, 23, 42, 0.1) !important;
+    background: rgba(255, 255, 255, 0.72) !important;
+    color: var(--tp-txt, #0f172a) !important;
     font-family: inherit !important;
-    font-size: 11.5px !important;
+    font-size: 12px !important;
     font-weight: 600 !important;
     cursor: pointer !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 8px !important;
     text-align: left !important;
     white-space: nowrap !important;
+    transition: background 0.12s ease, border-color 0.12s ease !important;
   }
-  .tp-bp-btn { flex: 1 1 0 !important; }
-  .tp-bp-mini-btn { flex: 0 0 auto !important; }
-  .tp-bp-btn:hover,
-  .tp-bp-mini-btn:hover {
-    background: rgba(255, 255, 255, 0.14) !important;
+  .tp-bp-item:hover:not(:disabled) {
+    background: rgba(124, 58, 237, 0.08) !important;
+    border-color: rgba(124, 58, 237, 0.32) !important;
   }
-  .tp-bp-btn[hidden] { display: none !important; }
-  .tp-bp-auto-label {
+  .tp-bp-item:disabled {
+    opacity: 0.45 !important;
+    cursor: not-allowed !important;
+  }
+  .tp-bp-item-main {
     display: inline-flex !important;
     align-items: center !important;
-    gap: 4px !important;
-    padding: 5px 8px !important;
-    border-radius: 7px !important;
-    border: 1px solid rgba(148, 163, 184, 0.22) !important;
-    background: rgba(255, 255, 255, 0.05) !important;
-    color: #cbd5e1 !important;
+    gap: 6px !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+  .tp-bp-meta {
+    flex: 0 0 auto !important;
+    font-size: 10.5px !important;
+    font-weight: 600 !important;
+    color: var(--tp-txt-soft, #64748b) !important;
+    background: rgba(15, 23, 42, 0.05) !important;
+    padding: 2px 6px !important;
+    border-radius: 999px !important;
+    white-space: nowrap !important;
+  }
+  .tp-bp-mini-btn {
+    flex: 0 0 auto !important;
+    min-height: 34px !important;
+    padding: 0 10px !important;
+    border-radius: 8px !important;
+    border: 1px solid rgba(15, 23, 42, 0.12) !important;
+    background: var(--tp-bg-sub, #f1f5f9) !important;
+    color: var(--tp-txt, #0f172a) !important;
+    font-family: inherit !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    cursor: pointer !important;
+    white-space: nowrap !important;
+  }
+  .tp-bp-mini-btn:hover:not(:disabled) {
+    background: rgba(124, 58, 237, 0.1) !important;
+    border-color: rgba(124, 58, 237, 0.35) !important;
+    color: var(--tp-acc2, #6d28d9) !important;
+  }
+  .tp-bp-auto-label {
+    flex: 0 0 auto !important;
+    min-height: 34px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 5px !important;
+    padding: 0 9px !important;
+    border-radius: 8px !important;
+    border: 1px solid rgba(15, 23, 42, 0.12) !important;
+    background: var(--tp-bg-sub, #f1f5f9) !important;
+    color: var(--tp-txt-mid, #334155) !important;
     font-size: 11px !important;
     font-weight: 600 !important;
     cursor: pointer !important;
     user-select: none !important;
+    box-sizing: border-box !important;
   }
   .tp-bp-auto-label input {
     accent-color: #10b981 !important;
     margin: 0 !important;
     cursor: pointer !important;
   }
-  .tp-bp-progress {
+  .tp-bp-footer {
     display: flex !important;
     align-items: center !important;
     justify-content: space-between !important;
     gap: 8px !important;
     padding-top: 6px !important;
-    border-top: 1px solid rgba(148, 163, 184, 0.18) !important;
+    border-top: 1px solid rgba(15, 23, 42, 0.1) !important;
+    font-size: 11px !important;
+    color: var(--tp-txt-soft, #64748b) !important;
+  }
+  .tp-bp-footer[hidden] { display: none !important; }
+  .tp-bp-settings-btn {
+    width: 26px !important;
+    height: 26px !important;
+    border-radius: 7px !important;
+    border: 1px solid rgba(15, 23, 42, 0.12) !important;
+    background: var(--tp-bg-sub, #f1f5f9) !important;
+    color: var(--tp-txt, #0f172a) !important;
+    cursor: pointer !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 13px !important;
+  }
+  .tp-bp-settings-btn:hover {
+    background: rgba(124, 58, 237, 0.1) !important;
+    border-color: rgba(124, 58, 237, 0.35) !important;
+  }
+  .tp-bp-item:focus-visible,
+  .tp-bp-mini-btn:focus-visible,
+  .tp-bp-scope:focus-visible,
+  .tp-bp-close:focus-visible,
+  .tp-bp-settings-btn:focus-visible,
+  .tp-bp-auto-label input:focus-visible {
+    outline: 2px solid var(--tp-focus, #7c3aed) !important;
+    outline-offset: 1px !important;
+  }
+  .tp-bp-progress {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 6px !important;
+    padding-top: 6px !important;
+    border-top: 1px solid rgba(15, 23, 42, 0.1) !important;
     font-size: 11.5px !important;
-    color: #fbbf24 !important;
+    color: #92400e !important;
+    font-weight: 600 !important;
   }
   .tp-bp-progress[hidden] { display: none !important; }
+  .tp-bp-progress-head {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 8px !important;
+  }
+  .tp-bp-progress-track {
+    height: 5px !important;
+    width: 100% !important;
+    border-radius: 999px !important;
+    background: rgba(15, 23, 42, 0.08) !important;
+    overflow: hidden !important;
+  }
+  .tp-bp-progress-fill {
+    height: 100% !important;
+    width: 0% !important;
+    background: linear-gradient(90deg, #7c3aed, #f59e0b) !important;
+    border-radius: 999px !important;
+    transition: width 0.2s ease !important;
+  }
 
   /* ─── BATCH DIALOGS (#tp-batch-confirm-popout, #tp-batch-ai-popout) ─── */
   .tp-batch-dialog-body {
@@ -2951,7 +3112,38 @@ const STYLES_BATCH = `
     border-color: #8b5cf6 !important;
     color: #ffffff !important;
   }
+  .tp-popout-panel.tp-batch-ai-panel { max-width: min(680px, 94vw) !important; }
   .tp-batch-ai-body { max-height: 55vh !important; overflow-y: auto !important; }
+  .tp-batch-alarm-preview {
+    margin: 0 !important;
+    padding: 6px 8px !important;
+    border-radius: 8px !important;
+    background: var(--tp-bg-sub, #f1f5f9) !important;
+    border: 1px solid rgba(15, 23, 42, 0.1) !important;
+    font-size: 12px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 4px !important;
+  }
+  .tp-batch-alarm-preview-row {
+    display: flex !important;
+    justify-content: space-between !important;
+    gap: 8px !important;
+  }
+  .tp-batch-alarm-preview-title {
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    font-weight: 600 !important;
+  }
+  .tp-ai-h {
+    display: block !important;
+    margin: 8px 0 3px !important;
+    font-weight: 700 !important;
+    color: var(--tp-txt, #0f172a) !important;
+  }
+  .tp-ai-provider-block { transition: opacity 0.15s ease !important; }
+  .tp-ai-provider-block.tp-provider-dimmed { opacity: 0.55 !important; }
   .tp-batch-ai-item {
     padding: 8px 0 !important;
     border-bottom: 1px solid rgba(148, 163, 184, 0.16) !important;
@@ -5828,6 +6020,10 @@ const SHADOW_MODAL_STYLES = `
           case 'DEALER_AUTOFETCH': {
             const toggle = shadow.getElementById('tp-dealer-autofetch-toggle');
             if (toggle) toggle.checked = !!val;
+            if (typeof document !== 'undefined') {
+              const batchToggle = document.getElementById('tp-batch-dealer-autofetch');
+              if (batchToggle && document.activeElement !== batchToggle) batchToggle.checked = !!val;
+            }
             break;
           }
           case 'REVIEW_SEARCH_ENABLED': {
@@ -13664,6 +13860,7 @@ const SHADOW_MODAL_STYLES = `
       .replace(/"/g, '&quot;');
 
     return escaped
+      .replace(/^#{1,3}[ \t]+(.+)$/gm, '<strong class="tp-ai-h">$1</strong>')
       .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
       .replace(/__(.+?)__/g, '<strong>$1</strong>')
       .replace(/(^|\n)[ \t]*[-*][ \t]+/g, '$1• ');
@@ -14782,9 +14979,9 @@ const SHADOW_MODAL_STYLES = `
    */
 
 
-  function renderAiBatchSettingsMarkup() {
+  function renderAiProviderTopMarkup() {
     return `
-          <div class="tp-settings-subhead">KI-Anbieter (Direkt-Fazit, Discord & Batch)</div>
+          <div class="tp-settings-subhead">KI-Anbieter (Direkt-Fazit, Discord &amp; Batch)</div>
           <div class="tp-settings-group">
             <label for="tp-ai-provider-select" title="Wähle, ob 🌐 auf der Karte direkt ein KI-Fazit via OpenRouter/Tavily lädt oder Google-Suche öffnet.">Aktiver KI-Anbieter</label>
             <select id="tp-ai-provider-select" class="tp-select tp-field-dark">
@@ -14794,51 +14991,59 @@ const SHADOW_MODAL_STYLES = `
             </select>
           </div>
 
-          <div class="tp-settings-subhead">OpenRouter Web-Suche</div>
-          <div class="tp-settings-group">
-            <label title="OpenRouter API-Key (openrouter.ai). Ermöglicht openrouter:web_search mit Quellenlinks auf Karte, Discord {ai} und Batch-KI.">OpenRouter API-Schlüssel</label>
-            <div id="tp-openrouter-api-key-collapsed">
-              <span id="tp-openrouter-api-key-status" class="tp-switch-desc"></span>
-              <button type="button" id="tp-openrouter-api-key-reveal" class="tp-btn tp-btn-secondary" aria-expanded="false" aria-controls="tp-openrouter-api-key-editor">🔑 Key ersetzen / entfernen</button>
+          <div id="tp-ai-openrouter-block" class="tp-ai-provider-block">
+            <div class="tp-settings-subhead">OpenRouter Web-Suche</div>
+            <div class="tp-settings-group">
+              <label title="OpenRouter API-Key (openrouter.ai). Ermöglicht openrouter:web_search mit Quellenlinks auf Karte, Discord {ai} und Batch-KI.">OpenRouter API-Schlüssel</label>
+              <div id="tp-openrouter-api-key-collapsed">
+                <span id="tp-openrouter-api-key-status" class="tp-switch-desc"></span>
+                <button type="button" id="tp-openrouter-api-key-reveal" class="tp-btn tp-btn-secondary" aria-expanded="false" aria-controls="tp-openrouter-api-key-editor">🔑 Key ersetzen / entfernen</button>
+              </div>
+              <div id="tp-openrouter-api-key-editor" style="display: none;">
+                <input type="password" id="tp-openrouter-api-key-input" class="tp-field-dark" placeholder="sk-or-v1-…" autocomplete="new-password" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
+                <span class="tp-switch-desc tp-field-hint">Key von <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai</a>. Bleibt lokal &amp; GM-privat im Browser.</span>
+              </div>
             </div>
-            <div id="tp-openrouter-api-key-editor" style="display: none;">
-              <input type="password" id="tp-openrouter-api-key-input" class="tp-field-dark" placeholder="sk-or-v1-…" autocomplete="new-password" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
-              <span class="tp-switch-desc tp-field-hint">Key von <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai</a>. Bleibt lokal & GM-privat im Browser.</span>
+            <div class="tp-settings-group">
+              <label for="tp-openrouter-model-input" title="OpenRouter Modell-ID für Web-Suche &amp; Batch-Vergleich.">OpenRouter Modell</label>
+              <input type="text" id="tp-openrouter-model-input" class="tp-field-dark" placeholder="google/gemini-2.5-flash" spellcheck="false">
             </div>
-          </div>
-          <div class="tp-settings-group">
-            <label for="tp-openrouter-model-input" title="OpenRouter Modell-ID für Web-Suche & Batch-Vergleich.">OpenRouter Modell</label>
-            <input type="text" id="tp-openrouter-model-input" class="tp-field-dark" placeholder="google/gemini-2.5-flash" spellcheck="false">
-          </div>
-          <div class="tp-settings-group" style="display:flex;gap:12px;flex-wrap:wrap;">
-            <div style="flex:1;min-width:140px;">
-              <label for="tp-openrouter-engine-select" title="Web-Search Engine für openrouter:web_search.">Such-Engine</label>
-              <select id="tp-openrouter-engine-select" class="tp-select tp-field-dark">
-                <option value="auto">Auto (Standard)</option>
-                <option value="native">Native</option>
-                <option value="exa">Exa</option>
-                <option value="parallel">Parallel</option>
-                <option value="perplexity">Perplexity</option>
-                <option value="firecrawl">Firecrawl</option>
-              </select>
+            <div class="tp-settings-group" style="display:flex;gap:12px;flex-wrap:wrap;">
+              <div style="flex:1;min-width:140px;">
+                <label for="tp-openrouter-engine-select" title="Web-Search Engine für openrouter:web_search.">Such-Engine</label>
+                <select id="tp-openrouter-engine-select" class="tp-select tp-field-dark">
+                  <option value="auto">Auto (Standard)</option>
+                  <option value="native">Native</option>
+                  <option value="exa">Exa</option>
+                  <option value="parallel">Parallel</option>
+                  <option value="perplexity">Perplexity</option>
+                  <option value="firecrawl">Firecrawl</option>
+                </select>
+              </div>
+              <div style="flex:1;min-width:140px;">
+                <label for="tp-openrouter-max-results" title="Maximale Web-Quellen pro OpenRouter-Anfrage.">Max. Quellen</label>
+                <select id="tp-openrouter-max-results" class="tp-select tp-field-dark">
+                  <option value="3">3 Quellen</option>
+                  <option value="5" selected>5 Quellen (Standard)</option>
+                  <option value="8">8 Quellen</option>
+                  <option value="10">10 Quellen</option>
+                </select>
+              </div>
             </div>
-            <div style="flex:1;min-width:140px;">
-              <label for="tp-openrouter-max-results" title="Maximale Web-Quellen pro OpenRouter-Anfrage.">Max. Quellen</label>
-              <select id="tp-openrouter-max-results" class="tp-select tp-field-dark">
-                <option value="3">3 Quellen</option>
-                <option value="5" selected>5 Quellen (Standard)</option>
-                <option value="8">8 Quellen</option>
-                <option value="10">10 Quellen</option>
-              </select>
-            </div>
-          </div>
+          </div>`;
+  }
 
-          <div class="tp-settings-subhead">Batch-Aktionen</div>
+  function renderAiBatchSettingsMarkup() {
+    return `
+          <div class="tp-group-head-row" style="margin-top:12px;">
+            <span>Batch-Aktionen</span>
+            <button type="button" class="tp-btn-group-reset" data-reset-group="batch" title="Batch-Aktionen auf Standard zurücksetzen" aria-label="Batch-Aktionen auf Standard zurücksetzen">↺</button>
+          </div>
           <div class="tp-settings-group" style="display:flex;gap:12px;flex-wrap:wrap;">
             <div style="flex:1;min-width:150px;">
               <label for="tp-batch-ai-target-select" title="Ziel-Plattform für 🤖 KI-Vergleich im Batch-Menü.">Batch KI-Vergleich Ziel</label>
               <select id="tp-batch-ai-target-select" class="tp-select tp-field-dark">
-                <option value="google-ai">Google AI-Modus (&udm=50)</option>
+                <option value="google-ai">Google AI-Modus (&amp;udm=50)</option>
                 <option value="openrouter">OpenRouter (In-Page)</option>
                 <option value="chatgpt">ChatGPT</option>
                 <option value="perplexity">Perplexity</option>
@@ -14855,6 +15060,8 @@ const SHADOW_MODAL_STYLES = `
   function collectAiSectionElements(shadow) {
     return {
       aiProviderSelect: shadow.getElementById('tp-ai-provider-select'),
+      openrouterBlock: shadow.getElementById('tp-ai-openrouter-block'),
+      tavilyBlock: shadow.getElementById('tp-ai-tavily-block'),
       openrouterApiKeyInput: shadow.getElementById('tp-openrouter-api-key-input'),
       openrouterApiKeyReveal: shadow.getElementById('tp-openrouter-api-key-reveal'),
       openrouterApiKeyEditor: shadow.getElementById('tp-openrouter-api-key-editor'),
@@ -14865,6 +15072,12 @@ const SHADOW_MODAL_STYLES = `
       batchAiTargetSelect: shadow.getElementById('tp-batch-ai-target-select'),
       batchConfirmThresholdInput: shadow.getElementById('tp-batch-confirm-threshold-input')
     };
+  }
+
+  function syncProviderBlockDimming(els) {
+    const prov = els.aiProviderSelect?.value || effectiveAiProvider(CONFIG);
+    if (els.openrouterBlock) els.openrouterBlock.classList.toggle('tp-provider-dimmed', prov !== 'openrouter');
+    if (els.tavilyBlock) els.tavilyBlock.classList.toggle('tp-provider-dimmed', prov !== 'tavily');
   }
 
   function syncAiSectionFromConfig(els) {
@@ -14885,6 +15098,7 @@ const SHADOW_MODAL_STYLES = `
     if (els.openrouterMaxResults) els.openrouterMaxResults.value = String(CONFIG.OPENROUTER_MAX_RESULTS || 5);
     if (els.batchAiTargetSelect) els.batchAiTargetSelect.value = CONFIG.BATCH_AI_TARGET || 'google-ai';
     if (els.batchConfirmThresholdInput) els.batchConfirmThresholdInput.value = String(CONFIG.BATCH_CONFIRM_THRESHOLD ?? 10);
+    syncProviderBlockDimming(els);
   }
 
   function bindAiSectionEvents(els) {
@@ -14903,6 +15117,7 @@ const SHADOW_MODAL_STYLES = `
       if (els.tavilyEnabledToggle) {
         els.tavilyEnabledToggle.checked = val === 'tavily';
       }
+      syncProviderBlockDimming(els);
     });
 
     els.tavilyEnabledToggle?.addEventListener('change', () => {
@@ -14912,6 +15127,7 @@ const SHADOW_MODAL_STYLES = `
       } else if (els.aiProviderSelect.value === 'tavily') {
         els.aiProviderSelect.value = 'google';
       }
+      syncProviderBlockDimming(els);
     });
   }
 
@@ -15040,44 +15256,47 @@ const SHADOW_MODAL_STYLES = `
             </label>
           </div>
 
-          <div class="tp-settings-subhead">Tavily KI-Suche (Direkt-Fazit & Discord)</div>
-          <div class="tp-settings-group tp-switch-container">
-            <div class="tp-switch-label">
-              <label title="Aktiviert Tavily KI-Zusammenfassungen für Direkt-Fazit auf der Karte und {ai} in Discord.">Tavily KI-Suche aktivieren</label>
-              <span class="tp-switch-desc">AUS = 🌐 öffnet Websuche direkt, kein KI-Fazit auf Karte & in Discord</span>
+  ${renderAiProviderTopMarkup()}
+          <div id="tp-ai-tavily-block" class="tp-ai-provider-block">
+            <div class="tp-settings-subhead">Tavily KI-Suche (Legacy-Direktfazit &amp; Discord)</div>
+            <div class="tp-settings-group tp-switch-container">
+              <div class="tp-switch-label">
+                <label title="Aktiviert Tavily KI-Zusammenfassungen für Direkt-Fazit auf der Karte und {ai} in Discord.">Tavily KI-Suche aktivieren</label>
+                <span class="tp-switch-desc">AUS = 🌐 öffnet Websuche direkt, kein KI-Fazit auf Karte & in Discord</span>
+              </div>
+              <label class="tp-switch tp-purple">
+                <input type="checkbox" id="tp-tavily-enabled-toggle">
+                <span class="tp-slider"></span>
+              </label>
             </div>
-            <label class="tp-switch tp-purple">
-              <input type="checkbox" id="tp-tavily-enabled-toggle">
-              <span class="tp-slider"></span>
-            </label>
-          </div>
-          <div class="tp-settings-group">
-            <label title="Kostenloser Tavily API Key (tavily.com, 1'000 Anfragen/Monat). Ermöglicht KI-Kurzfazit direkt auf der Karte (🌐) und im Discord-Share ({ai}).">API-Schlüssel</label>
-            <div id="tp-tavily-api-key-collapsed">
-              <span id="tp-tavily-api-key-status" class="tp-switch-desc"></span>
-              <button type="button" id="tp-tavily-api-key-reveal" class="tp-btn tp-btn-secondary" aria-expanded="false" aria-controls="tp-tavily-api-key-editor">🔑 Key ersetzen / entfernen</button>
+            <div class="tp-settings-group">
+              <label title="Kostenloser Tavily API Key (tavily.com, 1'000 Anfragen/Monat). Ermöglicht KI-Kurzfazit direkt auf der Karte (🌐) und im Discord-Share ({ai}).">API-Schlüssel</label>
+              <div id="tp-tavily-api-key-collapsed">
+                <span id="tp-tavily-api-key-status" class="tp-switch-desc"></span>
+                <button type="button" id="tp-tavily-api-key-reveal" class="tp-btn tp-btn-secondary" aria-expanded="false" aria-controls="tp-tavily-api-key-editor">🔑 Key ersetzen / entfernen</button>
+              </div>
+              <div id="tp-tavily-api-key-editor" style="display: none;">
+                <input type="password" id="tp-tavily-api-key-input" class="tp-field-dark" placeholder="tvly-…" autocomplete="new-password" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
+                <span class="tp-switch-desc tp-field-hint">Kostenloser Key von <a href="https://tavily.com" target="_blank" rel="noopener">tavily.com</a> (1'000 Anfragen/Monat). Ermöglicht KI-Kurzfazit per 1-Klick auf der Karte und <code>{ai}</code> im Discord-Post. Bleibt lokal im Browser.</span>
+              </div>
             </div>
-            <div id="tp-tavily-api-key-editor" style="display: none;">
-              <input type="password" id="tp-tavily-api-key-input" class="tp-field-dark" placeholder="tvly-…" autocomplete="new-password" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
-              <span class="tp-switch-desc tp-field-hint">Kostenloser Key von <a href="https://tavily.com" target="_blank" rel="noopener">tavily.com</a> (1'000 Anfragen/Monat). Ermöglicht KI-Kurzfazit per 1-Klick auf der Karte und <code>{ai}</code> im Discord-Post. Bleibt lokal im Browser.</span>
-            </div>
-          </div>
-          <div class="tp-settings-group" style="display:flex;gap:12px;flex-wrap:wrap;">
-            <div style="flex:1;min-width:140px;">
-              <label title="Suchtiefe: Basic ist schnell (~1-2s). Advanced durchsucht mehr Webquellen (~2-4s).">Tavily Suchtiefe</label>
-              <select id="tp-tavily-search-depth" class="tp-select tp-field-dark">
-                <option value="basic">Basic (schnell, Standard)</option>
-                <option value="advanced">Advanced (gründlich)</option>
-              </select>
-            </div>
-            <div style="flex:1;min-width:140px;">
-              <label title="Anzahl der Webseiten, die Tavily für die Antwort analysiert.">Max. Quellen (Ergebnisse)</label>
-              <select id="tp-tavily-max-results" class="tp-select tp-field-dark">
-                <option value="3">3 Quellen</option>
-                <option value="5" selected>5 Quellen (Standard)</option>
-                <option value="8">8 Quellen</option>
-                <option value="10">10 Quellen</option>
-              </select>
+            <div class="tp-settings-group" style="display:flex;gap:12px;flex-wrap:wrap;">
+              <div style="flex:1;min-width:140px;">
+                <label title="Suchtiefe: Basic ist schnell (~1-2s). Advanced durchsucht mehr Webquellen (~2-4s).">Tavily Suchtiefe</label>
+                <select id="tp-tavily-search-depth" class="tp-select tp-field-dark">
+                  <option value="basic">Basic (schnell, Standard)</option>
+                  <option value="advanced">Advanced (gründlich)</option>
+                </select>
+              </div>
+              <div style="flex:1;min-width:140px;">
+                <label title="Anzahl der Webseiten, die Tavily für die Antwort analysiert.">Max. Quellen (Ergebnisse)</label>
+                <select id="tp-tavily-max-results" class="tp-select tp-field-dark">
+                  <option value="3">3 Quellen</option>
+                  <option value="5" selected>5 Quellen (Standard)</option>
+                  <option value="8">8 Quellen</option>
+                  <option value="10">10 Quellen</option>
+                </select>
+              </div>
             </div>
           </div>
   ${renderAiBatchSettingsMarkup()}
@@ -18856,6 +19075,7 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   let activeConfirmCleanup = null;
   let activeAiPopoutCleanup = null;
 
@@ -18915,8 +19135,10 @@ const SHADOW_MODAL_STYLES = `
       body.appendChild(warn);
     }
 
+    const maxItems = mode === 'discord' ? Math.max(0, qualifiedCount) : count;
+
     let limitInput = null;
-    if (count > 1) {
+    if (maxItems > 1) {
       const limitRow = document.createElement('div');
       limitRow.className = 'tp-batch-dialog-row';
       const lbl = document.createElement('label');
@@ -18926,8 +19148,8 @@ const SHADOW_MODAL_STYLES = `
       limitInput.type = 'number';
       limitInput.id = 'tp-batch-limit-input';
       limitInput.min = '1';
-      limitInput.max = String(count);
-      limitInput.value = String(count);
+      limitInput.max = String(maxItems);
+      limitInput.value = String(maxItems);
       limitRow.append(lbl, limitInput);
       body.appendChild(limitRow);
     }
@@ -18976,23 +19198,45 @@ const SHADOW_MODAL_STYLES = `
       durRow.append(durLbl, pills);
       body.appendChild(durRow);
 
-      const samplePrice = items.find(it => it.cardPrice > 0)?.cardPrice || 0;
-      if (samplePrice > 0) {
-        const sampleEl = document.createElement('div');
-        sampleEl.className = 'tp-batch-dialog-hint';
-        const updateSample = () => {
+      const pricedItems = items.filter(it => it.cardPrice > 0);
+      if (pricedItems.length > 0) {
+        const previewEl = document.createElement('div');
+        previewEl.className = 'tp-batch-alarm-preview';
+        const updatePreview = () => {
           const p = Math.max(5, Math.min(99, parseInt(pctInput.value, 10) || 60));
-          sampleEl.textContent = `Beispiel (1. Produkt): CHF ${samplePrice.toFixed(2)} → Ziel CHF ${(samplePrice * (p / 100)).toFixed(2)}`;
+          const lim = limitInput ? Math.max(1, Math.min(maxItems, parseInt(limitInput.value, 10) || maxItems)) : pricedItems.length;
+          const shown = pricedItems.slice(0, Math.min(3, lim));
+          previewEl.replaceChildren();
+          for (const it of shown) {
+            const row = document.createElement('div');
+            row.className = 'tp-batch-alarm-preview-row';
+            const t = document.createElement('span');
+            t.className = 'tp-batch-alarm-preview-title';
+            t.textContent = it.title || 'Produkt';
+            const pr = document.createElement('span');
+            pr.textContent = `CHF ${it.cardPrice.toFixed(2)} → ${(it.cardPrice * (p / 100)).toFixed(2)}`;
+            row.append(t, pr);
+            previewEl.appendChild(row);
+          }
+          const extra = Math.min(pricedItems.length, lim) - shown.length;
+          if (extra > 0) {
+            const more = document.createElement('div');
+            more.className = 'tp-batch-dialog-hint';
+            more.textContent = `+ ${extra} weitere`;
+            previewEl.appendChild(more);
+          }
         };
-        updateSample();
-        pctInput.addEventListener('input', updateSample);
-        body.appendChild(sampleEl);
+        updatePreview();
+        pctInput.addEventListener('input', updatePreview);
+        limitInput?.addEventListener('input', updatePreview);
+        body.appendChild(previewEl);
       }
     }
 
     let channelSelect = null;
+    let validChannels = [];
     if (mode === 'discord') {
-      const channels = getDiscordChannels(CONFIG);
+      validChannels = getDiscordChannels(CONFIG).filter(c => isDiscordWebhookUrl(c.url));
       const chRow = document.createElement('div');
       chRow.className = 'tp-batch-dialog-row';
       const chLbl = document.createElement('label');
@@ -19000,7 +19244,7 @@ const SHADOW_MODAL_STYLES = `
       chLbl.textContent = 'Discord-Kanal:';
       channelSelect = document.createElement('select');
       channelSelect.id = 'tp-batch-discord-channel';
-      for (const ch of channels) {
+      for (const ch of validChannels) {
         const opt = document.createElement('option');
         opt.value = ch.id;
         opt.textContent = ch.name || ch.id;
@@ -19011,7 +19255,9 @@ const SHADOW_MODAL_STYLES = `
 
       const note = document.createElement('div');
       note.className = 'tp-batch-dialog-hint';
-      note.textContent = `${qualifiedCount} verifizierte, noch nicht geteilte Deals qualifizieren sich für Discord.`;
+      note.textContent = qualifiedCount === 0
+        ? 'Keine verifizierten, noch nicht geteilten Deals im aktuellen Scope.'
+        : `${qualifiedCount} verifizierte, noch nicht geteilte Deals qualifizieren sich für Discord.`;
       body.appendChild(note);
     }
 
@@ -19030,17 +19276,23 @@ const SHADOW_MODAL_STYLES = `
     confirmBtn.type = 'button';
     confirmBtn.id = 'tp-batch-confirm-go';
     confirmBtn.className = 'tp-popout-btn tp-batch-btn-primary';
-    confirmBtn.textContent = actionLabel;
+    const currentLimit = () => (limitInput
+      ? Math.max(1, Math.min(maxItems, parseInt(limitInput.value, 10) || maxItems))
+      : maxItems);
+    const updateConfirmLabel = () => {
+      const n = currentLimit();
+      confirmBtn.textContent = n > 0 ? `${actionLabel} (${n})` : actionLabel;
+      confirmBtn.disabled = (mode === 'discord' && (qualifiedCount === 0 || validChannels.length === 0));
+    };
+    updateConfirmLabel();
+    limitInput?.addEventListener('input', updateConfirmLabel);
     confirmBtn.addEventListener('click', () => {
-      const limit = limitInput
-        ? Math.max(1, Math.min(count, parseInt(limitInput.value, 10) || count))
-        : count;
+      const limit = currentLimit();
       const targetPct = pctInput
         ? Math.max(5, Math.min(99, parseInt(pctInput.value, 10) || 60)) / 100
         : undefined;
-      const channels = getDiscordChannels(CONFIG);
       const channel = channelSelect
-        ? (channels.find(c => c.id === channelSelect.value) || channels[0] || null)
+        ? (validChannels.find(c => c.id === channelSelect.value) || validChannels[0] || null)
         : undefined;
       close();
       onConfirm?.({ limit, targetPct, durationDays: selectedDuration, channel });
@@ -19124,7 +19376,17 @@ const SHADOW_MODAL_STYLES = `
         card.className = 'tp-batch-ai-item';
         const h = document.createElement('div');
         h.className = 'tp-batch-ai-item-title';
-        h.textContent = `${r.item?.title || 'Produkt'}${r.item?.priceText ? ` (${r.item.priceText})` : ''}`;
+        const titleLabel = `${r.item?.title || 'Produkt'}${r.item?.priceText ? ` (${r.item.priceText})` : ''}`;
+        if (r.item?.url && /^https?:\/\//i.test(r.item.url)) {
+          const a = document.createElement('a');
+          a.href = r.item.url;
+          a.target = '_blank';
+          a.rel = 'noopener';
+          a.textContent = titleLabel;
+          h.appendChild(a);
+        } else {
+          h.textContent = titleLabel;
+        }
         card.appendChild(h);
 
         const txt = document.createElement('div');
@@ -19185,18 +19447,36 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
+
   const BATCH_POPOVER_ID = 'tp-batch-popover';
 
   let isOpen = false;
-  let currentScope = null;
   let outsideListenersBound = false;
 
+  const AI_TARGET_LABELS = {
+    'google-ai': 'Google AI',
+    openrouter: 'OpenRouter',
+    chatgpt: 'ChatGPT',
+    perplexity: 'Perplexity',
+    claude: 'Claude'
+  };
+
+  function plural(n, sg, pl) {
+    return `${n} ${n === 1 ? sg : pl}`;
+  }
+
   function activeScope() {
-    return currentScope || CONFIG.BATCH_SCOPE_DEFAULT || 'non-dimmed';
+    return CONFIG.BATCH_SCOPE_DEFAULT || 'non-dimmed';
   }
 
   function getScopedItems() {
     return collectScopedCards(activeScope());
+  }
+
+  function hasOpenBatchDialog() {
+    if (typeof document === 'undefined') return false;
+    return !!(document.getElementById('tp-batch-confirm-popout') || document.getElementById('tp-batch-ai-popout'));
   }
 
   function withConfirmGate(opts, runner) {
@@ -19211,9 +19491,10 @@ const SHADOW_MODAL_STYLES = `
       runner(items, {});
       return;
     }
-    const qualifiedCount = opts.mode === 'discord'
-      ? items.filter(it => it.isVerifiedDeal && it.pid && it.cardPrice > 0 && !getSharedDeal(it.pid, priceToCents(it.cardPrice))).length
-      : items.length;
+    const qualifiedItems = opts.mode === 'discord'
+      ? items.filter(it => it.isVerifiedDeal && it.pid && it.cardPrice > 0 && !getSharedDeal(it.pid, priceToCents(it.cardPrice)))
+      : items;
+    const qualifiedCount = qualifiedItems.length;
     openBatchConfirmDialog({
       title: opts.title,
       actionLabel: opts.actionLabel,
@@ -19223,7 +19504,8 @@ const SHADOW_MODAL_STYLES = `
       items,
       qualifiedCount,
       onConfirm: (cfg) => {
-        const sliced = cfg.limit && cfg.limit < items.length ? items.slice(0, cfg.limit) : items;
+        const base = opts.mode === 'discord' ? qualifiedItems : items;
+        const sliced = cfg.limit && cfg.limit < base.length ? base.slice(0, cfg.limit) : base;
         runner(sliced, cfg);
       }
     });
@@ -19233,14 +19515,14 @@ const SHADOW_MODAL_STYLES = `
     if (outsideListenersBound || typeof document === 'undefined') return;
     outsideListenersBound = true;
     document.addEventListener('click', (e) => {
-      if (!isOpen || !e.isTrusted) return;
+      if (!isOpen || !e.isTrusted || hasOpenBatchDialog()) return;
       const pop = document.getElementById(BATCH_POPOVER_ID);
       const btn = document.getElementById('tp-floating-batch-btn');
       if (pop?.contains(e.target) || btn?.contains(e.target)) return;
       closeBatchPopover();
     });
     document.addEventListener('keydown', (e) => {
-      if (isOpen && e.key === 'Escape') {
+      if (isOpen && e.key === 'Escape' && !hasOpenBatchDialog()) {
         closeBatchPopover();
       }
     });
@@ -19257,7 +19539,10 @@ const SHADOW_MODAL_STYLES = `
     el.setAttribute('aria-label', 'Batch-Aktionen');
     el.innerHTML = `
       <div class="tp-bp-header">
-        <span class="tp-bp-title">⚡ Batch-Aktionen</span>
+        <div class="tp-bp-title-row">
+          <span class="tp-bp-title">⚡ Batch-Aktionen</span>
+          <button type="button" id="tp-batch-close-btn" class="tp-bp-close" aria-label="Schliessen" title="Schliessen">✕</button>
+        </div>
         <div class="tp-bp-scopes" role="tablist" aria-label="Ziel-Scope">
           <button type="button" class="tp-bp-scope" data-scope="non-dimmed">Ohne Gedimmte (<span id="tp-batch-scope-non-dimmed">0</span>)</button>
           <button type="button" class="tp-bp-scope" data-scope="visible">Alle (<span id="tp-batch-scope-visible">0</span>)</button>
@@ -19266,49 +19551,102 @@ const SHADOW_MODAL_STYLES = `
       </div>
 
       <div class="tp-bp-group">
-        <div class="tp-bp-group-label">Export & KI</div>
+        <div class="tp-bp-group-label">Export</div>
         <div class="tp-bp-row">
-          <button type="button" id="tp-batch-copy-btn" class="tp-bp-btn">📋 Kopieren</button>
+          <button type="button" id="tp-batch-copy-btn" class="tp-bp-item">
+            <span class="tp-bp-item-main">📋 Liste kopieren</span>
+          </button>
           <button type="button" id="tp-batch-copy-fmt-btn" class="tp-bp-mini-btn" title="Format umschalten (Markdown / TSV)">MD</button>
-          <button type="button" id="tp-batch-csv-btn" class="tp-bp-mini-btn" title="Als CSV herunterladen">⬇️ CSV</button>
         </div>
         <div class="tp-bp-row">
-          <button type="button" id="tp-batch-ai-compare-btn" class="tp-bp-btn">🤖 KI-Vergleich</button>
-          <button type="button" id="tp-batch-ai-single-btn" class="tp-bp-btn">🔍 Einzeln KI-Suchen</button>
+          <button type="button" id="tp-batch-csv-btn" class="tp-bp-item" title="Als CSV herunterladen">
+            <span class="tp-bp-item-main">⬇️ Als CSV herunterladen</span>
+            <span class="tp-bp-meta">Excel / Sheets</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="tp-bp-group">
+        <div class="tp-bp-group-label">KI-Analyse</div>
+        <div class="tp-bp-row">
+          <button type="button" id="tp-batch-ai-compare-btn" class="tp-bp-item">
+            <span class="tp-bp-item-main">🤖 KI-Vergleich</span>
+            <span class="tp-bp-meta" id="tp-batch-ai-compare-meta">Google AI</span>
+          </button>
+        </div>
+        <div class="tp-bp-row">
+          <button type="button" id="tp-batch-ai-single-btn" class="tp-bp-item">
+            <span class="tp-bp-item-main">🔍 Einzeln KI-Suchen</span>
+            <span class="tp-bp-meta" id="tp-batch-ai-single-meta">Google AI</span>
+          </button>
         </div>
       </div>
 
       <div class="tp-bp-group">
         <div class="tp-bp-group-label">Aktionen</div>
         <div class="tp-bp-row">
-          <button type="button" id="tp-batch-alarms-btn" class="tp-bp-btn">🔔 Preisalarme…</button>
-          <button type="button" id="tp-batch-tabs-btn" class="tp-bp-btn">↗ Tabs öffnen</button>
+          <button type="button" id="tp-batch-alarms-btn" class="tp-bp-item">
+            <span class="tp-bp-item-main">🔔 Preisalarme setzen…</span>
+            <span class="tp-bp-meta" id="tp-batch-alarms-meta">60% · 2J ›</span>
+          </button>
         </div>
         <div class="tp-bp-row">
-          <button type="button" id="tp-batch-dealers-btn" class="tp-bp-btn">🏬 Händler laden</button>
+          <button type="button" id="tp-batch-dealers-btn" class="tp-bp-item">
+            <span class="tp-bp-item-main">🏬 Händler laden</span>
+          </button>
           <label class="tp-bp-auto-label" title="Günstigste Händler beim Tiefstpreis-Prüfen automatisch mitladen">
             <input type="checkbox" id="tp-batch-dealer-autofetch">
             <span>Auto</span>
           </label>
         </div>
-        <div class="tp-bp-row" id="tp-batch-extra-row">
-          <button type="button" id="tp-batch-discord-btn" class="tp-bp-btn">📤 Discord-Share…</button>
-          <button type="button" id="tp-batch-compare-btn" class="tp-bp-btn">⭐ Vergleich (max. 4)</button>
+        <div class="tp-bp-row">
+          <button type="button" id="tp-batch-tabs-btn" class="tp-bp-item">
+            <span class="tp-bp-item-main">↗ Produkt-Tabs öffnen</span>
+            <span class="tp-bp-meta" id="tp-batch-tabs-meta">0 Tabs</span>
+          </button>
+        </div>
+        <div class="tp-bp-row" id="tp-batch-discord-row">
+          <button type="button" id="tp-batch-discord-btn" class="tp-bp-item">
+            <span class="tp-bp-item-main">📤 In Discord teilen…</span>
+            <span class="tp-bp-meta" id="tp-batch-discord-meta">0 neu ›</span>
+          </button>
+        </div>
+        <div class="tp-bp-row" id="tp-batch-compare-row">
+          <button type="button" id="tp-batch-compare-btn" class="tp-bp-item">
+            <span class="tp-bp-item-main">⭐ Toppreise-Vergleich</span>
+            <span class="tp-bp-meta" id="tp-batch-compare-meta">0/4</span>
+          </button>
         </div>
       </div>
 
+      <div id="tp-batch-footer-row" class="tp-bp-footer">
+        <span id="tp-batch-footer-note">Bestätigung ab ≥10 Karten</span>
+        <button type="button" id="tp-batch-settings-btn" class="tp-bp-settings-btn" title="Batch- & KI-Einstellungen öffnen" aria-label="Einstellungen öffnen">⚙️</button>
+      </div>
+
       <div id="tp-batch-progress-row" class="tp-bp-progress" hidden>
-        <span id="tp-batch-progress-text">⏳ 0/0</span>
-        <button type="button" id="tp-batch-cancel-btn" class="tp-bp-mini-btn">Abbrechen</button>
+        <div class="tp-bp-progress-head">
+          <span id="tp-batch-progress-text">⏳ 0/0</span>
+          <button type="button" id="tp-batch-cancel-btn" class="tp-bp-mini-btn">Abbrechen</button>
+        </div>
+        <div class="tp-bp-progress-track">
+          <div id="tp-batch-progress-fill" class="tp-bp-progress-fill"></div>
+        </div>
       </div>
     `;
 
+    el.querySelector('#tp-batch-close-btn').addEventListener('click', () => closeBatchPopover());
+
     el.querySelectorAll('.tp-bp-scope').forEach(btn => {
       btn.addEventListener('click', () => {
-        currentScope = btn.dataset.scope;
-        updateConfig('BATCH_SCOPE_DEFAULT', currentScope);
+        updateConfig('BATCH_SCOPE_DEFAULT', btn.dataset.scope);
         syncBatchPopover();
       });
+    });
+
+    el.querySelector('#tp-batch-settings-btn').addEventListener('click', () => {
+      closeBatchPopover();
+      openSettingsAt('tp-section-review');
     });
 
     el.querySelector('#tp-batch-copy-fmt-btn').addEventListener('click', () => {
@@ -19323,7 +19661,7 @@ const SHADOW_MODAL_STYLES = `
       const isTsv = CONFIG.BATCH_COPY_FORMAT === 'tsv';
       const txt = isTsv ? formatBatchTsv(items) : formatBatchMarkdown(items);
       const ok = await copyTextToClipboard(txt);
-      showToast(ok ? `✅ ${items.length} Angebote als ${isTsv ? 'TSV' : 'Markdown'} kopiert` : 'Kopieren fehlgeschlagen');
+      showToast(ok ? `✅ ${plural(items.length, 'Angebot', 'Angebote')} als ${isTsv ? 'TSV' : 'Markdown'} kopiert` : 'Kopieren fehlgeschlagen');
     });
 
     el.querySelector('#tp-batch-csv-btn').addEventListener('click', () => {
@@ -19331,12 +19669,15 @@ const SHADOW_MODAL_STYLES = `
       if (!items.length) return showToast('Keine passenden Angebote im aktuellen Scope');
       const csv = formatBatchCsv(items);
       downloadCsvFile(`toppreise-batch-${new Date().toISOString().slice(0, 10)}.csv`, csv);
-      showToast(`✅ ${items.length} Angebote als CSV exportiert`);
+      showToast(`✅ ${plural(items.length, 'Angebot', 'Angebote')} als CSV exportiert`);
     });
 
     el.querySelector('#tp-batch-ai-compare-btn').addEventListener('click', () => {
       const target = CONFIG.BATCH_AI_TARGET || 'google-ai';
-      const isOr = target === 'openrouter';
+      if (target === 'openrouter' && (!CONFIG.OPENROUTER_API_KEY || !String(CONFIG.OPENROUTER_API_KEY).trim())) {
+        showToast('⚠️ OpenRouter API-Key fehlt — bitte in ⚙️ Einstellungen hinterlegen');
+        return;
+      }
       withConfirmGate({
         title: '🤖 KI-Vergleich starten',
         actionLabel: 'Vergleich starten'
@@ -19345,9 +19686,11 @@ const SHADOW_MODAL_STYLES = `
         syncBatchPopover();
         try {
           const res = await runBatchComparisonAi(items, { target, signal: job.signal });
-          if (res.mode === 'openrouter') {
+          if (res.mode === 'missing-key') {
+            showToast('⚠️ OpenRouter API-Key fehlt — bitte in ⚙️ Einstellungen hinterlegen');
+          } else if (res.mode === 'openrouter') {
             openBatchAiPopout({
-              title: `🤖 KI-Vergleich (${items.length} Angebote)`,
+              title: `🤖 KI-Vergleich (${plural(items.length, 'Angebot', 'Angebote')})`,
               mode: 'comparison',
               answer: res.answer,
               citations: res.citations
@@ -19375,7 +19718,11 @@ const SHADOW_MODAL_STYLES = `
     });
 
     el.querySelector('#tp-batch-ai-single-btn').addEventListener('click', () => {
-      const provider = CONFIG.AI_SEARCH_PROVIDER === 'openrouter' ? 'openrouter' : 'google';
+      const provider = effectiveAiProvider(CONFIG) === 'openrouter' ? 'openrouter' : 'google';
+      if (provider === 'openrouter' && (!CONFIG.OPENROUTER_API_KEY || !String(CONFIG.OPENROUTER_API_KEY).trim())) {
+        showToast('⚠️ OpenRouter API-Key fehlt — bitte in ⚙️ Einstellungen hinterlegen');
+        return;
+      }
       withConfirmGate({
         title: provider === 'openrouter' ? '🔍 OpenRouter Einzelsuche' : '🔍 Google AI Einzelsuche',
         actionLabel: `${provider === 'openrouter' ? 'Abfragen' : 'Tabs öffnen'}`
@@ -19387,7 +19734,7 @@ const SHADOW_MODAL_STYLES = `
             provider,
             signal: job.signal,
             onProgress: (done, total, failed) => {
-              job.updateProgress(done, failed);
+              job.updateProgress(done, failed, total);
               syncBatchPopover();
             }
           });
@@ -19395,7 +19742,7 @@ const SHADOW_MODAL_STYLES = `
             if (res.blockedItems.length > 0) {
               openBatchAiPopout({ title: '🔍 Blockierte Google AI Tabs', mode: 'blocked', blockedItems: res.blockedItems });
             } else {
-              showToast(`🔍 ${res.opened} Google AI Tabs geöffnet`);
+              showToast(`🔍 ${plural(res.opened, 'Google AI Tab', 'Google AI Tabs')} geöffnet`);
             }
           } else if (!res.cancelled) {
             openBatchAiPopout({
@@ -19404,6 +19751,8 @@ const SHADOW_MODAL_STYLES = `
               results: res.results
             });
           }
+        } catch (err) {
+          if (!err?.cancelled) showToast(`⚠️ ${err?.message || 'Einzelsuche fehlgeschlagen'}`);
         } finally {
           job.finish();
           syncBatchPopover();
@@ -19426,7 +19775,7 @@ const SHADOW_MODAL_STYLES = `
             durationDays: cfg.durationDays,
             signal: job.signal,
             onProgress: (done, total, failed) => {
-              job.updateProgress(done, failed);
+              job.updateProgress(done, failed, total);
               syncBatchPopover();
             }
           });
@@ -19435,8 +19784,10 @@ const SHADOW_MODAL_STYLES = `
           } else if (res.cancelled) {
             showToast(`Preisalarme abgebrochen (${res.confirmed} gesetzt)`);
           } else {
-            showToast(`🔔 ${res.confirmed} Preisalarme gesetzt${res.failed ? ` · ${res.failed} fehlgeschlagen` : ''}`);
+            showToast(`🔔 ${plural(res.confirmed, 'Preisalarm', 'Preisalarme')} gesetzt${res.failed ? ` · ${res.failed} fehlgeschlagen` : ''}`);
           }
+        } catch (err) {
+          if (!err?.cancelled) showToast(`⚠️ ${err?.message || 'Preisalarme fehlgeschlagen'}`);
         } finally {
           job.finish();
           syncBatchPopover();
@@ -19455,14 +19806,16 @@ const SHADOW_MODAL_STYLES = `
           const res = await runBatchDealerFetch(items, {
             signal: job.signal,
             onProgress: (done, total, failed) => {
-              job.updateProgress(done, failed);
+              job.updateProgress(done, failed, total);
               syncBatchPopover();
             }
           });
           triggerProcessListings();
-          if (res.stoppedByCooldown) showToast(`⏳ Cooldown erreicht (${res.loaded} Händler geladen)`);
+          if (res.stoppedByCooldown) showToast(`⏳ Cooldown erreicht (${plural(res.loaded, 'Händler', 'Händler')} geladen)`);
           else if (res.total === 0) showToast('🏬 Alle Händler bereits geladen');
-          else showToast(`🏬 ${res.loaded} Händler geladen`);
+          else showToast(`🏬 ${plural(res.loaded, 'Händler', 'Händler')} geladen`);
+        } catch (err) {
+          if (!err?.cancelled) showToast(`⚠️ ${err?.message || 'Händler-Abruf fehlgeschlagen'}`);
         } finally {
           job.finish();
           syncBatchPopover();
@@ -19485,7 +19838,7 @@ const SHADOW_MODAL_STYLES = `
         if (res.blockedItems.length > 0) {
           openBatchAiPopout({ title: '↗ Blockierte Produkt-Tabs', mode: 'blocked', blockedItems: res.blockedItems });
         } else {
-          showToast(`↗ ${res.opened} Tabs geöffnet`);
+          showToast(`↗ ${plural(res.opened, 'Tab', 'Tabs')} geöffnet`);
         }
       });
     });
@@ -19503,12 +19856,14 @@ const SHADOW_MODAL_STYLES = `
           const res = await runBatchDiscordShare(items, cfg.channel, {
             signal: job.signal,
             onProgress: (done, total, failed) => {
-              job.updateProgress(done, failed);
+              job.updateProgress(done, failed, total);
               syncBatchPopover();
             }
           });
           triggerProcessListings();
           showToast(`📤 ${res.shared} geteilt${res.skippedDuplicates ? ` · ${res.skippedDuplicates} übersprungen` : ''}${res.failed ? ` · ${res.failed} Fehler` : ''}`);
+        } catch (err) {
+          if (!err?.cancelled) showToast(`⚠️ ${err?.message || 'Discord-Share fehlgeschlagen'}`);
         } finally {
           job.finish();
           syncBatchPopover();
@@ -19522,6 +19877,7 @@ const SHADOW_MODAL_STYLES = `
       const res = runBatchNativeCompare(items);
       if (res.clicked > 0) {
         showToast(`⭐ ${res.clicked} zum Toppreise-Vergleich hinzugefügt (${res.activeCount}/4)`);
+        syncBatchPopover();
       } else if (res.alreadyActive >= 4) {
         showToast('⭐ Toppreise-Vergleich bereits voll (4/4)');
       } else {
@@ -19541,7 +19897,7 @@ const SHADOW_MODAL_STYLES = `
     return el;
   }
 
-  function syncBatchPopover() {
+  function syncBatchPopover(precomputedCounts = null) {
     if (typeof document === 'undefined') return;
     const pop = document.getElementById(BATCH_POPOVER_ID);
     const btn = document.getElementById('tp-floating-batch-btn');
@@ -19549,16 +19905,23 @@ const SHADOW_MODAL_STYLES = `
     if (!pop) return;
 
     pop.classList.toggle('tp-open', isOpen);
+    const job = getActiveBatchJob();
+    if (!isOpen && !job) return;
+
     const scope = activeScope();
     pop.querySelectorAll('.tp-bp-scope').forEach(b => b.classList.toggle('tp-active', b.dataset.scope === scope));
 
-    const counts = getBatchScopeCounts();
+    const counts = precomputedCounts || getBatchScopeCounts();
     const cNonDim = pop.querySelector('#tp-batch-scope-non-dimmed');
     const cVis = pop.querySelector('#tp-batch-scope-visible');
     const cDeals = pop.querySelector('#tp-batch-scope-deals');
     if (cNonDim) cNonDim.textContent = String(counts['non-dimmed']);
     if (cVis) cVis.textContent = String(counts.visible);
     if (cDeals) cDeals.textContent = String(counts.deals);
+
+    const scopeCount = counts[scope] ?? 0;
+    const disableActions = scopeCount === 0 || !!job;
+    pop.querySelectorAll('.tp-bp-item, #tp-batch-copy-fmt-btn').forEach(b => { b.disabled = disableActions; });
 
     const fmtBtn = pop.querySelector('#tp-batch-copy-fmt-btn');
     if (fmtBtn) fmtBtn.textContent = CONFIG.BATCH_COPY_FORMAT === 'tsv' ? 'TSV' : 'MD';
@@ -19568,18 +19931,61 @@ const SHADOW_MODAL_STYLES = `
       autoToggle.checked = CONFIG.DEALER_AUTOFETCH === true;
     }
 
+    const aiCmpMeta = pop.querySelector('#tp-batch-ai-compare-meta');
+    if (aiCmpMeta) aiCmpMeta.textContent = AI_TARGET_LABELS[CONFIG.BATCH_AI_TARGET || 'google-ai'] || 'Google AI';
+
+    const aiSglMeta = pop.querySelector('#tp-batch-ai-single-meta');
+    if (aiSglMeta) aiSglMeta.textContent = effectiveAiProvider(CONFIG) === 'openrouter' ? 'OpenRouter' : 'Google AI';
+
+    const alarmsMeta = pop.querySelector('#tp-batch-alarms-meta');
+    if (alarmsMeta) {
+      const pct = Math.round((Number.isFinite(CONFIG.ALARM_TARGET_PERCENT) ? CONFIG.ALARM_TARGET_PERCENT : 0.6) * 100);
+      const durMap = { 90: '3M', 180: '6M', 365: '1J', 730: '2J' };
+      const dur = durMap[Number(CONFIG.ALARM_DURATION_DAYS) || 730] || '2J';
+      alarmsMeta.textContent = `${pct}% · ${dur} ›`;
+    }
+
+    const tabsMeta = pop.querySelector('#tp-batch-tabs-meta');
+    if (tabsMeta) tabsMeta.textContent = plural(scopeCount, 'Tab', 'Tabs');
+
+    const hasValidWebhook = getDiscordChannels(CONFIG).some(c => isDiscordWebhookUrl(c.url));
+    const discordRow = pop.querySelector('#tp-batch-discord-row');
     const discordBtn = pop.querySelector('#tp-batch-discord-btn');
-    if (discordBtn) discordBtn.hidden = getDiscordChannels(CONFIG).length === 0;
+    if (discordRow) discordRow.hidden = !hasValidWebhook;
+    if (discordBtn) discordBtn.hidden = !hasValidWebhook;
+    if (hasValidWebhook) {
+      const discordMeta = pop.querySelector('#tp-batch-discord-meta');
+      if (discordMeta) discordMeta.textContent = `${counts.deals} neu ›`;
+    }
 
+    const compBtns = Array.from(document.querySelectorAll('.Plugin_AddToProductComparisonButton'));
+    const hasCompare = compBtns.length > 0;
+    const compareRow = pop.querySelector('#tp-batch-compare-row');
     const compareBtn = pop.querySelector('#tp-batch-compare-btn');
-    if (compareBtn) compareBtn.hidden = !document.querySelector('.Plugin_AddToProductComparisonButton');
+    if (compareRow) compareRow.hidden = !hasCompare;
+    if (compareBtn) compareBtn.hidden = !hasCompare;
+    if (hasCompare) {
+      const compareMeta = pop.querySelector('#tp-batch-compare-meta');
+      if (compareMeta) compareMeta.textContent = `${compBtns.filter(isComparisonButtonActive).length}/4`;
+    }
 
-    const job = getActiveBatchJob();
+    const footerRow = pop.querySelector('#tp-batch-footer-row');
+    const footerNote = pop.querySelector('#tp-batch-footer-note');
+    if (footerRow) footerRow.hidden = !!job;
+    if (footerNote) footerNote.textContent = `Bestätigung ab ≥${CONFIG.BATCH_CONFIRM_THRESHOLD ?? 10} Karten`;
+
     const progRow = pop.querySelector('#tp-batch-progress-row');
     const progTxt = pop.querySelector('#tp-batch-progress-text');
+    const progFill = pop.querySelector('#tp-batch-progress-fill');
     if (progRow && progTxt) {
       progRow.hidden = !job;
-      if (job) progTxt.textContent = `⏳ ${job.label}: ${job.done}/${job.total}`;
+      if (job) {
+        progTxt.textContent = `⏳ ${job.label}: ${job.done}/${job.total}`;
+        if (progFill) {
+          const pct = job.total > 0 ? Math.min(100, Math.round((job.done / job.total) * 100)) : 0;
+          progFill.style.width = `${pct}%`;
+        }
+      }
     }
   }
 
@@ -19783,7 +20189,7 @@ const SHADOW_MODAL_STYLES = `
           <span id="tp-floating-check-count">🔍</span>
         </button>
       </div>
-      <button type="button" id="tp-floating-batch-btn" aria-expanded="false" aria-haspopup="true" title="Batch-Aktionen für gelistete Angebote">⚡ <span id="tp-floating-batch-count">0</span> ▴</button>
+      <button type="button" id="tp-floating-batch-btn" aria-expanded="false" aria-haspopup="true" title="Batch-Aktionen für gelistete Angebote">⚡ <span id="tp-floating-batch-count">0</span> <span class="tp-batch-caret">▴</span></button>
       <button type="button" id="tp-floating-refresh-btn" class="tp-floating-refresh-btn" title="Feed nach neuen Deals durchsuchen" aria-label="Feed aktualisieren">🔄</button>
       <input type="text" id="tp-floating-threshold-input" inputmode="numeric" size="4" title="Nur Differenzen ab Schwelle prüfen (z.B. 20%)" aria-label="Mindestrabatt in Prozent" autocomplete="off" spellcheck="false">
       <button type="button" id="tp-floating-cta-collapse" title="Minimieren">«</button>
@@ -19916,12 +20322,20 @@ const SHADOW_MODAL_STYLES = `
         ? `Nur Differenzen ≥ ${minDisc}% prüfen (ungeprüft ≠ Tiefstpreis)`
         : `Nur Produkte mit Differenz ≥ ${minDisc}% prüfen`;
     }
+    const counts = getBatchScopeCounts();
+    const batchBtnEl = el.querySelector('#tp-floating-batch-btn');
     const batchCountEl = el.querySelector('#tp-floating-batch-count');
+    const activeBatch = getActiveBatchJob();
+    if (batchBtnEl) batchBtnEl.classList.toggle('tp-batch-running', !!activeBatch);
     if (batchCountEl) {
-      const scopeCount = collectScopedCards(CONFIG.BATCH_SCOPE_DEFAULT || 'non-dimmed').length;
-      setTextIfChanged(batchCountEl, String(scopeCount));
+      if (activeBatch) {
+        setTextIfChanged(batchCountEl, `⏳ ${activeBatch.done}/${activeBatch.total}`);
+      } else {
+        const scopeKey = CONFIG.BATCH_SCOPE_DEFAULT || 'non-dimmed';
+        setTextIfChanged(batchCountEl, String(counts[scopeKey] ?? 0));
+      }
     }
-    syncBatchPopover();
+    syncBatchPopover(counts);
   }
 
   /**
@@ -20767,7 +21181,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.552';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.553';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
