@@ -15,6 +15,7 @@ export function redactSecrets(value) {
   return String(value)
     .replace(/(\/api\/webhooks\/\d+\/)[^/?#\s]+/gi, '$1[REDACTED]')
     .replace(/tvly-[A-Za-z0-9_-]+/g, 'tvly-[REDACTED]')
+    .replace(/sk-or-[A-Za-z0-9_-]+/gi, 'sk-or-[REDACTED]')
     .replace(/(Bearer\s+)[^\s]+/gi, '$1[REDACTED]');
 }
 

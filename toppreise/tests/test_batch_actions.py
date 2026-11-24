@@ -189,7 +189,16 @@ def test_batch_discord_share_skips_duplicates_and_posts(page: Page):
     posted = []
 
     def handle_discord(route):
-        posted.append(route.request.url)
+        raw = route.request.post_data or ''
+        payload = None
+        if 'payload_json' in raw:
+            import re
+            m = re.search(r'name="payload_json"\r?\n\r?\n(\{.*?\})\r?\n', raw, re.S)
+            if m:
+                payload = json.loads(m.group(1))
+        elif raw.strip().startswith('{'):
+            payload = json.loads(raw)
+        posted.append(payload)
         route.fulfill(status=204, headers={'access-control-allow-origin': '*'})
 
     mock_pricechart(page, {'797571': 500, '797572': 500, '797573': 500})
@@ -213,3 +222,9 @@ def test_batch_discord_share_skips_duplicates_and_posts(page: Page):
     page.click('#tp-batch-confirm-go')
     page.wait_for_function("() => document.querySelector('#tp-root')?.shadowRoot?.querySelector('.tp-toast')?.textContent?.includes('geteilt')", timeout=5000)
     assert len(posted) >= 1
+    first_payload = posted[0]
+    assert isinstance(first_payload, dict)
+    content = first_payload.get('content', '')
+    assert isinstance(content, str) and len(content) > 0
+    assert 'CHF' in content
+    assert 'Apple' in content or 'Sony' in content or 'Samsung' in content or '## ' in content

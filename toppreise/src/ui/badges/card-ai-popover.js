@@ -112,7 +112,7 @@ export function openAiPopover(options = {}) {
     if (Array.isArray(citations) && citations.length > 0) {
       const citeWrap = document.createElement('div');
       citeWrap.className = 'tp-ai-citations';
-      citeWrap.style.cssText = 'margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.12);font-size:12px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;';
+      citeWrap.style.cssText = 'margin-top:10px;padding-top:8px;border-top:1px solid var(--tp-line);font-size:12px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;';
       const lbl = document.createElement('span');
       lbl.textContent = 'Quellen:';
       lbl.style.opacity = '0.75';
@@ -124,7 +124,7 @@ export function openAiPopover(options = {}) {
         a.target = '_blank';
         a.rel = 'noopener';
         a.textContent = c.title || c.url;
-        a.style.cssText = 'color:#93c5fd;text-decoration:underline;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;';
+        a.style.cssText = 'color:var(--tp-blue-soft,#2563eb);text-decoration:underline;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;';
         citeWrap.appendChild(a);
       }
       contentEl.appendChild(citeWrap);

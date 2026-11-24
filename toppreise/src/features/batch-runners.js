@@ -12,8 +12,9 @@ import { isShippingPriceActive } from '../page/adapter.js';
 import { fetchProductInfo, extractDealer } from '../page/product-offers.js';
 import { getCachedDealer, setCachedDealer, getCachedPriceStats, getSharedDeal, setSharedDeal, fullSeries } from '../scanner/cache.js';
 import { priceToCents } from '../domain/price.js';
-import { formatDealMessage, resolveShareFields } from './discord-recipe.js';
-import { withLivePrice, renderSparklinePng, fetchImageBlob, postDealImageToDiscord, postDealToDiscord, isAttachmentRejection } from './share-discord.js';
+import { formatDealMessage, forumRecipeFor, resolveShareFields } from './discord-recipe.js';
+import { withLivePrice, renderSparklinePng, fetchImageBlob, buildThreadName } from './share-discord.js';
+import { sendDealToChannel } from '../ui/badges/card-share.js';
 import { formatSearchQuery, buildTavilyQuery } from './tavily-search.js';
 import { fetchOpenRouterWebSearch } from './openrouter-search.js';
 import { ensureDealerInfo } from '../ui/badges/card-dealer.js';
@@ -336,41 +337,41 @@ export async function runBatchDiscordShare(items, channel, { onProgress, signal 
       const resolved = stats ? resolveShareFields(it.cardPrice, stats) : {};
       const fields = {
         title: it.title,
-        price: it.priceText,
+        priceText: it.priceText,
         dealer,
         dealerUrl,
-        offers,
+        offerCount: offers,
         url: it.url,
-        prevLow: resolved.prevLowText || '',
+        prevLowText: resolved.prevLowText || '',
         prevLowPct: resolved.prevLowPct || 0,
-        median: resolved.medianText || '',
-        medianPct: resolved.medianPct || 0
+        medianText: resolved.medianText || '',
+        medianPct: resolved.medianPct || 0,
+        suppressDealerEmbed: CONFIG.DISCORD_SUPPRESS_DEALER_EMBED !== false,
+        suppressProductEmbed: CONFIG.DISCORD_SUPPRESS_PRODUCT_EMBED !== false
       };
-      const { content } = formatDealMessage(fields, CONFIG.DISCORD_LAYOUT);
+      const content = formatDealMessage(fields, CONFIG.DISCORD_LAYOUT);
+      const forumContent = CONFIG.DISCORD_FORUM_TITLE
+        ? content
+        : formatDealMessage({ ...fields, forceLink: true }, forumRecipeFor(CONFIG.DISCORD_LAYOUT));
+      const threadName = buildThreadName(it.title);
       const rawSeries = stats ? fullSeries(stats) : null;
       const chartSeries = rawSeries ? withLivePrice(rawSeries, it.cardPrice) : null;
       const png = chartSeries ? await renderSparklinePng(chartSeries, 360, 100, it.title).catch(() => null) : null;
-      const productImg = !png && it.imageUrl ? await fetchImageBlob(it.imageUrl).catch(() => null) : null;
-      const img = png || productImg;
-
-      const sendOnce = async () => {
-        if (img) {
-          try {
-            return await postDealImageToDiscord(hook, content, img);
-          } catch (err) {
-            if (!isAttachmentRejection(err)) throw err;
-          }
-        }
-        return await postDealToDiscord(hook, content);
+      const productBlob = it.imageUrl ? await fetchImageBlob(it.imageUrl).catch(() => null) : null;
+      const productOpt = {
+        ...(productBlob ? { productImageBlob: productBlob } : null),
+        ...(it.imageUrl ? { productImageUrl: it.imageUrl } : null)
       };
+      const payload = { content, forumContent, threadName, png, productOpt };
+      const stillFresh = () => !signal?.aborted;
 
       try {
-        await sendOnce();
+        await sendDealToChannel(channel, payload, stillFresh);
       } catch (err) {
         if (err?.retryAfterMs) {
           await sleep(Math.min(5000, Math.max(500, err.retryAfterMs)));
           if (signal?.aborted) break;
-          await sendOnce();
+          await sendDealToChannel(channel, payload, stillFresh);
         } else {
           throw err;
         }

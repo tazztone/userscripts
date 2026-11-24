@@ -173,9 +173,9 @@ export const STYLES_BATCH = `
   .tp-batch-dialog-warn {
     padding: 8px 10px !important;
     border-radius: 8px !important;
-    background: rgba(245, 158, 11, 0.14) !important;
-    border: 1px solid rgba(245, 158, 11, 0.4) !important;
-    color: #fde68a !important;
+    background: rgba(245, 158, 11, 0.12) !important;
+    border: 1px solid rgba(217, 119, 6, 0.45) !important;
+    color: #92400e !important;
     font-size: 12px !important;
   }
   .tp-batch-dialog-row {
@@ -189,18 +189,18 @@ export const STYLES_BATCH = `
   .tp-batch-dialog-row select {
     padding: 4px 8px !important;
     border-radius: 6px !important;
-    border: 1px solid rgba(148, 163, 184, 0.3) !important;
-    background: rgba(15, 23, 42, 0.6) !important;
-    color: #f8fafc !important;
+    border: 1px solid var(--tp-bdr, rgba(15, 23, 42, 0.2)) !important;
+    background: var(--tp-bg, #ffffff) !important;
+    color: var(--tp-txt, #0f172a) !important;
     min-width: 90px !important;
   }
   .tp-batch-dur-pills { display: flex !important; gap: 4px !important; }
   .tp-batch-pill {
     padding: 4px 8px !important;
     border-radius: 6px !important;
-    border: 1px solid rgba(148, 163, 184, 0.3) !important;
-    background: rgba(255, 255, 255, 0.06) !important;
-    color: #e2e8f0 !important;
+    border: 1px solid var(--tp-bdr, rgba(15, 23, 42, 0.2)) !important;
+    background: var(--tp-bg-sub, #f1f5f9) !important;
+    color: var(--tp-txt-mid, #334155) !important;
     cursor: pointer !important;
     font-size: 12px !important;
   }
@@ -229,7 +229,7 @@ export const STYLES_BATCH = `
     font-size: 12px !important;
   }
   .tp-batch-citations a,
-  .tp-batch-blocked-list a { color: #93c5fd !important; text-decoration: underline !important; }
+  .tp-batch-blocked-list a { color: var(--tp-blue-soft, #2563eb) !important; text-decoration: underline !important; }
   .tp-batch-blocked-list { margin: 8px 0 0 18px !important; padding: 0 !important; }
 
   @media (max-width: 600px) {

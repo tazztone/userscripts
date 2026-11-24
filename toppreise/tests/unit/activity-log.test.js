@@ -26,14 +26,16 @@ describe('activity-log', () => {
     assert.equal(entries[199].message, 'msg-215');
   });
 
-  it('redacts Discord webhooks, Tavily keys, and Bearer tokens', () => {
-    const raw = 'https://discord.com/api/webhooks/123456789/superSecretToken?wait=true tvly-dev-AbCdEf123456 Authorization: Bearer mySecretJwt999';
+  it('redacts Discord webhooks, Tavily/OpenRouter keys, and Bearer tokens', () => {
+    const raw = 'https://discord.com/api/webhooks/123456789/superSecretToken?wait=true tvly-dev-AbCdEf123456 sk-or-v1-XyZ987Secret Authorization: Bearer mySecretJwt999';
     const clean = redactSecrets(raw);
     assert.ok(!clean.includes('superSecretToken'));
     assert.ok(!clean.includes('AbCdEf123456'));
+    assert.ok(!clean.includes('XyZ987Secret'));
     assert.ok(!clean.includes('mySecretJwt999'));
     assert.ok(clean.includes('/api/webhooks/123456789/[REDACTED]'));
     assert.ok(clean.includes('tvly-[REDACTED]'));
+    assert.ok(clean.includes('sk-or-[REDACTED]'));
     assert.ok(clean.includes('Bearer [REDACTED]'));
   });
 

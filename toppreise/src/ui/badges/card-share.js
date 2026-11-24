@@ -56,7 +56,7 @@ import { isShippingPriceActive, scheduleProcessListings, getDetailProductId } fr
 import { buildTavilyQuery } from '../../features/tavily-search.js';
 import { isConfiguredAiActive, getCachedConfiguredAiSummary, fetchConfiguredAiSummary } from '../../features/openrouter-search.js';
 
-async function sendDealToChannel(channel, payload, stillFresh) {
+export async function sendDealToChannel(channel, payload, stillFresh) {
   const hook = channel.url.trim();
   const flagKey = discordForumFlagKey(hook);
   const forum = _getValue(flagKey, false) === true;

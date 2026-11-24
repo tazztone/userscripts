@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.550
+// @version      2.18.551
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -2909,9 +2909,9 @@ const STYLES_BATCH = `
   .tp-batch-dialog-warn {
     padding: 8px 10px !important;
     border-radius: 8px !important;
-    background: rgba(245, 158, 11, 0.14) !important;
-    border: 1px solid rgba(245, 158, 11, 0.4) !important;
-    color: #fde68a !important;
+    background: rgba(245, 158, 11, 0.12) !important;
+    border: 1px solid rgba(217, 119, 6, 0.45) !important;
+    color: #92400e !important;
     font-size: 12px !important;
   }
   .tp-batch-dialog-row {
@@ -2925,18 +2925,18 @@ const STYLES_BATCH = `
   .tp-batch-dialog-row select {
     padding: 4px 8px !important;
     border-radius: 6px !important;
-    border: 1px solid rgba(148, 163, 184, 0.3) !important;
-    background: rgba(15, 23, 42, 0.6) !important;
-    color: #f8fafc !important;
+    border: 1px solid var(--tp-bdr, rgba(15, 23, 42, 0.2)) !important;
+    background: var(--tp-bg, #ffffff) !important;
+    color: var(--tp-txt, #0f172a) !important;
     min-width: 90px !important;
   }
   .tp-batch-dur-pills { display: flex !important; gap: 4px !important; }
   .tp-batch-pill {
     padding: 4px 8px !important;
     border-radius: 6px !important;
-    border: 1px solid rgba(148, 163, 184, 0.3) !important;
-    background: rgba(255, 255, 255, 0.06) !important;
-    color: #e2e8f0 !important;
+    border: 1px solid var(--tp-bdr, rgba(15, 23, 42, 0.2)) !important;
+    background: var(--tp-bg-sub, #f1f5f9) !important;
+    color: var(--tp-txt-mid, #334155) !important;
     cursor: pointer !important;
     font-size: 12px !important;
   }
@@ -2965,7 +2965,7 @@ const STYLES_BATCH = `
     font-size: 12px !important;
   }
   .tp-batch-citations a,
-  .tp-batch-blocked-list a { color: #93c5fd !important; text-decoration: underline !important; }
+  .tp-batch-blocked-list a { color: var(--tp-blue-soft, #2563eb) !important; text-decoration: underline !important; }
   .tp-batch-blocked-list { margin: 8px 0 0 18px !important; padding: 0 !important; }
 
   @media (max-width: 600px) {
@@ -6184,6 +6184,7 @@ const SHADOW_MODAL_STYLES = `
     return String(value)
       .replace(/(\/api\/webhooks\/\d+\/)[^/?#\s]+/gi, '$1[REDACTED]')
       .replace(/tvly-[A-Za-z0-9_-]+/g, 'tvly-[REDACTED]')
+      .replace(/sk-or-[A-Za-z0-9_-]+/gi, 'sk-or-[REDACTED]')
       .replace(/(Bearer\s+)[^\s]+/gi, '$1[REDACTED]');
   }
 
@@ -13728,7 +13729,7 @@ const SHADOW_MODAL_STYLES = `
       if (Array.isArray(citations) && citations.length > 0) {
         const citeWrap = document.createElement('div');
         citeWrap.className = 'tp-ai-citations';
-        citeWrap.style.cssText = 'margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.12);font-size:12px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;';
+        citeWrap.style.cssText = 'margin-top:10px;padding-top:8px;border-top:1px solid var(--tp-line);font-size:12px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;';
         const lbl = document.createElement('span');
         lbl.textContent = 'Quellen:';
         lbl.style.opacity = '0.75';
@@ -13740,7 +13741,7 @@ const SHADOW_MODAL_STYLES = `
           a.target = '_blank';
           a.rel = 'noopener';
           a.textContent = c.title || c.url;
-          a.style.cssText = 'color:#93c5fd;text-decoration:underline;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;';
+          a.style.cssText = 'color:var(--tp-blue-soft,#2563eb);text-decoration:underline;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;';
           citeWrap.appendChild(a);
         }
         contentEl.appendChild(citeWrap);
@@ -18401,6 +18402,7 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   async function runSingleBatchAlarm(pid, card = null, { targetPct, durationDays, signal } = {}) {
     if (!pid || signal?.aborted) return { status: 'cancelled' };
     const pidKey = String(pid);
@@ -18717,41 +18719,41 @@ const SHADOW_MODAL_STYLES = `
         const resolved = stats ? resolveShareFields(it.cardPrice, stats) : {};
         const fields = {
           title: it.title,
-          price: it.priceText,
+          priceText: it.priceText,
           dealer,
           dealerUrl,
-          offers,
+          offerCount: offers,
           url: it.url,
-          prevLow: resolved.prevLowText || '',
+          prevLowText: resolved.prevLowText || '',
           prevLowPct: resolved.prevLowPct || 0,
-          median: resolved.medianText || '',
-          medianPct: resolved.medianPct || 0
+          medianText: resolved.medianText || '',
+          medianPct: resolved.medianPct || 0,
+          suppressDealerEmbed: CONFIG.DISCORD_SUPPRESS_DEALER_EMBED !== false,
+          suppressProductEmbed: CONFIG.DISCORD_SUPPRESS_PRODUCT_EMBED !== false
         };
-        const { content } = formatDealMessage(fields, CONFIG.DISCORD_LAYOUT);
+        const content = formatDealMessage(fields, CONFIG.DISCORD_LAYOUT);
+        const forumContent = CONFIG.DISCORD_FORUM_TITLE
+          ? content
+          : formatDealMessage({ ...fields, forceLink: true }, forumRecipeFor(CONFIG.DISCORD_LAYOUT));
+        const threadName = buildThreadName(it.title);
         const rawSeries = stats ? fullSeries(stats) : null;
         const chartSeries = rawSeries ? withLivePrice(rawSeries, it.cardPrice) : null;
         const png = chartSeries ? await renderSparklinePng(chartSeries, 360, 100, it.title).catch(() => null) : null;
-        const productImg = !png && it.imageUrl ? await fetchImageBlob(it.imageUrl).catch(() => null) : null;
-        const img = png || productImg;
-
-        const sendOnce = async () => {
-          if (img) {
-            try {
-              return await postDealImageToDiscord(hook, content, img);
-            } catch (err) {
-              if (!isAttachmentRejection(err)) throw err;
-            }
-          }
-          return await postDealToDiscord(hook, content);
+        const productBlob = it.imageUrl ? await fetchImageBlob(it.imageUrl).catch(() => null) : null;
+        const productOpt = {
+          ...(productBlob ? { productImageBlob: productBlob } : null),
+          ...(it.imageUrl ? { productImageUrl: it.imageUrl } : null)
         };
+        const payload = { content, forumContent, threadName, png, productOpt };
+        const stillFresh = () => !signal?.aborted;
 
         try {
-          await sendOnce();
+          await sendDealToChannel(channel, payload, stillFresh);
         } catch (err) {
           if (err?.retryAfterMs) {
             await sleep(Math.min(5000, Math.max(500, err.retryAfterMs)));
             if (signal?.aborted) break;
-            await sendOnce();
+            await sendDealToChannel(channel, payload, stillFresh);
           } else {
             throw err;
           }
@@ -20709,7 +20711,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.550';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.551';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
