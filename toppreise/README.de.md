@@ -161,7 +161,8 @@ Erfordert einen Userscript-Manager als Browser-Erweiterung:
 | **Günstigster Händler (`🏬`)** | Neben Preis auf Karte | Direktlink zum Händlershop im neuen Tab; bei Hover Händler im Feed nachladen. |
 | **Mini-Sparkline** | Unten auf geprüfter Karte | Klick öffnet den grossen interaktiven Preishistorien-Chart. |
 | **Share-Button (`📤`)** | Unten links auf Deal-Karte | Öffnet Vorschau-Modal mit Text & PNG-Chart und teilt per Klick in den gewählten Discord-Kanal. |
-| **Web-Suche & KI-Fazit (`🌐`)** | Hover am Produkttitel | Klick öffnet KI-Kurzfazit auf der Karte (mit Tavily Key) oder Google-Suche in neuem Tab. |
+| **Web-Suche & KI-Fazit (`🌐`)** | Hover am Produkttitel | Klick öffnet KI-Kurzfazit auf der Karte (OpenRouter `openrouter:web_search` / Tavily) oder Google-Suche in neuem Tab. |
+| **Batch-Aktionen (`⚡ N ▴`)** | Floating-CTA unten links | Scope-Wahl (`Ohne Gedimmte` / `Alle` / `Deals`), Markdown/TSV/CSV-Export, KI-Vergleich, Google-AI/OpenRouter-Einzelsuche, sequenzielle Preisalarme, Händler laden (+ `Auto`), Tabs, Discord Batch-Share & Toppreise-Vergleich. |
 | **Einstellungen-Button (`⚙️`)** | Schwebend unten rechts | Öffnet das gekapselte Shadow-DOM-Einstellungsmenü. |
 
 ### ⌨️ Tastatur-Shortcuts
@@ -218,7 +219,7 @@ Klick auf das **Zahnrad-Symbol (`⚙️`)** unten rechts öffnet das Einstellung
 | ② | **💾 Daten & Cache** | Händler-Autoload, TTL-Regler, Cache leeren (`🗑️`), Daten-Reset (`🧨`) und Konfigurations-Export. |
 
 1. **🖥️ Ansicht:** Deckkraft für gedimmte Karten, Werbeplätze/Banner ausblenden (entfernt leere Werbeflächen oben und im Layout) und Deal-Intensität / Heatmap-Stärke (20%–100%).
-2. **🌐 Web-Suche & KI-Fazit:** Schalter für Suche (`🌐`) am Produktnamen, anpassbarer Suchbegriff (inkl. `{preis}`), Google-KI-Modus (`&udm=50`) und Tavily API-Key (ermöglicht 1-Klick KI-Fazit direkt auf der Karte und `{ai}` im Discord-Share; 48h gecached).
+2. **🌐 Web-Suche & KI-Fazit:** Schalter für Suche (`🌐`) am Produktnamen, anpassbarer Suchbegriff (inkl. `{preis}`), Google-KI-Modus (`&udm=50`), **OpenRouter `openrouter:web_search`** (Modell, Such-Engine, Quellenlinks) sowie Legacy-Tavily für 1-Klick KI-Fazit und `{ai}` im Discord-Share (48h gecached), plus Batch-KI-Ziel und Bestätigungs-Schwelle (`1–100`).
 3. **💎 Sortieren:** Tiefstpreis-Sortierung nach Gewichteter Differenz (`💎`) und Angebots-/Rabatt-Sortierung (`Standard`, `Meiste ⬇`, `Wenigste ⬆`, `% Rabatt ⬇`).
 4. **🧹 Filtern:** Preis-Toleranz (%) für Händler-Bestpreis; Verweis auf Negativ-Begriffe, Min-Angebote, Ungeprüfte und Fallback-Tiefs im Filterleisten-Popover.
 5. **🔔 Preisalarm:** Zielpreis-Prozentsatz (5%–99%, Standard 60%), Laufzeit (3, 6, 12, 24 Monate) und automatisches Absenden & Schliessen.
@@ -231,10 +232,11 @@ Klick auf das **Zahnrad-Symbol (`⚙️`)** unten rechts öffnet das Einstellung
 
 * **Lokaler Cache:** Preishistorien (`tp_hist_v1_*`), Händlerdaten (`tp_dealer_v1_*`) und Deal-Marker (`tp_shared_v1_*`) liegen in `localStorage` mit einem 500-Einträge-LRU-Speicher im Arbeitsspeicher und werden per TTL bereinigt (48h für gültige Daten, 2h für nicht verfügbare Charts).
 * **2-Ebenen-Persistenz:** Einstellungen und Negativfilter nutzen ein ausfallsicheres System (`GM_setValue` / `GM_getValue` mit automatischem `localStorage`-Backup), das Skript-Neuinstallationen übersteht.
-* **Sicherheit vertraulicher Keys:** Webhook-URL und Tavily API-Key werden ausschliesslich im privaten Userscript-Manager-Speicher (`GM_setValue`) gehalten. Sie gelangen **niemals** in das seitenlesbare `localStorage` und werden bei JSON-Exporten automatisch entfernt.
+* **Sicherheit vertraulicher Keys:** Webhook-URL, OpenRouter- und Tavily-API-Key werden ausschliesslich im privaten Userscript-Manager-Speicher (`GM_setValue`) gehalten. Sie gelangen **niemals** in das seitenlesbare `localStorage` und werden bei JSON-Exporten automatisch entfernt.
 * **Erforderliche Berechtigungen:**
   * `GM_getValue` / `GM_setValue` / `GM_deleteValue`: Isolierte Speicherung der Einstellungen.
-  * `GM_xmlhttpRequest` (`@connect toppreise.ch`, `@connect discord.com`, `@connect api.tavily.com`, `@connect graph.keepa.com`, `@connect keepa.com`): Für Produktbilder, Discord-Webhooks, Amazon-Keepa-Preisverläufe und Tavily Web-Synthese.
+  * `GM_xmlhttpRequest` (`@connect toppreise.ch`, `@connect discord.com`, `@connect api.tavily.com`, `@connect openrouter.ai`, `@connect graph.keepa.com`, `@connect keepa.com`): Für Produktbilder, Discord-Webhooks, Amazon-Keepa-Preisverläufe und OpenRouter/Tavily Web-Synthese.
+  * `GM_openInTab`: Öffnet Batch-Tabs (Produkt/Händler/Google AI) im Hintergrund ohne Popup-Blocker.
 
 ---
 

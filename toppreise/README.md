@@ -48,7 +48,7 @@ Requires a userscript manager browser extension:
 - [Violentmonkey](https://violentmonkey.github.io/) (recommended: [Firefox](https://addons.mozilla.org/en-US/firefox/addon/violentmonkey/) · [Chrome / Brave](https://chromewebstore.google.com/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag))
 - [Tampermonkey](https://www.tampermonkey.net/)
 
-### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.549)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
+### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.550)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
 
 > [!NOTE]
 > The userscript includes embedded `@updateURL` and `@downloadURL` metadata headers. Your userscript manager will automatically check GitHub in the background and keep your installation up to date.
@@ -157,7 +157,7 @@ Requires a userscript manager browser extension:
 | --- | --- | --- |
 | **Sticky Filter Bar** | Top of product listings | Filter by negative keywords, minimum offers, and per-cause modes; toggle Heatmap and Tiefstpreis-Sortierung; open the `⚖️` calculation popover. |
 | **Category Sidebar (`▸`/`▾`)** | Left sidebar on deal feeds | Expand/collapse subcategories, search across 2,500+ categories, or navigate to sub-feeds. |
-| **Floating Check CTA** | Bottom-left floating pill | One-click batch verification of deals meeting threshold (`≥X%`), with inline `🏬` dealer auto-fetch and `🔄` in-place feed refresh (checks for new deals without F5). Clicking the empty pill (`Alle geprüft`) also triggers refresh. |
+| **Floating Check CTA** | Bottom-left floating pill | One-click batch verification of deals meeting threshold (`≥X%`), `⚡ N ▴` **Batch Actions** popover (Markdown/TSV/CSV export, AI comparison & search, sequential price alarms, dealer fetch + `Auto` toggle, tabs, Discord batch share, native compare), and `🔄` in-place feed refresh. |
 | **Differenz Badge (`🔍` / `⚖️`)** | Top-right of product card | Click to verify or refresh a single product's price history and all-time low status. |
 | **Cheapest Dealer (`🏬`)** | Next to price on verified card | Click to jump directly to the merchant offer in a new tab; hover to load dealer on feed cards. |
 | **Mini Sparkline** | Bottom of verified card | Click to open the large interactive price history chart modal. |
@@ -219,7 +219,7 @@ Click the floating **gear icon (`⚙️`)** in the bottom-right corner to open t
 | ② | **💾 Daten & Cache (*Data & Cache*)** | Dealer background autoload, TTL controls, cache purge (`🗑️`), reset (`🧨`) & backup export. |
 
 1. **🖥️ Display (*Ansicht*):** Dimmer opacity for filtered cards, hide ad placeholders / banners (removes top blank space and layout ad slots), and deal intensity / heatmap strength (20%–100%).
-2. **🌐 Web Search & AI Verdict (*Web-Suche*):** Search toggle (`🌐`) on product titles, custom keyword with `{preis}` placeholder, inline default reset, live query preview, Google AI mode (`&udm=50`), and Tavily AI toggle (defaults to off) with API key for 1-click in-page AI test verdicts and `{ai}` Discord sharing (48h cached).
+2. **🌐 Web Search & AI Verdict (*Web-Suche*):** Search toggle (`🌐`) on product titles, custom keyword with `{preis}` placeholder, inline default reset, live query preview, Google AI mode (`&udm=50`), **OpenRouter `openrouter:web_search`** (with model/engine/citation links) and legacy Tavily AI toggle for 1-click in-page AI verdicts and `{ai}` Discord sharing (48h cached), plus Batch AI target and confirmation threshold (`1–100`).
 3. **💎 Sorting (*Sortieren*):** Authentic deal scoring sort (`💎 Tiefstpreis-Sortierung`) and secondary offer/discount sorting (`Standard`, `Meiste ⬇`, `Wenigste ⬆`, `% Rabatt ⬇`).
 4. **🧹 Filtering (*Filtern*):** Preferred dealer price tolerance margin (%); note directing to filter bar popover for negative keywords, min offers, unverified, and fallback lows.
 5. **🔔 Price Alarm (*Preisalarm*):** Target price percentage (5%–99%, default 60%), alarm duration (3, 6, 12, 24 months), and Auto-Submit toggle.
@@ -235,7 +235,8 @@ Click the floating **gear icon (`⚙️`)** in the bottom-right corner to open t
 * **Secrets Confidentiality:** Your `DISCORD_WEBHOOK_URL` and `TAVILY_API_KEY` are saved exclusively in private userscript manager storage (`GM_setValue`). They are **never** mirrored to page-accessible `localStorage` and are automatically stripped from JSON configuration exports.
 * **Granted Permissions:**
   * `GM_getValue` / `GM_setValue` / `GM_deleteValue`: Isolated persistent configuration storage.
-  * `GM_xmlhttpRequest` (`@connect toppreise.ch`, `@connect discord.com`, `@connect api.tavily.com`, `@connect graph.keepa.com`, `@connect keepa.com`): Used to fetch product images for Discord attachments, dispatch deal payloads to Discord webhooks, retrieve Amazon Keepa price history charts, and request Tavily search summaries.
+  * `GM_xmlhttpRequest` (`@connect toppreise.ch`, `@connect discord.com`, `@connect api.tavily.com`, `@connect openrouter.ai`, `@connect graph.keepa.com`, `@connect keepa.com`): Used to fetch product images for Discord attachments, dispatch deal payloads to Discord webhooks, retrieve Amazon Keepa price history charts, and request OpenRouter/Tavily search summaries.
+  * `GM_openInTab`: Opens batch product/dealer/Google-AI tabs in the background without popup-blocker interference.
 
 ---
 

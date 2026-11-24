@@ -9,8 +9,11 @@ Google-Suche am Produktnamen mit frei konfigurierbarem Suchbegriff (inkl. `{prei
 _Avoid_: Review-Suche, Testbericht-Suche
 
 **KI-Kurzfazit**:
-Synthetisierte 1–3-Satz-Zusammenfassung aus Testberichten und Preiseinschätzung via Tavily AI (🌐 auf der Karte und `{ai}` im Discord-Share). 48h persistent gecached zur Schonung des monatlichen Kontingents (1'000 kostenlose Anfragen).
+Synthetisierte 1–3-Satz-Zusammenfassung aus Testberichten und Preiseinschätzung via OpenRouter (`openrouter:web_search` inkl. Quellenlinks) oder Tavily AI (🌐 auf der Karte und `{ai}` im Discord-Share). 48h persistent gecached zur Schonung des Kontingents.
 _Avoid_: AI-Review, Test-Bot
+
+**Batch-Aktionen**:
+Aufklappbares Popover (`⚡ N ▴` / `#tp-batch-popover`) am Floating-CTA für Aktionen auf allen gelisteten Angeboten im gewählten Scope (`Ohne Gedimmte` / `Alle` / `Deals`): Kopieren (Markdown/TSV) & CSV-Export inkl. `.product-features`, KI-Vergleich, Google-AI/OpenRouter-Einzelsuche, sequenzielle Preisalarme, Händler-Laden (+ Auto-Schalter), Tabs öffnen, Discord Batch-Share und Toppreise-Vergleich (max. 4). Ab `BATCH_CONFIRM_THRESHOLD` (Standard: 10) sowie bei Preisalarmen und Discord-Share erscheint ein Bestätigungs-Dialog.
 
 **Tiefstpreis**:
 Der niedrigste belegte historische Preis eines Produkts.

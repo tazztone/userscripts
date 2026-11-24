@@ -25,16 +25,19 @@ def test_floating_cta_threshold_syncs_with_toolbar(page: Page):
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.REAL_DEAL_MIN_DISCOUNT") == 40
 
 def test_floating_cta_dealer_toggle_syncs_with_settings(page: Page):
-    row = page.locator('#tp-floating-dealer-row')
-    toggle = page.locator('#tp-floating-dealer-toggle')
-    assert row.is_visible()
-    assert 'Händler laden' in (row.text_content() or '')
+    batch_btn = page.locator('#tp-floating-batch-btn')
+    assert batch_btn.is_visible()
+    batch_btn.click()
+
+    popover = page.locator('#tp-batch-popover')
+    assert popover.is_visible()
+    toggle = page.locator('#tp-batch-dealer-autofetch')
+    assert toggle.is_visible()
     assert not toggle.is_checked()
 
-    # Toggle ON in the pill: shared config key flips immediately
+    # Toggle ON in the batch popover: shared config key flips immediately
     toggle.click()
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.DEALER_AUTOFETCH") is True
-    assert 'tp-active' in (row.get_attribute('class') or '')
 
     # Settings modal mirrors the same key without a save round-trip
     open_settings(page)
@@ -126,11 +129,7 @@ def test_floating_cta_compact_labels_on_mobile_viewport(page: Page):
     assert short_label.is_visible()
     assert not full_label.is_visible()
     assert 'prüfen' in (short_label.text_content() or '')
-
-    dealer_short = page.locator('#tp-floating-dealer-row .tp-label-short')
-    dealer_full = page.locator('#tp-floating-dealer-row .tp-label-full')
-    assert dealer_short.is_visible()
-    assert not dealer_full.is_visible()
+    assert page.locator('#tp-floating-batch-btn').is_visible()
 
 
 def test_floating_cta_clears_recent_searches_tray_on_mobile(page: Page):
@@ -170,7 +169,7 @@ def test_floating_cta_no_overflow_or_fab_overlap_on_narrow_coarse_mobile(browser
                 const cta = document.getElementById('tp-floating-check-cta');
                 const ctaRect = cta.getBoundingClientRect();
                 const fabRect = document.getElementById('tp-root').shadowRoot.getElementById('tp-settings-fab').getBoundingClientRect();
-                const visibleChildren = Array.from(cta.querySelectorAll('#tp-floating-check-btn, #tp-floating-dealer-row, #tp-floating-refresh-btn, #tp-floating-threshold-input, #tp-floating-cta-collapse'))
+                const visibleChildren = Array.from(cta.querySelectorAll('#tp-floating-check-btn, #tp-floating-batch-btn, #tp-floating-refresh-btn, #tp-floating-threshold-input, #tp-floating-cta-collapse'))
                     .map(el => ({ id: el.id, right: el.getBoundingClientRect().right, left: el.getBoundingClientRect().left }));
                 return {
                     scrollW: cta.scrollWidth,

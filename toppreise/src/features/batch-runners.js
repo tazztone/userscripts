@@ -48,6 +48,7 @@ export async function runSingleBatchAlarm(pid, card = null, { targetPct, duratio
       if (mockDialog) {
         const formEl = mockDialog.querySelector?.(SELECTORS.alarm.form);
         if (formEl) {
+          formEl.querySelectorAll('.success, .confirmation, .tp-alarm-status').forEach(n => n.remove());
           formEl._tpBatchAlarmOpts = batchOpts;
           delete formEl.dataset.tpAlarmProcessed;
           delete formEl.dataset.tpAlarmState;
