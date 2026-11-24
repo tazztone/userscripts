@@ -583,3 +583,113 @@ def test_batch_openrouter_and_google_respect_custom_item_template(page: Page):
     assert 'Link: https://' in captured[0] or 'Link: file://' in captured[0] or 'Link: ' in captured[0]
     assert 'Händler:' not in captured[0]
     assert 'Specs:' not in captured[0]
+
+
+def test_batch_price_alarm_http_fetch_login_wall_and_success(page: Page, userscript_content):
+    from pathlib import Path
+    from conftest import BASE_DIR
+
+    button_calls = []
+    form_mode = {'wall': True}
+    mock_html = Path(BASE_DIR, 'mock_toppreise.html').read_text(encoding='utf-8')
+
+    page.route('https://www.toppreise.ch/neue-toppreise', lambda route: route.fulfill(
+        status=200,
+        headers={'content-type': 'text/html'},
+        body=mock_html
+    ))
+
+    def handle_alarm_button(route):
+        button_calls.append(route.request.post_data or '')
+        route.fulfill(
+            status=200,
+            headers={'content-type': 'text/html', 'access-control-allow-origin': '*'},
+            body="""
+            <div class="Plugin_NewInfoMailButton">
+              <a class="f_showNewInfoMailFormDialog" data-ajax-form-url="/plugins/infomails/NewInfoMailForm?im_nimf_pid=797571&im_nimf_cks=ok"></a>
+            </div>
+            <template class="f_lazyDialog">
+              <div id="AbstractDialog_NewInfoMailFormDialog_http" data-instance-hash="42" class="AbstractDialog AbstractDialog_NewInfoMailFormDialog">
+                <div class="modal"><div class="modal-dialog"><div class="modal-content">
+                  <button type="button" class="AbstractDialog_CloseButton">×</button>
+                  <div class="AbstractDialog_Content"></div>
+                </div></div></div>
+              </div>
+            </template>
+            """
+        )
+
+    def handle_alarm_form(route):
+        if form_mode['wall']:
+            route.fulfill(
+                status=200,
+                headers={'content-type': 'text/html', 'access-control-allow-origin': '*'},
+                body='<div class="login-required">Bitte einloggen um Preisalarme zu verwalten.</div>'
+            )
+            return
+        route.fulfill(
+            status=200,
+            headers={'content-type': 'text/html', 'access-control-allow-origin': '*'},
+            body="""
+            <div class="Plugin_NewInfoMailForm">
+              <div class="productPrice"><span class="Plugin_Price">CHF 1000.00</span></div>
+              <div class="shippingPrice"><span class="Plugin_Price">CHF 1000.00</span></div>
+              <input type="text" id="f_NewInfoMailForm_priceFrom" name="im_nimf_pvf" value="" />
+              <input type="hidden" name="im_nimf_du" value="730" />
+              <li data-value="730">2 Jahre</li>
+              <input type="checkbox" id="im_nimf_prtrm" />
+              <input type="submit" class="f_submitbtn" value="Speichern" />
+            </div>
+            """
+        )
+
+    page.route('https://www.toppreise.ch/plugins/infomails/NewInfoMailButton', handle_alarm_button)
+    page.route('https://www.toppreise.ch/plugins/infomails/NewInfoMailForm*', handle_alarm_form)
+
+    page.goto('https://www.toppreise.ch/neue-toppreise')
+    page.evaluate("() => { localStorage.clear(); localStorage.setItem('tp_suite_v2_DEBUG', 'true'); localStorage.setItem('tp_suite_v2_MIGRATED_DEBUG_OFF', 'true'); }")
+    page.evaluate(userscript_content)
+    page.wait_for_selector('#tp-root >> #tp-settings-fab')
+
+    # Drop static #mock-alarm-dialog so runSingleBatchAlarm exercises the HTTP fetch pipeline
+    page.evaluate("""() => {
+        document.getElementById('mock-alarm-dialog')?.remove();
+        window.ToppreiseSuite.updateConfig('BATCH_CONFIRM_THRESHOLD', 50);
+        window.__tpSubmittedPrices = [];
+        document.addEventListener('click', (e) => {
+            const btn = e.target.closest('.AbstractDialog_NewInfoMailFormDialog input.f_submitbtn');
+            if (!btn) return;
+            e.preventDefault();
+            const form = btn.closest('.Plugin_NewInfoMailForm');
+            window.__tpSubmittedPrices.push(form?.querySelector('#f_NewInfoMailForm_priceFrom')?.value || '');
+            form?.insertAdjacentHTML('beforeend', '<div class="success">Preisalarm gespeichert</div>');
+        });
+    }""")
+
+    # 1. Login-wall HTML on NewInfoMailForm -> !formEl -> fetch-failed, dialog never mounts
+    page.click('#tp-floating-batch-btn')
+    page.click('#tp-batch-alarms-btn')
+    page.wait_for_selector('#tp-batch-confirm-popout', state='visible')
+    page.fill('#tp-batch-limit-input', '1')
+    page.fill('#tp-batch-alarm-pct', '75')
+    page.click('#tp-batch-confirm-go')
+
+    page.wait_for_function("() => (window.ToppreiseSuite?.lastToast?.() || '').includes('1 fehlgeschlagen')", timeout=5000)
+    assert len(button_calls) == 1
+    assert page.locator('#AbstractDialog_NewInfoMailFormDialog_http').count() == 0
+
+    # 2. Valid NewInfoMailForm HTML -> auto-fills 750.00, submits, receives .success, closes cleanly
+    form_mode['wall'] = False
+    page.wait_for_function("() => !document.getElementById('tp-floating-batch-btn')?.classList.contains('tp-batch-running')")
+    if not page.locator('#tp-batch-popover').is_visible():
+        page.click('#tp-floating-batch-btn')
+    page.click('#tp-batch-alarms-btn')
+    page.wait_for_selector('#tp-batch-confirm-popout', state='visible')
+    page.fill('#tp-batch-limit-input', '1')
+    page.fill('#tp-batch-alarm-pct', '75')
+    page.click('#tp-batch-confirm-go')
+
+    page.wait_for_function("() => (window.ToppreiseSuite?.lastToast?.() || '').includes('1 Preisalarm gesetzt')", timeout=5000)
+    assert len(button_calls) == 2
+    assert page.evaluate("() => window.__tpSubmittedPrices") == ['750.00']
+    assert page.locator('#AbstractDialog_NewInfoMailFormDialog_http').count() == 0

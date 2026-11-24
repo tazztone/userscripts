@@ -331,4 +331,72 @@ describe('Price alarm fallback URL hardening', () => {
       if (prevLoc === undefined) delete globalThis.location; else globalThis.location = prevLoc;
     }
   });
+
+  it('openFetchedAlarmDialog returns false without mounting when NewInfoMailForm returns login HTML (!formEl)', async () => {
+    const { openFetchedAlarmDialog } = await import('../../src/features/price-alarm.js');
+    const prevDoc = globalThis.document;
+    const prevLoc = globalThis.location;
+    const prevFetch = globalThis.fetch;
+    const prevDOMParser = globalThis.DOMParser;
+
+    let appended = false;
+    const contentEl = { replaceChildren() {} };
+    const dialogNode = {
+      nodeType: 1,
+      tagName: 'DIV',
+      id: 'AbstractDialog_NewInfoMailFormDialog_9',
+      attributes: [],
+      children: [],
+      style: {},
+      classList: { add() {}, remove() {} },
+      getAttribute: k => (k === 'data-instance-hash' ? '9' : null),
+      querySelector: sel => (sel === SELECTORS.alarm.content ? contentEl : null)
+    };
+    const triggerEl = { getAttribute: () => '/plugins/infomails/NewInfoMailForm?im_nimf_pid=797571&im_nimf_cks=ok' };
+    const loginChild = { nodeType: 1, tagName: 'DIV', attributes: [], children: [] };
+
+    globalThis.location = { href: 'https://www.toppreise.ch/preisvergleich/p797571' };
+    globalThis.document = {
+      body: { appendChild() { appended = true; } },
+      importNode: n => n,
+      getElementById: () => ({ shadowRoot: { getElementById: () => null } }),
+      addEventListener() {},
+      removeEventListener() {}
+    };
+    globalThis.DOMParser = class {
+      parseFromString(html) {
+        if (html.includes('lazyDialog')) {
+          return {
+            querySelector: sel => {
+              if (sel === SELECTORS.alarm.lazyDialog) return { content: { firstElementChild: dialogNode } };
+              if (sel === SELECTORS.alarm.triggers[0]) return triggerEl;
+              return null;
+            }
+          };
+        }
+        return { body: { childNodes: [loginChild] } };
+      }
+    };
+    globalThis.fetch = async () => ({
+      ok: true,
+      status: 200,
+      text: async () => '<div class="login-wall">Bitte anmelden</div>'
+    });
+
+    try {
+      const ok = await openFetchedAlarmDialog('<template class="f_lazyDialog">...</template>', {
+        targetPct: 0.6,
+        durationDays: '730',
+        autoSubmit: true,
+        onResult() {}
+      });
+      assert.equal(ok, false);
+      assert.equal(appended, false);
+    } finally {
+      if (prevDoc === undefined) delete globalThis.document; else globalThis.document = prevDoc;
+      if (prevLoc === undefined) delete globalThis.location; else globalThis.location = prevLoc;
+      if (prevFetch === undefined) delete globalThis.fetch; else globalThis.fetch = prevFetch;
+      if (prevDOMParser === undefined) delete globalThis.DOMParser; else globalThis.DOMParser = prevDOMParser;
+    }
+  });
 });
