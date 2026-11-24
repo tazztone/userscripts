@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.554
+// @version      2.18.555
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -3157,6 +3157,20 @@ const STYLES_BATCH = `
   .tp-batch-citations a,
   .tp-batch-blocked-list a { color: var(--tp-blue-soft, #2563eb) !important; text-decoration: underline !important; }
   .tp-batch-blocked-list { margin: 8px 0 0 18px !important; padding: 0 !important; }
+  .tp-batch-paste-preview {
+    margin: 8px 0 0 !important;
+    padding: 8px 10px !important;
+    max-height: 220px !important;
+    overflow: auto !important;
+    white-space: pre-wrap !important;
+    word-break: break-word !important;
+    font-size: 11px !important;
+    line-height: 1.4 !important;
+    background: var(--tp-bg-sub, #f1f5f9) !important;
+    border: 1px solid rgba(15, 23, 42, 0.12) !important;
+    border-radius: 8px !important;
+    color: var(--tp-txt, #0f172a) !important;
+  }
 
   @media (max-width: 600px) {
     #tp-batch-popover { left: 8px !important; bottom: 54px !important; width: calc(100vw - 16px) !important; }
@@ -11196,10 +11210,54 @@ const SHADOW_MODAL_STYLES = `
     return lines.join('\n');
   }
 
+  const MAX_AI_URL_QUERY_ENCODED = 1850;
+
+  function trimCompact(str, maxLen) {
+    const s = String(str || '').replace(/\s+/g, ' ').trim();
+    if (s.length <= maxLen) return s;
+    return `${s.slice(0, Math.max(1, maxLen - 1)).trimEnd()}…`;
+  }
+
+  function buildCompactComparisonPrompt(items, { minimal = false } = {}) {
+    if (!Array.isArray(items) || items.length === 0) return '';
+    const header = minimal
+      ? `Vergleiche ${items.length} Toppreise-Deals (CHF, bester Deal?):`
+      : `Vergleiche ${items.length} Toppreise-Angebote (CHF, kurz auf Deutsch, bester Deal?):`;
+    const lines = [header];
+    items.forEach((it, idx) => {
+      const title = minimal ? trimCompact(it.title, 48) : trimCompact(it.title, 72);
+      const meta = [it.priceText, it.discountText].filter(Boolean);
+      if (!minimal && it.lowText) meta.push(`Tief ${it.lowText}`);
+      const priceBit = meta.length ? `(${meta.join(', ')})` : '';
+      const specBit = (!minimal && it.specs) ? ` | ${trimCompact(it.specs, 52)}` : '';
+      lines.push(`${idx + 1}. ${title}${priceBit ? ` ${priceBit}` : ''}${specBit}`);
+    });
+    return lines.join('\n');
+  }
+
+  function selectExternalComparisonQuery(items, fullPrompt = buildComparisonPrompt(items)) {
+    const full = String(fullPrompt || '').trim();
+    if (!full) return { query: '', needsPaste: false };
+    if (encodeURIComponent(full).length <= MAX_AI_URL_QUERY_ENCODED) {
+      return { query: full, needsPaste: false };
+    }
+    if (Array.isArray(items) && items.length > 0) {
+      const compact = buildCompactComparisonPrompt(items, { minimal: false });
+      if (compact && encodeURIComponent(compact).length <= MAX_AI_URL_QUERY_ENCODED) {
+        return { query: compact, needsPaste: false };
+      }
+      const minimal = buildCompactComparisonPrompt(items, { minimal: true });
+      if (minimal && encodeURIComponent(minimal).length <= MAX_AI_URL_QUERY_ENCODED) {
+        return { query: minimal, needsPaste: false };
+      }
+    }
+    return { query: '', needsPaste: true };
+  }
+
   function buildExternalAiUrl(target, prompt) {
     const text = String(prompt || '').trim();
-    const needsPaste = text.length > 1500;
-    const encoded = encodeURIComponent(needsPaste ? text.slice(0, 1500) : text);
+    const encoded = encodeURIComponent(text);
+    const needsPaste = encoded.length > MAX_AI_URL_QUERY_ENCODED;
     switch (target) {
       case 'chatgpt':
         return { url: needsPaste ? 'https://chatgpt.com/' : `https://chatgpt.com/?q=${encoded}`, needsPaste };
@@ -18768,11 +18826,11 @@ const SHADOW_MODAL_STYLES = `
     return true;
   }
 
-  function openTabUrl(url) {
+  function openTabUrl(url, { active = false } = {}) {
     if (!url || !/^https?:\/\//i.test(url)) return false;
     if (typeof GM_openInTab === 'function') {
       try {
-        GM_openInTab(url, { active: false, insert: true });
+        GM_openInTab(url, { active: !!active, insert: true });
         return true;
       } catch { /* fallback below */ }
     }
@@ -18932,10 +18990,17 @@ const SHADOW_MODAL_STYLES = `
       });
       return { mode: 'openrouter', prompt, answer: res.answer, citations: res.citations || [] };
     }
+    const sel = selectExternalComparisonQuery(items, prompt);
+    if (sel.needsPaste) {
+      const ext = buildExternalAiUrl(target, prompt);
+      const copied = await copyTextToClipboard(prompt);
+      return { mode: 'external', target, url: ext.url, opened: false, copied, needsPaste: true, prompt };
+    }
+    const ext = buildExternalAiUrl(target, sel.query);
+    // Open comparison tab before async clipboard write to preserve transient user activation
+    const opened = openTabFn(ext.url, { active: true });
     const copied = await copyTextToClipboard(prompt);
-    const ext = buildExternalAiUrl(target, prompt);
-    const opened = openTabFn(ext.url);
-    return { mode: 'external', target, url: ext.url, opened, copied, needsPaste: ext.needsPaste, prompt };
+    return { mode: 'external', target, url: ext.url, opened, copied, needsPaste: false, prompt };
   }
 
   function runBatchOpenTabs(items, { openTabFn = openTabUrl } = {}) {
@@ -19333,7 +19398,10 @@ const SHADOW_MODAL_STYLES = `
       answer = '',
       citations = [],
       results = [],
-      blockedItems = []
+      blockedItems = [],
+      externalUrl = '',
+      externalLabel = 'KI-Plattform',
+      copied = false
     } = opts;
 
     const { backdrop, panel, mount, close } = createPopoutDialog({
@@ -19369,6 +19437,17 @@ const SHADOW_MODAL_STYLES = `
         list.appendChild(li);
       }
       body.appendChild(list);
+    } else if (mode === 'paste') {
+      const warn = document.createElement('p');
+      warn.className = 'tp-batch-dialog-warn';
+      warn.textContent = copied
+        ? '⚠️ Zu viele Angebote für direkte URL-Übergabe — vollständiger Prompt wurde in die Zwischenablage kopiert. Plattform öffnen und mit Strg+V einfügen:'
+        : '⚠️ Zu viele Angebote für direkte URL-Übergabe — Prompt unten kopieren und in der Plattform einfügen (Strg+V):';
+      body.appendChild(warn);
+      const pre = document.createElement('pre');
+      pre.className = 'tp-batch-paste-preview';
+      pre.textContent = answer;
+      body.appendChild(pre);
     } else if (mode === 'individual') {
       const parts = [];
       for (const r of results) {
@@ -19415,12 +19494,21 @@ const SHADOW_MODAL_STYLES = `
       const copyBtn = document.createElement('button');
       copyBtn.type = 'button';
       copyBtn.className = 'tp-popout-btn';
-      copyBtn.textContent = '📋 Alle kopieren';
+      copyBtn.textContent = mode === 'paste' ? '📋 Prompt kopieren' : '📋 Alle kopieren';
       copyBtn.addEventListener('click', async () => {
         const ok = await copyTextToClipboard(copyText);
         showToast(ok ? '✅ KI-Antwort kopiert' : 'Kopieren fehlgeschlagen');
       });
       footer.appendChild(copyBtn);
+    }
+    if (mode === 'paste' && externalUrl && /^https?:\/\//i.test(externalUrl)) {
+      const extLink = document.createElement('a');
+      extLink.href = externalUrl;
+      extLink.target = '_blank';
+      extLink.rel = 'noopener';
+      extLink.className = 'tp-popout-btn tp-batch-btn-primary';
+      extLink.textContent = `↗ ${externalLabel} öffnen`;
+      footer.appendChild(extLink);
     }
     const closeBtn = document.createElement('button');
     closeBtn.type = 'button';
@@ -19696,16 +19784,24 @@ const SHADOW_MODAL_STYLES = `
               citations: res.citations
             });
           } else if (res.mode === 'external') {
-            if (!res.opened) {
+            if (res.needsPaste) {
+              const label = AI_TARGET_LABELS[res.target] || res.target;
+              openBatchAiPopout({
+                title: `🤖 KI-Vergleich (${plural(items.length, 'Angebot', 'Angebote')})`,
+                mode: 'paste',
+                answer: res.prompt,
+                externalUrl: res.url,
+                externalLabel: label,
+                copied: res.copied
+              });
+            } else if (!res.opened) {
               openBatchAiPopout({
                 title: '🤖 KI-Vergleich öffnen',
                 mode: 'blocked',
                 blockedItems: [{ title: `Vergleich (${res.target})`, url: res.url }]
               });
-            } else if (res.needsPaste) {
-              showToast('📋 Prompt kopiert (zu lang für URL) — im Tab einfügen (Strg+V)');
             } else {
-              showToast(`🤖 KI-Vergleich geöffnet (${res.target})`);
+              showToast(`🤖 KI-Vergleich geöffnet (${AI_TARGET_LABELS[res.target] || res.target})`);
             }
           }
         } catch (err) {
@@ -21194,7 +21290,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.554';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.555';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

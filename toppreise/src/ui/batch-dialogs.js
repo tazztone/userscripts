@@ -267,7 +267,10 @@ export function openBatchAiPopout(opts = {}) {
     answer = '',
     citations = [],
     results = [],
-    blockedItems = []
+    blockedItems = [],
+    externalUrl = '',
+    externalLabel = 'KI-Plattform',
+    copied = false
   } = opts;
 
   const { backdrop, panel, mount, close } = createPopoutDialog({
@@ -303,6 +306,17 @@ export function openBatchAiPopout(opts = {}) {
       list.appendChild(li);
     }
     body.appendChild(list);
+  } else if (mode === 'paste') {
+    const warn = document.createElement('p');
+    warn.className = 'tp-batch-dialog-warn';
+    warn.textContent = copied
+      ? '⚠️ Zu viele Angebote für direkte URL-Übergabe — vollständiger Prompt wurde in die Zwischenablage kopiert. Plattform öffnen und mit Strg+V einfügen:'
+      : '⚠️ Zu viele Angebote für direkte URL-Übergabe — Prompt unten kopieren und in der Plattform einfügen (Strg+V):';
+    body.appendChild(warn);
+    const pre = document.createElement('pre');
+    pre.className = 'tp-batch-paste-preview';
+    pre.textContent = answer;
+    body.appendChild(pre);
   } else if (mode === 'individual') {
     const parts = [];
     for (const r of results) {
@@ -349,12 +363,21 @@ export function openBatchAiPopout(opts = {}) {
     const copyBtn = document.createElement('button');
     copyBtn.type = 'button';
     copyBtn.className = 'tp-popout-btn';
-    copyBtn.textContent = '📋 Alle kopieren';
+    copyBtn.textContent = mode === 'paste' ? '📋 Prompt kopieren' : '📋 Alle kopieren';
     copyBtn.addEventListener('click', async () => {
       const ok = await copyTextToClipboard(copyText);
       showToast(ok ? '✅ KI-Antwort kopiert' : 'Kopieren fehlgeschlagen');
     });
     footer.appendChild(copyBtn);
+  }
+  if (mode === 'paste' && externalUrl && /^https?:\/\//i.test(externalUrl)) {
+    const extLink = document.createElement('a');
+    extLink.href = externalUrl;
+    extLink.target = '_blank';
+    extLink.rel = 'noopener';
+    extLink.className = 'tp-popout-btn tp-batch-btn-primary';
+    extLink.textContent = `↗ ${externalLabel} öffnen`;
+    footer.appendChild(extLink);
   }
   const closeBtn = document.createElement('button');
   closeBtn.type = 'button';

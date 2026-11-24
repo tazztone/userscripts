@@ -336,17 +336,41 @@ describe('batch-runners: OpenRouter individual & comparison runners', () => {
         configurable: true,
         value: { clipboard: { writeText: async t => { copiedText = t; } } }
       });
-      const longItems = Array.from({ length: 30 }, (_, i) => ({
+      const realisticTen = Array.from({ length: 10 }, (_, i) => ({
+        title: `ASUS ROG Monitor ${i + 1} 27 Zoll`,
+        priceText: `CHF ${350 + i}.00`,
+        discountText: '-25%',
+        lowText: `CHF ${380 + i}.00`,
+        medianText: 'Ø-Preis (1J): CHF 450.00',
+        dealer: 'Digitec',
+        specs: '27 Zoll · 240 Hz · OLED · USB-C'
+      }));
+      let googleOpenOpts = null;
+      let googleOpenUrl = '';
+      const gRes = await runBatchComparisonAi(realisticTen, {
+        target: 'google-ai',
+        openTabFn: (url, opts) => { googleOpenUrl = url; googleOpenOpts = opts; return true; }
+      });
+      assert.equal(gRes.mode, 'external');
+      assert.equal(gRes.needsPaste, false);
+      assert.equal(gRes.opened, true);
+      assert.equal(googleOpenOpts?.active, true);
+      assert.match(googleOpenUrl, /^https:\/\/www\.google\.com\/search\?q=.+&udm=50$/);
+
+      const longItems = Array.from({ length: 45 }, (_, i) => ({
         title: `Very Long Product Title Number ${i} with Extra Details`,
         priceText: 'CHF 199.00',
         specs: '16 GB RAM · 1 TB SSD · OLED Display'
       }));
+      let hugeOpened = false;
       const extRes = await runBatchComparisonAi(longItems, {
         target: 'chatgpt',
-        openTabFn: () => true
+        openTabFn: () => { hugeOpened = true; return true; }
       });
       assert.equal(extRes.mode, 'external');
       assert.equal(extRes.needsPaste, true);
+      assert.equal(extRes.opened, false);
+      assert.equal(hugeOpened, false);
       assert.equal(extRes.copied, true);
       assert.ok(copiedText.length > 1500);
     } finally {

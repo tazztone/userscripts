@@ -10,6 +10,8 @@ import {
   formatBatchTsv,
   formatBatchCsv,
   buildComparisonPrompt,
+  buildCompactComparisonPrompt,
+  selectExternalComparisonQuery,
   buildExternalAiUrl,
   isBatchConfirmRequired
 } from '../../src/features/batch-actions.js';
@@ -127,7 +129,7 @@ describe('batch-actions: export formatters & formula safety', () => {
     assert.equal(shortG.needsPaste, false);
     assert.match(shortG.url, /udm=50/);
 
-    const longPrompt = 'x'.repeat(1600);
+    const longPrompt = 'x'.repeat(1900);
     const longC = buildExternalAiUrl('chatgpt', longPrompt);
     assert.equal(longC.needsPaste, true);
     assert.equal(longC.url, 'https://chatgpt.com/');
@@ -135,6 +137,35 @@ describe('batch-actions: export formatters & formula safety', () => {
     const longG = buildExternalAiUrl('google-ai', longPrompt);
     assert.equal(longG.needsPaste, true);
     assert.equal(longG.url, 'https://www.google.com/search?udm=50');
+
+    // Realistic 10-item list exceeds full prompt budget (>1850 encoded) yet compacts cleanly for URL ?q=
+    const tenItems = Array.from({ length: 10 }, (_, i) => ({
+      title: `Samsung Galaxy Monitor ${i + 1} 27 Zoll`,
+      priceText: `CHF ${200 + i}.00`,
+      discountText: '-30%',
+      lowText: `CHF ${220 + i}.00`,
+      medianText: 'Ø-Preis (1J): CHF 299.00',
+      dealer: 'Digitec',
+      specs: '27 Zoll · 240 Hz · IPS · HDMI 2.1'
+    }));
+    const fullTen = buildComparisonPrompt(tenItems);
+    assert.ok(encodeURIComponent(fullTen).length > 1850);
+    const selectedTen = selectExternalComparisonQuery(tenItems, fullTen);
+    assert.equal(selectedTen.needsPaste, false);
+    assert.ok(encodeURIComponent(selectedTen.query).length <= 1850);
+    assert.match(selectedTen.query, /Samsung Galaxy Monitor 10/);
+    const urlTen = buildExternalAiUrl('google-ai', selectedTen.query);
+    assert.equal(urlTen.needsPaste, false);
+    assert.match(urlTen.url, /\?q=.*&udm=50$/);
+
+    // 45 items exceeds even minimal compact URL budget -> paste fallback
+    const hugeItems = Array.from({ length: 45 }, (_, i) => ({
+      title: `Apple MacBook Pro M4 24GB 1TB Modell ${i + 1}`,
+      priceText: `CHF ${1800 + i}.00`,
+      discountText: '-20%'
+    }));
+    assert.equal(selectExternalComparisonQuery(hugeItems).needsPaste, true);
+    assert.ok(buildCompactComparisonPrompt(tenItems, { minimal: true }).length < buildCompactComparisonPrompt(tenItems).length);
 
     const shortP = buildExternalAiUrl('perplexity', 'short prompt');
     assert.equal(shortP.needsPaste, false);

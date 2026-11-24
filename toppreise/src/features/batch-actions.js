@@ -244,10 +244,54 @@ export function buildComparisonPrompt(items) {
   return lines.join('\n');
 }
 
+const MAX_AI_URL_QUERY_ENCODED = 1850;
+
+function trimCompact(str, maxLen) {
+  const s = String(str || '').replace(/\s+/g, ' ').trim();
+  if (s.length <= maxLen) return s;
+  return `${s.slice(0, Math.max(1, maxLen - 1)).trimEnd()}…`;
+}
+
+export function buildCompactComparisonPrompt(items, { minimal = false } = {}) {
+  if (!Array.isArray(items) || items.length === 0) return '';
+  const header = minimal
+    ? `Vergleiche ${items.length} Toppreise-Deals (CHF, bester Deal?):`
+    : `Vergleiche ${items.length} Toppreise-Angebote (CHF, kurz auf Deutsch, bester Deal?):`;
+  const lines = [header];
+  items.forEach((it, idx) => {
+    const title = minimal ? trimCompact(it.title, 48) : trimCompact(it.title, 72);
+    const meta = [it.priceText, it.discountText].filter(Boolean);
+    if (!minimal && it.lowText) meta.push(`Tief ${it.lowText}`);
+    const priceBit = meta.length ? `(${meta.join(', ')})` : '';
+    const specBit = (!minimal && it.specs) ? ` | ${trimCompact(it.specs, 52)}` : '';
+    lines.push(`${idx + 1}. ${title}${priceBit ? ` ${priceBit}` : ''}${specBit}`);
+  });
+  return lines.join('\n');
+}
+
+export function selectExternalComparisonQuery(items, fullPrompt = buildComparisonPrompt(items)) {
+  const full = String(fullPrompt || '').trim();
+  if (!full) return { query: '', needsPaste: false };
+  if (encodeURIComponent(full).length <= MAX_AI_URL_QUERY_ENCODED) {
+    return { query: full, needsPaste: false };
+  }
+  if (Array.isArray(items) && items.length > 0) {
+    const compact = buildCompactComparisonPrompt(items, { minimal: false });
+    if (compact && encodeURIComponent(compact).length <= MAX_AI_URL_QUERY_ENCODED) {
+      return { query: compact, needsPaste: false };
+    }
+    const minimal = buildCompactComparisonPrompt(items, { minimal: true });
+    if (minimal && encodeURIComponent(minimal).length <= MAX_AI_URL_QUERY_ENCODED) {
+      return { query: minimal, needsPaste: false };
+    }
+  }
+  return { query: '', needsPaste: true };
+}
+
 export function buildExternalAiUrl(target, prompt) {
   const text = String(prompt || '').trim();
-  const needsPaste = text.length > 1500;
-  const encoded = encodeURIComponent(needsPaste ? text.slice(0, 1500) : text);
+  const encoded = encodeURIComponent(text);
+  const needsPaste = encoded.length > MAX_AI_URL_QUERY_ENCODED;
   switch (target) {
     case 'chatgpt':
       return { url: needsPaste ? 'https://chatgpt.com/' : `https://chatgpt.com/?q=${encoded}`, needsPaste };

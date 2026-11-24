@@ -19,7 +19,7 @@ import { formatSearchQuery, buildTavilyQuery } from './tavily-search.js';
 import { fetchOpenRouterWebSearch, getCachedConfiguredAiSummary } from './openrouter-search.js';
 import { ensureDealerInfo } from '../ui/badges/card-dealer.js';
 import { openFetchedAlarmDialog, closeFetchedAlarmDialogs, processPriceAlarmModal } from './price-alarm.js';
-import { buildComparisonPrompt, buildExternalAiUrl, copyTextToClipboard, isComparisonButtonActive } from './batch-actions.js';
+import { buildComparisonPrompt, buildExternalAiUrl, selectExternalComparisonQuery, copyTextToClipboard, isComparisonButtonActive } from './batch-actions.js';
 
 export async function runSingleBatchAlarm(pid, card = null, { targetPct, durationDays, signal } = {}) {
   if (!pid || signal?.aborted) return { status: 'cancelled' };
@@ -127,11 +127,11 @@ export function cancelActiveBatchJob() {
   return true;
 }
 
-export function openTabUrl(url) {
+export function openTabUrl(url, { active = false } = {}) {
   if (!url || !/^https?:\/\//i.test(url)) return false;
   if (typeof GM_openInTab === 'function') {
     try {
-      GM_openInTab(url, { active: false, insert: true });
+      GM_openInTab(url, { active: !!active, insert: true });
       return true;
     } catch { /* fallback below */ }
   }
@@ -291,10 +291,17 @@ export async function runBatchComparisonAi(items, { target = 'google-ai', signal
     });
     return { mode: 'openrouter', prompt, answer: res.answer, citations: res.citations || [] };
   }
+  const sel = selectExternalComparisonQuery(items, prompt);
+  if (sel.needsPaste) {
+    const ext = buildExternalAiUrl(target, prompt);
+    const copied = await copyTextToClipboard(prompt);
+    return { mode: 'external', target, url: ext.url, opened: false, copied, needsPaste: true, prompt };
+  }
+  const ext = buildExternalAiUrl(target, sel.query);
+  // Open comparison tab before async clipboard write to preserve transient user activation
+  const opened = openTabFn(ext.url, { active: true });
   const copied = await copyTextToClipboard(prompt);
-  const ext = buildExternalAiUrl(target, prompt);
-  const opened = openTabFn(ext.url);
-  return { mode: 'external', target, url: ext.url, opened, copied, needsPaste: ext.needsPaste, prompt };
+  return { mode: 'external', target, url: ext.url, opened, copied, needsPaste: false, prompt };
 }
 
 export function runBatchOpenTabs(items, { openTabFn = openTabUrl } = {}) {

@@ -448,3 +448,79 @@ def test_batch_dealer_fetch_and_scoped_discord_meta(page: Page):
     if not page.locator('#tp-batch-popover').is_visible():
         page.click('#tp-floating-batch-btn')
     assert page.locator('#tp-batch-discord-meta').text_content() == '0 neu ›'
+
+
+def test_batch_google_ai_comparison_compacts_query_and_uses_paste_modal_when_huge(page: Page):
+    page.evaluate("""() => {
+        window.__tpOpenedUrls = [];
+        window.__tpCopiedCmp = [];
+        window.open = (url) => { window.__tpOpenedUrls.push(url); return {}; };
+        Object.defineProperty(navigator, 'clipboard', {
+            configurable: true,
+            value: { writeText: async (t) => { window.__tpCopiedCmp.push(t); } }
+        });
+        window.ToppreiseSuite.updateConfig('BATCH_CONFIRM_THRESHOLD', 100);
+        window.ToppreiseSuite.updateConfig('BATCH_AI_TARGET', 'google-ai');
+        window.ToppreiseSuite.updateConfig('BATCH_SCOPE_DEFAULT', 'visible');
+
+        const host = document.querySelector('.Plugin_Product').parentElement;
+        const cards = Array.from(document.querySelectorAll('.Plugin_Product'));
+        for (const c of cards) {
+            if (!c.querySelector('.product-features')) {
+                const f = document.createElement('div');
+                f.className = 'product-features';
+                f.textContent = '27 Zoll · 240 Hz · OLED · USB-C · DisplayHDR';
+                c.appendChild(f);
+            }
+        }
+        // Add 6 more cards -> 12 realistic cards whose full prompt > 1850 chars, but compacts cleanly into ?q=
+        for (let i = 0; i < 6; i++) {
+            const clone = cards[0].cloneNode(true);
+            clone.id = 'tp-cmp-clone-' + i;
+            clone.dataset.entityId = String(900000 + i);
+            const titleLink = clone.querySelector('a[href*="-p"]');
+            if (titleLink) {
+                titleLink.href = '/preisvergleich/Test/OLED-Monitor-Pro-' + i + '-p' + (900000 + i);
+                titleLink.textContent = 'OLED Gaming Monitor Pro Modell ' + (i + 1) + ' 27 Zoll';
+            }
+            host.appendChild(clone);
+        }
+        window.ToppreiseSuite.processListings();
+    }""")
+
+    page.click('#tp-floating-batch-btn')
+    page.click('#tp-batch-ai-compare-btn')
+    page.wait_for_function("() => window.__tpOpenedUrls.length === 1")
+
+    url = page.evaluate("() => window.__tpOpenedUrls[0]")
+    assert url.startswith('https://www.google.com/search?q='), f"Expected compacted ?q= URL, got {url}"
+    assert url.endswith('&udm=50')
+    assert len(url) < 2000
+    assert '12%20Toppreise' in url
+    assert '12.' in url
+
+    # Add 40 more cards -> 52 cards exceeds browser URL limit -> paste fallback modal opens instead of blank tab
+    page.evaluate("""() => {
+        const host = document.querySelector('.Plugin_Product').parentElement;
+        const tpl = document.querySelector('.Plugin_Product');
+        for (let i = 10; i < 50; i++) {
+            const clone = tpl.cloneNode(true);
+            clone.id = 'tp-cmp-huge-' + i;
+            clone.dataset.entityId = String(910000 + i);
+            const titleLink = clone.querySelector('a[href*="-p"]');
+            if (titleLink) {
+                titleLink.href = '/preisvergleich/Test/Ultra-Huge-Listing-' + i + '-p' + (910000 + i);
+                titleLink.textContent = 'Ultra Huge Toppreise Deal Item Variant ' + i;
+            }
+            host.appendChild(clone);
+        }
+        window.ToppreiseSuite.processListings();
+    }""")
+
+    page.click('#tp-batch-ai-compare-btn')
+    ai_pop = page.locator('#tp-batch-ai-popout')
+    ai_pop.wait_for(state='visible')
+    assert page.evaluate("() => window.__tpOpenedUrls.length") == 1
+    assert ai_pop.locator('.tp-batch-paste-preview').is_visible()
+    ext_btn = ai_pop.locator('a:has-text("Google AI öffnen")')
+    assert ext_btn.get_attribute('href') == 'https://www.google.com/search?udm=50'

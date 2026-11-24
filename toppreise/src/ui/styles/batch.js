@@ -421,6 +421,20 @@ export const STYLES_BATCH = `
   .tp-batch-citations a,
   .tp-batch-blocked-list a { color: var(--tp-blue-soft, #2563eb) !important; text-decoration: underline !important; }
   .tp-batch-blocked-list { margin: 8px 0 0 18px !important; padding: 0 !important; }
+  .tp-batch-paste-preview {
+    margin: 8px 0 0 !important;
+    padding: 8px 10px !important;
+    max-height: 220px !important;
+    overflow: auto !important;
+    white-space: pre-wrap !important;
+    word-break: break-word !important;
+    font-size: 11px !important;
+    line-height: 1.4 !important;
+    background: var(--tp-bg-sub, #f1f5f9) !important;
+    border: 1px solid rgba(15, 23, 42, 0.12) !important;
+    border-radius: 8px !important;
+    color: var(--tp-txt, #0f172a) !important;
+  }
 
   @media (max-width: 600px) {
     #tp-batch-popover { left: 8px !important; bottom: 54px !important; width: calc(100vw - 16px) !important; }

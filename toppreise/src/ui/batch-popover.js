@@ -282,16 +282,24 @@ export function ensureBatchPopover() {
             citations: res.citations
           });
         } else if (res.mode === 'external') {
-          if (!res.opened) {
+          if (res.needsPaste) {
+            const label = AI_TARGET_LABELS[res.target] || res.target;
+            openBatchAiPopout({
+              title: `🤖 KI-Vergleich (${plural(items.length, 'Angebot', 'Angebote')})`,
+              mode: 'paste',
+              answer: res.prompt,
+              externalUrl: res.url,
+              externalLabel: label,
+              copied: res.copied
+            });
+          } else if (!res.opened) {
             openBatchAiPopout({
               title: '🤖 KI-Vergleich öffnen',
               mode: 'blocked',
               blockedItems: [{ title: `Vergleich (${res.target})`, url: res.url }]
             });
-          } else if (res.needsPaste) {
-            showToast('📋 Prompt kopiert (zu lang für URL) — im Tab einfügen (Strg+V)');
           } else {
-            showToast(`🤖 KI-Vergleich geöffnet (${res.target})`);
+            showToast(`🤖 KI-Vergleich geöffnet (${AI_TARGET_LABELS[res.target] || res.target})`);
           }
         }
       } catch (err) {
