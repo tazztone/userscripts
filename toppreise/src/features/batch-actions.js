@@ -250,6 +250,19 @@ export function findUnknownPromptTokens(template, allowedTokens) {
   return out;
 }
 
+export function findUnknownSingleSearchTokens(template) {
+  const text = String(template || '');
+  const out = findUnknownPromptTokens(text, ['produkt', 'preis']);
+  const seen = new Set(out);
+  for (const m of text.matchAll(/\[([^[\]\s]+)\]/g)) {
+    if (m[1].toLowerCase() !== 'produkt' && !seen.has(m[0])) {
+      seen.add(m[0]);
+      out.push(m[0]);
+    }
+  }
+  return out;
+}
+
 function resolveCompareTemplate(promptTemplate) {
   const custom = String(promptTemplate ?? CONFIG?.BATCH_COMPARE_PROMPT ?? '').trim();
   const def = String(DEFAULTS?.BATCH_COMPARE_PROMPT || FALLBACK_COMPARE_PROMPT).trim();
@@ -332,6 +345,7 @@ export function buildComparisonPrompt(items, opts = {}) {
 const MAX_AI_URL_QUERY_ENCODED = 1850;
 
 function trimCompact(str, maxLen) {
+  if (Number.isFinite(maxLen) && maxLen <= 0) return '';
   const s = String(str || '').replace(/\s+/g, ' ').trim();
   if (!Number.isFinite(maxLen) || s.length <= maxLen) return s;
   return `${s.slice(0, Math.max(1, maxLen - 1)).trimEnd()}…`;
@@ -356,8 +370,17 @@ export function buildCompactComparisonPrompt(items, {
       tokens.has('preis') ? it.priceText : '',
       tokens.has('rabatt') ? it.discountText : ''
     ].filter(Boolean);
-    if (!minimal && tokens.has('tief') && it.lowText) meta.push(`Tief ${it.lowText}`);
-    if (!minimal && tokens.has('offerten') && it.offerCount > 0) meta.push(`${it.offerCount} Ang.`);
+    if (!minimal) {
+      if (tokens.has('tief') && it.lowText) meta.push(`Tief ${it.lowText}`);
+      if (tokens.has('median') && it.medianText) meta.push(it.medianText);
+      if (tokens.has('haendler') && it.dealer) meta.push(it.dealer);
+      if (tokens.has('offerten') && it.offerCount > 0) meta.push(`${it.offerCount} Ang.`);
+    } else if (meta.length === 0) {
+      if (tokens.has('haendler') && it.dealer) meta.push(it.dealer);
+      else if (tokens.has('median') && it.medianText) meta.push(it.medianText);
+      else if (tokens.has('tief') && it.lowText) meta.push(`Tief ${it.lowText}`);
+      else if (tokens.has('offerten') && it.offerCount > 0) meta.push(`${it.offerCount} Ang.`);
+    }
     const priceBit = meta.length ? `(${meta.join(', ')})` : '';
     const specBit = (!minimal && tokens.has('specs') && it.specs) ? ` | ${trimCompact(it.specs, specMaxLen)}` : '';
     const urlBit = (!minimal && tokens.has('url') && it.url) ? ` | ${it.url}` : '';
@@ -386,7 +409,7 @@ export function selectExternalComparisonQuery(items, fullPrompt = buildCompariso
     const fits = candidate => (candidate && encodeURIComponent(candidate).length <= MAX_AI_URL_QUERY_ENCODED ? candidate : '');
 
     if (isCustomItem) {
-      for (const specMaxLen of [Infinity, 140, 90, 52]) {
+      for (const specMaxLen of [Infinity, 140, 90, 52, 0]) {
         const hit = fits(buildComparisonPrompt(items, {
           promptTemplate: opts.promptTemplate,
           itemTemplate: opts.itemTemplate,

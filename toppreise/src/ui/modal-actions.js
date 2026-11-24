@@ -12,6 +12,7 @@ import { clearMemoryAsinCache } from '../page/product-offers.js';
 import { clearTavilyCache } from '../features/tavily-search.js';
 import { clearOpenRouterCache } from '../features/openrouter-search.js';
 import { bindAiSectionEvents, collectAiSectionUpdates } from './modal-ai-section.js';
+import { bindSecretReveal, revealSecretEditor, trackTextareaCursor, insertTokenAtTextareaCursor } from './modal-template-sections.js';
 import { getProductCards } from '../page/cards.js';
 import { cancelBatchDealCheck } from '../scanner/scanner.js';
 import { DEFAULT_LAYOUT, validateLayoutRecipe } from '../features/discord-recipe.js';
@@ -36,27 +37,10 @@ export function wireModalActions(els) {
 
   bindAiSectionEvents(els);
 
-  els.tavilyApiKeyReveal?.addEventListener('click', e => {
-    if (e && !e.isTrusted) return;
-    if (!els.tavilyApiKeyEditor || !els.tavilyApiKeyInput) return;
-    els.tavilyApiKeyInput.value = '';
-    els.tavilyApiKeyEditor.style.display = '';
-    els.tavilyApiKeyReveal.style.display = 'none';
-    els.tavilyApiKeyReveal.setAttribute('aria-expanded', 'true');
-    els.tavilyApiKeyInput.focus();
-  });
-
-  els.discordWebhookReveal?.addEventListener('click', e => {
-    // Replace, never reveal: the secret is write-only. The status line is
-    // the only configured indicator — Shadow DOM is not a security boundary.
-    if (e && !e.isTrusted) return;
-    if (!els.discordWebhookEditor || !els.discordWebhookInput) return;
-    els.discordWebhookInput.value = '';
-    els.discordWebhookEditor.style.display = '';
-    els.discordWebhookReveal.style.display = 'none';
-    els.discordWebhookReveal.setAttribute('aria-expanded', 'true');
-    els.discordWebhookInput.focus();
-  });
+  bindSecretReveal(els.tavilyApiKeyReveal, els.tavilyApiKeyEditor, els.tavilyApiKeyInput);
+  // Replace, never reveal: the secret is write-only. The status line is
+  // the only configured indicator — Shadow DOM is not a security boundary.
+  bindSecretReveal(els.discordWebhookReveal, els.discordWebhookEditor, els.discordWebhookInput);
 
   els.discordAddChannelBtn?.addEventListener('click', () => {
     if (els.discordExtraChannels) {
@@ -74,18 +58,15 @@ export function wireModalActions(els) {
     const revealBtn = e.target.closest('.tp-discord-extra-reveal');
     if (revealBtn) {
       const card = revealBtn.closest('.tp-discord-extra-card');
-      const editor = card?.querySelector('.tp-discord-extra-editor');
-      const input = card?.querySelector('.tp-discord-extra-url');
-      if (editor && input) {
-        input.value = '';
-        editor.style.display = '';
-        revealBtn.style.display = 'none';
-        revealBtn.setAttribute('aria-expanded', 'true');
-        input.focus();
-      }
+      revealSecretEditor(
+        revealBtn,
+        card?.querySelector('.tp-discord-extra-editor'),
+        card?.querySelector('.tp-discord-extra-url')
+      );
     }
   });
 
+  trackTextareaCursor(els.discordLayoutInput);
   els.discordLayoutInput?.addEventListener('input', () => scheduleLayoutPreview(els));
   els.discordDealerEmbedToggle?.addEventListener('change', () => scheduleLayoutPreview(els));
   els.discordProductEmbedToggle?.addEventListener('change', () => scheduleLayoutPreview(els));
@@ -101,9 +82,7 @@ export function wireModalActions(els) {
   els.shadow.getElementById('tp-discord-layout-chips')?.addEventListener('click', e => {
     const token = e.target?.closest?.('button')?.dataset?.token;
     if (!token || !els.discordLayoutInput) return;
-    const { selectionStart = els.discordLayoutInput.value.length, selectionEnd = els.discordLayoutInput.value.length } = els.discordLayoutInput;
-    els.discordLayoutInput.value = els.discordLayoutInput.value.slice(0, selectionStart) + token + els.discordLayoutInput.value.slice(selectionEnd);
-    els.discordLayoutInput.focus();
+    insertTokenAtTextareaCursor(els.discordLayoutInput, token);
     scheduleLayoutPreview(els);
   });
   els.reviewKeywordInput?.addEventListener('input', () => updateKeywordPreview(els));
@@ -180,6 +159,35 @@ export function wireModalActions(els) {
     els.importFile?.click();
   });
 
+  const captureResetSnapshot = () => ({
+    shipping: CONFIG.USE_SHIPPING_PRICE,
+    horizon: CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS,
+    outlierOn: CONFIG.OUTLIER_REJECTION_ENABLED,
+    outlierBand: CONFIG.OUTLIER_DEVIATION_BAND,
+    outlierHours: CONFIG.OUTLIER_MAX_GLITCH_HOURS
+  });
+
+  const applyPostResetEffects = (prev, keys = null) => {
+    const has = k => !keys || keys.includes(k);
+    if (has('USE_SHIPPING_PRICE') && CONFIG.USE_SHIPPING_PRICE !== prev.shipping) {
+      cancelBatchDealCheck();
+      getProductCards().forEach(clearCardCache);
+    }
+    if (
+      (has('BESTPREISE_MEDIAN_HORIZON_DAYS') && CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS !== prev.horizon) ||
+      (has('OUTLIER_REJECTION_ENABLED') && CONFIG.OUTLIER_REJECTION_ENABLED !== prev.outlierOn) ||
+      (has('OUTLIER_DEVIATION_BAND') && CONFIG.OUTLIER_DEVIATION_BAND !== prev.outlierBand) ||
+      (has('OUTLIER_MAX_GLITCH_HOURS') && CONFIG.OUTLIER_MAX_GLITCH_HOURS !== prev.outlierHours)
+    ) {
+      recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
+    }
+    if (!keys || keys.includes('DIM_OPACITY') || keys.includes('HIDE_ADS')) {
+      updateBodyClasses();
+    }
+    triggerProcessListings();
+    syncFieldsFromConfig(els);
+  };
+
   els.importFile?.addEventListener('change', e => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -188,11 +196,7 @@ export function wireModalActions(els) {
       try {
         const data = JSON.parse(reader.result);
         const importConfig = data.config || data;
-        const prevShipping = CONFIG.USE_SHIPPING_PRICE;
-        const prevHorizon = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS;
-        const prevOutlierOn = CONFIG.OUTLIER_REJECTION_ENABLED;
-        const prevOutlierBand = CONFIG.OUTLIER_DEVIATION_BAND;
-        const prevOutlierHours = CONFIG.OUTLIER_MAX_GLITCH_HOURS;
+        const prev = captureResetSnapshot();
         let count = 0;
         for (const [key, val] of Object.entries(importConfig)) {
           if (!(key in DEFAULTS) || key === 'DEBUG' || SECRET_KEYS.has(key)) continue;
@@ -203,11 +207,7 @@ export function wireModalActions(els) {
           saveConfigKey(key, clean);
           count++;
         }
-        if (CONFIG.USE_SHIPPING_PRICE !== prevShipping) { getProductCards().forEach(clearCardCache); }
-        if (CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS !== prevHorizon || CONFIG.OUTLIER_REJECTION_ENABLED !== prevOutlierOn || CONFIG.OUTLIER_DEVIATION_BAND !== prevOutlierBand || CONFIG.OUTLIER_MAX_GLITCH_HOURS !== prevOutlierHours) recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
-        updateBodyClasses();
-        triggerProcessListings();
-        syncFieldsFromConfig(els);
+        applyPostResetEffects(prev);
         showToast(`${count} Einstellungen importiert`);
       } catch (err) {
         showToast('Import fehlgeschlagen: Ungültige JSON-Datei');
@@ -242,27 +242,9 @@ export function wireModalActions(els) {
   els.fabButton.addEventListener('click', openModal);
   els.btnResetDefaults?.addEventListener('click', () => {
     if (!window.confirm('Wirklich alle Einstellungen auf die Standardwerte zurücksetzen?')) return;
-    const prevShipping = CONFIG.USE_SHIPPING_PRICE;
-    const prevHorizon = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS;
-    const prevOutlierOn = CONFIG.OUTLIER_REJECTION_ENABLED;
-    const prevOutlierBand = CONFIG.OUTLIER_DEVIATION_BAND;
-    const prevOutlierHours = CONFIG.OUTLIER_MAX_GLITCH_HOURS;
+    const prev = captureResetSnapshot();
     resetConfigToDefaults({ includeSecrets: false, skipRender: true });
-    if (CONFIG.USE_SHIPPING_PRICE !== prevShipping) {
-      cancelBatchDealCheck();
-      getProductCards().forEach(clearCardCache);
-    }
-    if (
-      CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS !== prevHorizon ||
-      CONFIG.OUTLIER_REJECTION_ENABLED !== prevOutlierOn ||
-      CONFIG.OUTLIER_DEVIATION_BAND !== prevOutlierBand ||
-      CONFIG.OUTLIER_MAX_GLITCH_HOURS !== prevOutlierHours
-    ) {
-      recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
-    }
-    updateBodyClasses();
-    triggerProcessListings();
-    syncFieldsFromConfig(els);
+    applyPostResetEffects(prev);
     showToast('Einstellungen auf Standard zurückgesetzt');
   });
 
@@ -277,11 +259,7 @@ export function wireModalActions(els) {
 
     if (!window.confirm(`${group.label} auf Standardwerte zurücksetzen?`)) return;
 
-    const prevShipping = CONFIG.USE_SHIPPING_PRICE;
-    const prevHorizon = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS;
-    const prevOutlierOn = CONFIG.OUTLIER_REJECTION_ENABLED;
-    const prevOutlierBand = CONFIG.OUTLIER_DEVIATION_BAND;
-    const prevOutlierHours = CONFIG.OUTLIER_MAX_GLITCH_HOURS;
+    const prev = captureResetSnapshot();
 
     // Selectively reset page profiles for this group's keys without wiping other scopes
     const profiles = _getValue('PAGE_PROFILES', null);
@@ -303,25 +281,7 @@ export function wireModalActions(els) {
       }
     }
     updateConfigs(updates, { skipRender: true });
-
-    if (group.keys.includes('USE_SHIPPING_PRICE') && CONFIG.USE_SHIPPING_PRICE !== prevShipping) {
-      cancelBatchDealCheck();
-      getProductCards().forEach(clearCardCache);
-    }
-    if (
-      (group.keys.includes('BESTPREISE_MEDIAN_HORIZON_DAYS') && CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS !== prevHorizon) ||
-      (group.keys.includes('OUTLIER_REJECTION_ENABLED') && CONFIG.OUTLIER_REJECTION_ENABLED !== prevOutlierOn) ||
-      (group.keys.includes('OUTLIER_DEVIATION_BAND') && CONFIG.OUTLIER_DEVIATION_BAND !== prevOutlierBand) ||
-      (group.keys.includes('OUTLIER_MAX_GLITCH_HOURS') && CONFIG.OUTLIER_MAX_GLITCH_HOURS !== prevOutlierHours)
-    ) {
-      recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
-    }
-    if (group.keys.includes('DIM_OPACITY') || group.keys.includes('HIDE_ADS')) {
-      updateBodyClasses();
-    }
-
-    triggerProcessListings();
-    syncFieldsFromConfig(els);
+    applyPostResetEffects(prev, group.keys);
     showToast(`${group.label} auf Standard zurückgesetzt`);
   });
   els.btnClose.addEventListener('click', closeModal);

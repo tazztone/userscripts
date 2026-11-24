@@ -223,3 +223,44 @@ export function renderAboutSection() {
       </section>
   `;
 }
+
+export function revealSecretEditor(revealBtn, editor, input) {
+  if (!editor || !input) return;
+  input.value = '';
+  editor.style.display = '';
+  if (revealBtn) {
+    revealBtn.style.display = 'none';
+    revealBtn.setAttribute('aria-expanded', 'true');
+  }
+  input.focus();
+}
+
+export function bindSecretReveal(revealBtn, editor, input) {
+  revealBtn?.addEventListener('click', e => {
+    if (e && !e.isTrusted) return;
+    revealSecretEditor(revealBtn, editor, input);
+  });
+}
+
+export function trackTextareaCursor(ta) {
+  if (!ta) return;
+  const mark = () => { ta.dataset.tpCursorReady = '1'; };
+  for (const ev of ['focus', 'pointerdown', 'keydown', 'input']) {
+    ta.addEventListener(ev, mark);
+  }
+}
+
+export function insertTokenAtTextareaCursor(ta, token, { separator = '' } = {}) {
+  if (!ta || !token) return;
+  const ready = ta.dataset.tpCursorReady === '1';
+  const val = ta.value;
+  const start = ready ? (ta.selectionStart ?? val.length) : val.length;
+  const end = ready ? (ta.selectionEnd ?? val.length) : val.length;
+  const needsSep = !ready && separator && val.trim().length > 0 && !/\|\s*$/.test(val);
+  const insertion = needsSep ? `${separator}${token}` : token;
+  ta.value = val.slice(0, start) + insertion + val.slice(end);
+  ta.dataset.tpCursorReady = '1';
+  ta.focus();
+  const pos = start + insertion.length;
+  ta.setSelectionRange?.(pos, pos);
+}

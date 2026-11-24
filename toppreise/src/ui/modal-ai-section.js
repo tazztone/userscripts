@@ -10,6 +10,7 @@ import {
   COMPARE_PROMPT_TOKENS,
   COMPARE_ITEM_TOKENS
 } from '../features/batch-actions.js';
+import { bindSecretReveal, trackTextareaCursor, insertTokenAtTextareaCursor } from './modal-template-sections.js';
 
 const COMPARE_PREVIEW_SAMPLE = Object.freeze([
   {
@@ -157,6 +158,7 @@ export function renderReviewSection() {
               <span class="tp-search-preview-badge">Ohne Preis:</span>
               <span id="tp-review-keyword-preview-noprice" class="tp-search-preview-text tp-muted"></span>
             </div>
+            <div id="tp-review-keyword-preview-warn" class="tp-preview-warn" hidden></div>
           </div>
         </div>
         <div class="tp-settings-group">
@@ -271,7 +273,7 @@ export function collectAiSectionElements(shadow) {
   };
 }
 
-function updateComparePreview(els) {
+export function updateComparePreview(els) {
   if (!els.batchComparePreview) return;
   const promptTpl = String(els.batchComparePromptInput?.value || '').trim() || DEFAULTS.BATCH_COMPARE_PROMPT;
   const itemTpl = String(els.batchCompareItemInput?.value || '').trim() || DEFAULTS.BATCH_COMPARE_ITEM_TEMPLATE;
@@ -307,7 +309,10 @@ function revealSelectedProviderBlock(els, prov) {
 export function syncAiSectionFromConfig(els) {
   const prov = effectiveAiProvider(CONFIG);
   if (els.batchComparePromptInput) els.batchComparePromptInput.value = CONFIG.BATCH_COMPARE_PROMPT || DEFAULTS.BATCH_COMPARE_PROMPT;
-  if (els.batchCompareItemInput) els.batchCompareItemInput.value = CONFIG.BATCH_COMPARE_ITEM_TEMPLATE || DEFAULTS.BATCH_COMPARE_ITEM_TEMPLATE;
+  if (els.batchCompareItemInput) {
+    els.batchCompareItemInput.value = CONFIG.BATCH_COMPARE_ITEM_TEMPLATE || DEFAULTS.BATCH_COMPARE_ITEM_TEMPLATE;
+    delete els.batchCompareItemInput.dataset.tpCursorReady;
+  }
   if (els.aiProviderSelect) els.aiProviderSelect.value = prov;
   if (els.openrouterApiKeyInput) els.openrouterApiKeyInput.value = '';
   if (els.openrouterApiKeyEditor) els.openrouterApiKeyEditor.style.display = 'none';
@@ -333,6 +338,7 @@ export function syncAiSectionFromConfig(els) {
 export function bindAiSectionEvents(els) {
   els.batchComparePromptInput?.addEventListener('input', () => updateComparePreview(els));
   els.batchCompareItemInput?.addEventListener('input', () => updateComparePreview(els));
+  trackTextareaCursor(els.batchCompareItemInput);
 
   els.batchComparePromptReset?.addEventListener('click', () => {
     if (els.batchComparePromptInput) {
@@ -354,23 +360,11 @@ export function bindAiSectionEvents(els) {
     const token = e.target?.closest?.('button')?.dataset?.token;
     const ta = els.batchCompareItemInput;
     if (!token || !ta) return;
-    const start = ta.selectionStart ?? ta.value.length;
-    const end = ta.selectionEnd ?? ta.value.length;
-    ta.value = ta.value.slice(0, start) + token + ta.value.slice(end);
-    ta.focus();
-    ta.setSelectionRange?.(start + token.length, start + token.length);
+    insertTokenAtTextareaCursor(ta, token, { separator: ' | ' });
     updateComparePreview(els);
   });
 
-  els.openrouterApiKeyReveal?.addEventListener('click', e => {
-    if (e && !e.isTrusted) return;
-    if (!els.openrouterApiKeyEditor || !els.openrouterApiKeyInput) return;
-    els.openrouterApiKeyInput.value = '';
-    els.openrouterApiKeyEditor.style.display = '';
-    els.openrouterApiKeyReveal.style.display = 'none';
-    els.openrouterApiKeyReveal.setAttribute('aria-expanded', 'true');
-    els.openrouterApiKeyInput.focus();
-  });
+  bindSecretReveal(els.openrouterApiKeyReveal, els.openrouterApiKeyEditor, els.openrouterApiKeyInput);
 
   els.aiProviderSelect?.addEventListener('change', () => {
     const val = els.aiProviderSelect.value;

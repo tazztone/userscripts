@@ -5,6 +5,8 @@
 
 import { uiShadowRoot } from '../ui/shell.js';
 import { syncMiniToggle, paintCycleButton } from '../ui/mini-toggle.js';
+import { updateComparePreview } from '../ui/modal-ai-section.js';
+import { updateKeywordPreview } from '../ui/modal-bindings.js';
 import { weightText, horizonText, horizonStoredToUi, DEFAULTS } from './config-store.js';
 import { CONFIG, FILTER_CYCLE, paintMinPoints, notifyAlarmConfig, paintCycleButtons } from './config.js';
 import { getPageProfileType, getPageProfileLabel } from '../page/adapter.js';
@@ -159,17 +161,43 @@ export function syncUiControl(key, val, opts = {}, shadowRoot = null) {
         }
         case 'REVIEW_SEARCH_KEYWORD': {
           const input = shadow.getElementById('tp-review-keyword-input');
-          if (input) input.value = val;
+          if (input) {
+            input.value = val;
+            updateKeywordPreview({
+              reviewKeywordInput: input,
+              reviewKeywordPreview: shadow.getElementById('tp-review-keyword-preview'),
+              reviewKeywordPreviewNoPrice: shadow.getElementById('tp-review-keyword-preview-noprice'),
+              reviewKeywordPreviewNoPriceRow: shadow.getElementById('tp-review-keyword-preview-noprice-row'),
+              reviewKeywordPreviewWarn: shadow.getElementById('tp-review-keyword-preview-warn')
+            });
+          }
           break;
         }
         case 'BATCH_COMPARE_PROMPT': {
           const input = shadow.getElementById('tp-batch-compare-prompt-input');
-          if (input) input.value = val || DEFAULTS.BATCH_COMPARE_PROMPT;
+          if (input) {
+            input.value = val || DEFAULTS.BATCH_COMPARE_PROMPT;
+            updateComparePreview({
+              batchComparePromptInput: input,
+              batchCompareItemInput: shadow.getElementById('tp-batch-compare-item-input'),
+              batchComparePreview: shadow.getElementById('tp-batch-compare-preview'),
+              batchComparePreviewWarn: shadow.getElementById('tp-batch-compare-preview-warn')
+            });
+          }
           break;
         }
         case 'BATCH_COMPARE_ITEM_TEMPLATE': {
           const input = shadow.getElementById('tp-batch-compare-item-input');
-          if (input) input.value = val || DEFAULTS.BATCH_COMPARE_ITEM_TEMPLATE;
+          if (input) {
+            input.value = val || DEFAULTS.BATCH_COMPARE_ITEM_TEMPLATE;
+            delete input.dataset.tpCursorReady;
+            updateComparePreview({
+              batchComparePromptInput: shadow.getElementById('tp-batch-compare-prompt-input'),
+              batchCompareItemInput: input,
+              batchComparePreview: shadow.getElementById('tp-batch-compare-preview'),
+              batchComparePreviewWarn: shadow.getElementById('tp-batch-compare-preview-warn')
+            });
+          }
           break;
         }
         case 'REVIEW_SEARCH_AI_MODE': {

@@ -8,6 +8,7 @@ import { DEFAULT_LAYOUT, renderLayout, validateLayoutRecipe, getLayoutRecipeNoti
 import { isDiscordWebhookUrl } from '../features/share-discord.js';
 import { countCachedPriceStats } from '../scanner/cache.js';
 import { expandKeywordWithPrice, formatSearchQuery } from '../features/tavily-search.js';
+import { findUnknownSingleSearchTokens } from '../features/batch-actions.js';
 import { collectAiSectionElements, syncAiSectionFromConfig } from './modal-ai-section.js';
 
 // Element-lookup table: one record, shared by sync/bind/actions.
@@ -64,6 +65,7 @@ export function collectModalElements(shadow) {
   const reviewKeywordPreview = shadow.getElementById('tp-review-keyword-preview');
   const reviewKeywordPreviewNoPrice = shadow.getElementById('tp-review-keyword-preview-noprice');
   const reviewKeywordPreviewNoPriceRow = shadow.getElementById('tp-review-keyword-preview-noprice-row');
+  const reviewKeywordPreviewWarn = shadow.getElementById('tp-review-keyword-preview-warn');
   const reviewAiModeToggle = shadow.getElementById('tp-review-ai-mode-toggle');
   const tavilyEnabledToggle = shadow.getElementById('tp-tavily-enabled-toggle');
   const tavilyApiKeyInput = shadow.getElementById('tp-tavily-api-key-input');
@@ -95,7 +97,7 @@ export function collectModalElements(shadow) {
   const aboutVersion = shadow.getElementById('tp-about-version');
   const aboutHandler = shadow.getElementById('tp-about-handler');
   const aboutOpenDiagBtn = shadow.getElementById('tp-about-open-diag-btn');
-  return { shadow, dialog, fabButton, btnResetDefaults, btnClose, btnSave, marginRange, marginVal, filterRememberPerPageTypeToggle, profileActiveBadge, opacityRange, opacityVal, hideAdsToggle, shippingToggle, sortNone, sortDesc, sortAsc, sortDiscount, alarmEnabledToggle, alarmTargetRange, alarmTargetVal, alarmAutoSubmitToggle, heatmapIntensityRange, heatmapIntensityVal, bestpreiseModeToggle, bestpreiseWeightRange, bestpreiseWeightVal, bestpreiseWeightDesc, bestpreiseMinPointsRange, bestpreiseMinPointsVal, bestpreiseHorizonRange, bestpreiseHorizonVal, bestpreiseHorizonDesc, cacheTtlSelect, cacheNegTtlSelect, cacheMemoryRange, cacheMemoryVal, cacheDiskRange, cacheDiskVal, cacheStatsLabel, cacheClearBtn, dataResetBtn, realDealMinRange, realDealMinVal, sparklinesToggle, keepaChartToggle, reviewSearchToggle, reviewKeywordInput, reviewKeywordReset, reviewKeywordPreview, reviewKeywordPreviewNoPrice, reviewKeywordPreviewNoPriceRow, reviewAiModeToggle, tavilyEnabledToggle, tavilyApiKeyInput, tavilyApiKeyReveal, tavilyApiKeyEditor, tavilyApiKeyStatus, tavilySearchDepth, tavilyMaxResults, ...collectAiSectionElements(shadow), dealerAutofetchToggle, discordPrimaryName, discordChannelsList, discordExtraChannels, discordAddChannelBtn, discordWebhookInput, discordWebhookReveal, discordWebhookEditor, discordWebhookStatus, discordDealerEmbedToggle, discordProductEmbedToggle, discordForumTitleToggle, discordLayoutInput, discordLayoutPreview, discordLayoutCount, discordLayoutError, discordLayoutReset, exportBtn, importBtn, importFile, aboutVersion, aboutHandler, aboutOpenDiagBtn, layoutTimer: 0 };
+  return { shadow, dialog, fabButton, btnResetDefaults, btnClose, btnSave, marginRange, marginVal, filterRememberPerPageTypeToggle, profileActiveBadge, opacityRange, opacityVal, hideAdsToggle, shippingToggle, sortNone, sortDesc, sortAsc, sortDiscount, alarmEnabledToggle, alarmTargetRange, alarmTargetVal, alarmAutoSubmitToggle, heatmapIntensityRange, heatmapIntensityVal, bestpreiseModeToggle, bestpreiseWeightRange, bestpreiseWeightVal, bestpreiseWeightDesc, bestpreiseMinPointsRange, bestpreiseMinPointsVal, bestpreiseHorizonRange, bestpreiseHorizonVal, bestpreiseHorizonDesc, cacheTtlSelect, cacheNegTtlSelect, cacheMemoryRange, cacheMemoryVal, cacheDiskRange, cacheDiskVal, cacheStatsLabel, cacheClearBtn, dataResetBtn, realDealMinRange, realDealMinVal, sparklinesToggle, keepaChartToggle, reviewSearchToggle, reviewKeywordInput, reviewKeywordReset, reviewKeywordPreview, reviewKeywordPreviewNoPrice, reviewKeywordPreviewNoPriceRow, reviewKeywordPreviewWarn, reviewAiModeToggle, tavilyEnabledToggle, tavilyApiKeyInput, tavilyApiKeyReveal, tavilyApiKeyEditor, tavilyApiKeyStatus, tavilySearchDepth, tavilyMaxResults, ...collectAiSectionElements(shadow), dealerAutofetchToggle, discordPrimaryName, discordChannelsList, discordExtraChannels, discordAddChannelBtn, discordWebhookInput, discordWebhookReveal, discordWebhookEditor, discordWebhookStatus, discordDealerEmbedToggle, discordProductEmbedToggle, discordForumTitleToggle, discordLayoutInput, discordLayoutPreview, discordLayoutCount, discordLayoutError, discordLayoutReset, exportBtn, importBtn, importFile, aboutVersion, aboutHandler, aboutOpenDiagBtn, layoutTimer: 0 };
 }
 
 // Built lazily (was setupUI-local): kompakt reads DEFAULT_LAYOUT, which
@@ -204,6 +206,7 @@ export function syncFieldsFromConfig(els) {
       renderExtraChannelsList(els.discordExtraChannels, channels.slice(1));
     }
 
+    if (els.discordLayoutInput) delete els.discordLayoutInput.dataset.tpCursorReady;
     renderLayoutPreview(els);
     updateKeywordPreview(els);
     if (els.aboutVersion) els.aboutVersion.textContent = `v${(typeof GM_info !== 'undefined' && GM_info?.script?.version) || 'dev'}`;
@@ -224,6 +227,16 @@ export function updateKeywordPreview(els) {
   }
   if (els.reviewKeywordPreviewNoPriceRow) {
     els.reviewKeywordPreviewNoPriceRow.style.display = kw.includes('{preis}') ? '' : 'none';
+  }
+  if (els.reviewKeywordPreviewWarn) {
+    const unknown = findUnknownSingleSearchTokens(kw);
+    if (unknown.length > 0) {
+      els.reviewKeywordPreviewWarn.textContent = `Hinweis: Unbekannte(r) Platzhalter ${unknown.join(', ')}`;
+      els.reviewKeywordPreviewWarn.hidden = false;
+    } else {
+      els.reviewKeywordPreviewWarn.textContent = '';
+      els.reviewKeywordPreviewWarn.hidden = true;
+    }
   }
 }
 

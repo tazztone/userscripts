@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.558
+// @version      2.18.560
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -5992,6 +5992,8 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
+
   function syncUiControl(key, val, opts = {}, shadowRoot = null) {
     // 1. Sync Settings Modal (Shadow DOM) if open/exists
     const doc = typeof document !== 'undefined' ? document : null;
@@ -6142,17 +6144,43 @@ const SHADOW_MODAL_STYLES = `
           }
           case 'REVIEW_SEARCH_KEYWORD': {
             const input = shadow.getElementById('tp-review-keyword-input');
-            if (input) input.value = val;
+            if (input) {
+              input.value = val;
+              updateKeywordPreview({
+                reviewKeywordInput: input,
+                reviewKeywordPreview: shadow.getElementById('tp-review-keyword-preview'),
+                reviewKeywordPreviewNoPrice: shadow.getElementById('tp-review-keyword-preview-noprice'),
+                reviewKeywordPreviewNoPriceRow: shadow.getElementById('tp-review-keyword-preview-noprice-row'),
+                reviewKeywordPreviewWarn: shadow.getElementById('tp-review-keyword-preview-warn')
+              });
+            }
             break;
           }
           case 'BATCH_COMPARE_PROMPT': {
             const input = shadow.getElementById('tp-batch-compare-prompt-input');
-            if (input) input.value = val || DEFAULTS.BATCH_COMPARE_PROMPT;
+            if (input) {
+              input.value = val || DEFAULTS.BATCH_COMPARE_PROMPT;
+              updateComparePreview({
+                batchComparePromptInput: input,
+                batchCompareItemInput: shadow.getElementById('tp-batch-compare-item-input'),
+                batchComparePreview: shadow.getElementById('tp-batch-compare-preview'),
+                batchComparePreviewWarn: shadow.getElementById('tp-batch-compare-preview-warn')
+              });
+            }
             break;
           }
           case 'BATCH_COMPARE_ITEM_TEMPLATE': {
             const input = shadow.getElementById('tp-batch-compare-item-input');
-            if (input) input.value = val || DEFAULTS.BATCH_COMPARE_ITEM_TEMPLATE;
+            if (input) {
+              input.value = val || DEFAULTS.BATCH_COMPARE_ITEM_TEMPLATE;
+              delete input.dataset.tpCursorReady;
+              updateComparePreview({
+                batchComparePromptInput: shadow.getElementById('tp-batch-compare-prompt-input'),
+                batchCompareItemInput: input,
+                batchComparePreview: shadow.getElementById('tp-batch-compare-preview'),
+                batchComparePreviewWarn: shadow.getElementById('tp-batch-compare-preview-warn')
+              });
+            }
             break;
           }
           case 'REVIEW_SEARCH_AI_MODE': {
@@ -11321,6 +11349,19 @@ const SHADOW_MODAL_STYLES = `
     return out;
   }
 
+  function findUnknownSingleSearchTokens(template) {
+    const text = String(template || '');
+    const out = findUnknownPromptTokens(text, ['produkt', 'preis']);
+    const seen = new Set(out);
+    for (const m of text.matchAll(/\[([^[\]\s]+)\]/g)) {
+      if (m[1].toLowerCase() !== 'produkt' && !seen.has(m[0])) {
+        seen.add(m[0]);
+        out.push(m[0]);
+      }
+    }
+    return out;
+  }
+
   function resolveCompareTemplate(promptTemplate) {
     const custom = String(promptTemplate ?? CONFIG?.BATCH_COMPARE_PROMPT ?? '').trim();
     const def = String(DEFAULTS?.BATCH_COMPARE_PROMPT || FALLBACK_COMPARE_PROMPT).trim();
@@ -11403,6 +11444,7 @@ const SHADOW_MODAL_STYLES = `
   const MAX_AI_URL_QUERY_ENCODED = 1850;
 
   function trimCompact(str, maxLen) {
+    if (Number.isFinite(maxLen) && maxLen <= 0) return '';
     const s = String(str || '').replace(/\s+/g, ' ').trim();
     if (!Number.isFinite(maxLen) || s.length <= maxLen) return s;
     return `${s.slice(0, Math.max(1, maxLen - 1)).trimEnd()}…`;
@@ -11427,8 +11469,17 @@ const SHADOW_MODAL_STYLES = `
         tokens.has('preis') ? it.priceText : '',
         tokens.has('rabatt') ? it.discountText : ''
       ].filter(Boolean);
-      if (!minimal && tokens.has('tief') && it.lowText) meta.push(`Tief ${it.lowText}`);
-      if (!minimal && tokens.has('offerten') && it.offerCount > 0) meta.push(`${it.offerCount} Ang.`);
+      if (!minimal) {
+        if (tokens.has('tief') && it.lowText) meta.push(`Tief ${it.lowText}`);
+        if (tokens.has('median') && it.medianText) meta.push(it.medianText);
+        if (tokens.has('haendler') && it.dealer) meta.push(it.dealer);
+        if (tokens.has('offerten') && it.offerCount > 0) meta.push(`${it.offerCount} Ang.`);
+      } else if (meta.length === 0) {
+        if (tokens.has('haendler') && it.dealer) meta.push(it.dealer);
+        else if (tokens.has('median') && it.medianText) meta.push(it.medianText);
+        else if (tokens.has('tief') && it.lowText) meta.push(`Tief ${it.lowText}`);
+        else if (tokens.has('offerten') && it.offerCount > 0) meta.push(`${it.offerCount} Ang.`);
+      }
       const priceBit = meta.length ? `(${meta.join(', ')})` : '';
       const specBit = (!minimal && tokens.has('specs') && it.specs) ? ` | ${trimCompact(it.specs, specMaxLen)}` : '';
       const urlBit = (!minimal && tokens.has('url') && it.url) ? ` | ${it.url}` : '';
@@ -11457,7 +11508,7 @@ const SHADOW_MODAL_STYLES = `
       const fits = candidate => (candidate && encodeURIComponent(candidate).length <= MAX_AI_URL_QUERY_ENCODED ? candidate : '');
 
       if (isCustomItem) {
-        for (const specMaxLen of [Infinity, 140, 90, 52]) {
+        for (const specMaxLen of [Infinity, 140, 90, 52, 0]) {
           const hit = fits(buildComparisonPrompt(items, {
             promptTemplate: opts.promptTemplate,
             itemTemplate: opts.itemTemplate,
@@ -15465,6 +15516,47 @@ const SHADOW_MODAL_STYLES = `
     `;
   }
 
+  function revealSecretEditor(revealBtn, editor, input) {
+    if (!editor || !input) return;
+    input.value = '';
+    editor.style.display = '';
+    if (revealBtn) {
+      revealBtn.style.display = 'none';
+      revealBtn.setAttribute('aria-expanded', 'true');
+    }
+    input.focus();
+  }
+
+  function bindSecretReveal(revealBtn, editor, input) {
+    revealBtn?.addEventListener('click', e => {
+      if (e && !e.isTrusted) return;
+      revealSecretEditor(revealBtn, editor, input);
+    });
+  }
+
+  function trackTextareaCursor(ta) {
+    if (!ta) return;
+    const mark = () => { ta.dataset.tpCursorReady = '1'; };
+    for (const ev of ['focus', 'pointerdown', 'keydown', 'input']) {
+      ta.addEventListener(ev, mark);
+    }
+  }
+
+  function insertTokenAtTextareaCursor(ta, token, { separator = '' } = {}) {
+    if (!ta || !token) return;
+    const ready = ta.dataset.tpCursorReady === '1';
+    const val = ta.value;
+    const start = ready ? (ta.selectionStart ?? val.length) : val.length;
+    const end = ready ? (ta.selectionEnd ?? val.length) : val.length;
+    const needsSep = !ready && separator && val.trim().length > 0 && !/\|\s*$/.test(val);
+    const insertion = needsSep ? `${separator}${token}` : token;
+    ta.value = val.slice(0, start) + insertion + val.slice(end);
+    ta.dataset.tpCursorReady = '1';
+    ta.focus();
+    const pos = start + insertion.length;
+    ta.setSelectionRange?.(pos, pos);
+  }
+
   // ─── MODULE: src/ui/modal-ai-section.js ─────────────────────────────────────
   /**
    * Settings Modal: OpenRouter Web Search & Batch Settings Section
@@ -15619,6 +15711,7 @@ const SHADOW_MODAL_STYLES = `
                 <span class="tp-search-preview-badge">Ohne Preis:</span>
                 <span id="tp-review-keyword-preview-noprice" class="tp-search-preview-text tp-muted"></span>
               </div>
+              <div id="tp-review-keyword-preview-warn" class="tp-preview-warn" hidden></div>
             </div>
           </div>
           <div class="tp-settings-group">
@@ -15769,7 +15862,10 @@ const SHADOW_MODAL_STYLES = `
   function syncAiSectionFromConfig(els) {
     const prov = effectiveAiProvider(CONFIG);
     if (els.batchComparePromptInput) els.batchComparePromptInput.value = CONFIG.BATCH_COMPARE_PROMPT || DEFAULTS.BATCH_COMPARE_PROMPT;
-    if (els.batchCompareItemInput) els.batchCompareItemInput.value = CONFIG.BATCH_COMPARE_ITEM_TEMPLATE || DEFAULTS.BATCH_COMPARE_ITEM_TEMPLATE;
+    if (els.batchCompareItemInput) {
+      els.batchCompareItemInput.value = CONFIG.BATCH_COMPARE_ITEM_TEMPLATE || DEFAULTS.BATCH_COMPARE_ITEM_TEMPLATE;
+      delete els.batchCompareItemInput.dataset.tpCursorReady;
+    }
     if (els.aiProviderSelect) els.aiProviderSelect.value = prov;
     if (els.openrouterApiKeyInput) els.openrouterApiKeyInput.value = '';
     if (els.openrouterApiKeyEditor) els.openrouterApiKeyEditor.style.display = 'none';
@@ -15795,6 +15891,7 @@ const SHADOW_MODAL_STYLES = `
   function bindAiSectionEvents(els) {
     els.batchComparePromptInput?.addEventListener('input', () => updateComparePreview(els));
     els.batchCompareItemInput?.addEventListener('input', () => updateComparePreview(els));
+    trackTextareaCursor(els.batchCompareItemInput);
 
     els.batchComparePromptReset?.addEventListener('click', () => {
       if (els.batchComparePromptInput) {
@@ -15816,23 +15913,11 @@ const SHADOW_MODAL_STYLES = `
       const token = e.target?.closest?.('button')?.dataset?.token;
       const ta = els.batchCompareItemInput;
       if (!token || !ta) return;
-      const start = ta.selectionStart ?? ta.value.length;
-      const end = ta.selectionEnd ?? ta.value.length;
-      ta.value = ta.value.slice(0, start) + token + ta.value.slice(end);
-      ta.focus();
-      ta.setSelectionRange?.(start + token.length, start + token.length);
+      insertTokenAtTextareaCursor(ta, token, { separator: ' | ' });
       updateComparePreview(els);
     });
 
-    els.openrouterApiKeyReveal?.addEventListener('click', e => {
-      if (e && !e.isTrusted) return;
-      if (!els.openrouterApiKeyEditor || !els.openrouterApiKeyInput) return;
-      els.openrouterApiKeyInput.value = '';
-      els.openrouterApiKeyEditor.style.display = '';
-      els.openrouterApiKeyReveal.style.display = 'none';
-      els.openrouterApiKeyReveal.setAttribute('aria-expanded', 'true');
-      els.openrouterApiKeyInput.focus();
-    });
+    bindSecretReveal(els.openrouterApiKeyReveal, els.openrouterApiKeyEditor, els.openrouterApiKeyInput);
 
     els.aiProviderSelect?.addEventListener('change', () => {
       const val = els.aiProviderSelect.value;
@@ -16274,6 +16359,7 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   // Element-lookup table: one record, shared by sync/bind/actions.
   function collectModalElements(shadow) {
     const dialog = shadow.getElementById('tp-settings-dialog');
@@ -16328,6 +16414,7 @@ const SHADOW_MODAL_STYLES = `
     const reviewKeywordPreview = shadow.getElementById('tp-review-keyword-preview');
     const reviewKeywordPreviewNoPrice = shadow.getElementById('tp-review-keyword-preview-noprice');
     const reviewKeywordPreviewNoPriceRow = shadow.getElementById('tp-review-keyword-preview-noprice-row');
+    const reviewKeywordPreviewWarn = shadow.getElementById('tp-review-keyword-preview-warn');
     const reviewAiModeToggle = shadow.getElementById('tp-review-ai-mode-toggle');
     const tavilyEnabledToggle = shadow.getElementById('tp-tavily-enabled-toggle');
     const tavilyApiKeyInput = shadow.getElementById('tp-tavily-api-key-input');
@@ -16359,7 +16446,7 @@ const SHADOW_MODAL_STYLES = `
     const aboutVersion = shadow.getElementById('tp-about-version');
     const aboutHandler = shadow.getElementById('tp-about-handler');
     const aboutOpenDiagBtn = shadow.getElementById('tp-about-open-diag-btn');
-    return { shadow, dialog, fabButton, btnResetDefaults, btnClose, btnSave, marginRange, marginVal, filterRememberPerPageTypeToggle, profileActiveBadge, opacityRange, opacityVal, hideAdsToggle, shippingToggle, sortNone, sortDesc, sortAsc, sortDiscount, alarmEnabledToggle, alarmTargetRange, alarmTargetVal, alarmAutoSubmitToggle, heatmapIntensityRange, heatmapIntensityVal, bestpreiseModeToggle, bestpreiseWeightRange, bestpreiseWeightVal, bestpreiseWeightDesc, bestpreiseMinPointsRange, bestpreiseMinPointsVal, bestpreiseHorizonRange, bestpreiseHorizonVal, bestpreiseHorizonDesc, cacheTtlSelect, cacheNegTtlSelect, cacheMemoryRange, cacheMemoryVal, cacheDiskRange, cacheDiskVal, cacheStatsLabel, cacheClearBtn, dataResetBtn, realDealMinRange, realDealMinVal, sparklinesToggle, keepaChartToggle, reviewSearchToggle, reviewKeywordInput, reviewKeywordReset, reviewKeywordPreview, reviewKeywordPreviewNoPrice, reviewKeywordPreviewNoPriceRow, reviewAiModeToggle, tavilyEnabledToggle, tavilyApiKeyInput, tavilyApiKeyReveal, tavilyApiKeyEditor, tavilyApiKeyStatus, tavilySearchDepth, tavilyMaxResults, ...collectAiSectionElements(shadow), dealerAutofetchToggle, discordPrimaryName, discordChannelsList, discordExtraChannels, discordAddChannelBtn, discordWebhookInput, discordWebhookReveal, discordWebhookEditor, discordWebhookStatus, discordDealerEmbedToggle, discordProductEmbedToggle, discordForumTitleToggle, discordLayoutInput, discordLayoutPreview, discordLayoutCount, discordLayoutError, discordLayoutReset, exportBtn, importBtn, importFile, aboutVersion, aboutHandler, aboutOpenDiagBtn, layoutTimer: 0 };
+    return { shadow, dialog, fabButton, btnResetDefaults, btnClose, btnSave, marginRange, marginVal, filterRememberPerPageTypeToggle, profileActiveBadge, opacityRange, opacityVal, hideAdsToggle, shippingToggle, sortNone, sortDesc, sortAsc, sortDiscount, alarmEnabledToggle, alarmTargetRange, alarmTargetVal, alarmAutoSubmitToggle, heatmapIntensityRange, heatmapIntensityVal, bestpreiseModeToggle, bestpreiseWeightRange, bestpreiseWeightVal, bestpreiseWeightDesc, bestpreiseMinPointsRange, bestpreiseMinPointsVal, bestpreiseHorizonRange, bestpreiseHorizonVal, bestpreiseHorizonDesc, cacheTtlSelect, cacheNegTtlSelect, cacheMemoryRange, cacheMemoryVal, cacheDiskRange, cacheDiskVal, cacheStatsLabel, cacheClearBtn, dataResetBtn, realDealMinRange, realDealMinVal, sparklinesToggle, keepaChartToggle, reviewSearchToggle, reviewKeywordInput, reviewKeywordReset, reviewKeywordPreview, reviewKeywordPreviewNoPrice, reviewKeywordPreviewNoPriceRow, reviewKeywordPreviewWarn, reviewAiModeToggle, tavilyEnabledToggle, tavilyApiKeyInput, tavilyApiKeyReveal, tavilyApiKeyEditor, tavilyApiKeyStatus, tavilySearchDepth, tavilyMaxResults, ...collectAiSectionElements(shadow), dealerAutofetchToggle, discordPrimaryName, discordChannelsList, discordExtraChannels, discordAddChannelBtn, discordWebhookInput, discordWebhookReveal, discordWebhookEditor, discordWebhookStatus, discordDealerEmbedToggle, discordProductEmbedToggle, discordForumTitleToggle, discordLayoutInput, discordLayoutPreview, discordLayoutCount, discordLayoutError, discordLayoutReset, exportBtn, importBtn, importFile, aboutVersion, aboutHandler, aboutOpenDiagBtn, layoutTimer: 0 };
   }
 
   // Built lazily (was setupUI-local): kompakt reads DEFAULT_LAYOUT, which
@@ -16468,6 +16555,7 @@ const SHADOW_MODAL_STYLES = `
         renderExtraChannelsList(els.discordExtraChannels, channels.slice(1));
       }
 
+      if (els.discordLayoutInput) delete els.discordLayoutInput.dataset.tpCursorReady;
       renderLayoutPreview(els);
       updateKeywordPreview(els);
       if (els.aboutVersion) els.aboutVersion.textContent = `v${(typeof GM_info !== 'undefined' && GM_info?.script?.version) || 'dev'}`;
@@ -16488,6 +16576,16 @@ const SHADOW_MODAL_STYLES = `
     }
     if (els.reviewKeywordPreviewNoPriceRow) {
       els.reviewKeywordPreviewNoPriceRow.style.display = kw.includes('{preis}') ? '' : 'none';
+    }
+    if (els.reviewKeywordPreviewWarn) {
+      const unknown = findUnknownSingleSearchTokens(kw);
+      if (unknown.length > 0) {
+        els.reviewKeywordPreviewWarn.textContent = `Hinweis: Unbekannte(r) Platzhalter ${unknown.join(', ')}`;
+        els.reviewKeywordPreviewWarn.hidden = false;
+      } else {
+        els.reviewKeywordPreviewWarn.textContent = '';
+        els.reviewKeywordPreviewWarn.hidden = true;
+      }
     }
   }
 
@@ -16589,6 +16687,7 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   function wireModalActions(els) {
     els.cacheClearBtn?.addEventListener('click', () => {
       const removed = clearPriceStatsCache();
@@ -16604,27 +16703,10 @@ const SHADOW_MODAL_STYLES = `
 
     bindAiSectionEvents(els);
 
-    els.tavilyApiKeyReveal?.addEventListener('click', e => {
-      if (e && !e.isTrusted) return;
-      if (!els.tavilyApiKeyEditor || !els.tavilyApiKeyInput) return;
-      els.tavilyApiKeyInput.value = '';
-      els.tavilyApiKeyEditor.style.display = '';
-      els.tavilyApiKeyReveal.style.display = 'none';
-      els.tavilyApiKeyReveal.setAttribute('aria-expanded', 'true');
-      els.tavilyApiKeyInput.focus();
-    });
-
-    els.discordWebhookReveal?.addEventListener('click', e => {
-      // Replace, never reveal: the secret is write-only. The status line is
-      // the only configured indicator — Shadow DOM is not a security boundary.
-      if (e && !e.isTrusted) return;
-      if (!els.discordWebhookEditor || !els.discordWebhookInput) return;
-      els.discordWebhookInput.value = '';
-      els.discordWebhookEditor.style.display = '';
-      els.discordWebhookReveal.style.display = 'none';
-      els.discordWebhookReveal.setAttribute('aria-expanded', 'true');
-      els.discordWebhookInput.focus();
-    });
+    bindSecretReveal(els.tavilyApiKeyReveal, els.tavilyApiKeyEditor, els.tavilyApiKeyInput);
+    // Replace, never reveal: the secret is write-only. The status line is
+    // the only configured indicator — Shadow DOM is not a security boundary.
+    bindSecretReveal(els.discordWebhookReveal, els.discordWebhookEditor, els.discordWebhookInput);
 
     els.discordAddChannelBtn?.addEventListener('click', () => {
       if (els.discordExtraChannels) {
@@ -16642,18 +16724,15 @@ const SHADOW_MODAL_STYLES = `
       const revealBtn = e.target.closest('.tp-discord-extra-reveal');
       if (revealBtn) {
         const card = revealBtn.closest('.tp-discord-extra-card');
-        const editor = card?.querySelector('.tp-discord-extra-editor');
-        const input = card?.querySelector('.tp-discord-extra-url');
-        if (editor && input) {
-          input.value = '';
-          editor.style.display = '';
-          revealBtn.style.display = 'none';
-          revealBtn.setAttribute('aria-expanded', 'true');
-          input.focus();
-        }
+        revealSecretEditor(
+          revealBtn,
+          card?.querySelector('.tp-discord-extra-editor'),
+          card?.querySelector('.tp-discord-extra-url')
+        );
       }
     });
 
+    trackTextareaCursor(els.discordLayoutInput);
     els.discordLayoutInput?.addEventListener('input', () => scheduleLayoutPreview(els));
     els.discordDealerEmbedToggle?.addEventListener('change', () => scheduleLayoutPreview(els));
     els.discordProductEmbedToggle?.addEventListener('change', () => scheduleLayoutPreview(els));
@@ -16669,9 +16748,7 @@ const SHADOW_MODAL_STYLES = `
     els.shadow.getElementById('tp-discord-layout-chips')?.addEventListener('click', e => {
       const token = e.target?.closest?.('button')?.dataset?.token;
       if (!token || !els.discordLayoutInput) return;
-      const { selectionStart = els.discordLayoutInput.value.length, selectionEnd = els.discordLayoutInput.value.length } = els.discordLayoutInput;
-      els.discordLayoutInput.value = els.discordLayoutInput.value.slice(0, selectionStart) + token + els.discordLayoutInput.value.slice(selectionEnd);
-      els.discordLayoutInput.focus();
+      insertTokenAtTextareaCursor(els.discordLayoutInput, token);
       scheduleLayoutPreview(els);
     });
     els.reviewKeywordInput?.addEventListener('input', () => updateKeywordPreview(els));
@@ -16748,6 +16825,35 @@ const SHADOW_MODAL_STYLES = `
       els.importFile?.click();
     });
 
+    const captureResetSnapshot = () => ({
+      shipping: CONFIG.USE_SHIPPING_PRICE,
+      horizon: CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS,
+      outlierOn: CONFIG.OUTLIER_REJECTION_ENABLED,
+      outlierBand: CONFIG.OUTLIER_DEVIATION_BAND,
+      outlierHours: CONFIG.OUTLIER_MAX_GLITCH_HOURS
+    });
+
+    const applyPostResetEffects = (prev, keys = null) => {
+      const has = k => !keys || keys.includes(k);
+      if (has('USE_SHIPPING_PRICE') && CONFIG.USE_SHIPPING_PRICE !== prev.shipping) {
+        cancelBatchDealCheck();
+        getProductCards().forEach(clearCardCache);
+      }
+      if (
+        (has('BESTPREISE_MEDIAN_HORIZON_DAYS') && CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS !== prev.horizon) ||
+        (has('OUTLIER_REJECTION_ENABLED') && CONFIG.OUTLIER_REJECTION_ENABLED !== prev.outlierOn) ||
+        (has('OUTLIER_DEVIATION_BAND') && CONFIG.OUTLIER_DEVIATION_BAND !== prev.outlierBand) ||
+        (has('OUTLIER_MAX_GLITCH_HOURS') && CONFIG.OUTLIER_MAX_GLITCH_HOURS !== prev.outlierHours)
+      ) {
+        recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
+      }
+      if (!keys || keys.includes('DIM_OPACITY') || keys.includes('HIDE_ADS')) {
+        updateBodyClasses();
+      }
+      triggerProcessListings();
+      syncFieldsFromConfig(els);
+    };
+
     els.importFile?.addEventListener('change', e => {
       const file = e.target.files?.[0];
       if (!file) return;
@@ -16756,11 +16862,7 @@ const SHADOW_MODAL_STYLES = `
         try {
           const data = JSON.parse(reader.result);
           const importConfig = data.config || data;
-          const prevShipping = CONFIG.USE_SHIPPING_PRICE;
-          const prevHorizon = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS;
-          const prevOutlierOn = CONFIG.OUTLIER_REJECTION_ENABLED;
-          const prevOutlierBand = CONFIG.OUTLIER_DEVIATION_BAND;
-          const prevOutlierHours = CONFIG.OUTLIER_MAX_GLITCH_HOURS;
+          const prev = captureResetSnapshot();
           let count = 0;
           for (const [key, val] of Object.entries(importConfig)) {
             if (!(key in DEFAULTS) || key === 'DEBUG' || SECRET_KEYS.has(key)) continue;
@@ -16771,11 +16873,7 @@ const SHADOW_MODAL_STYLES = `
             saveConfigKey(key, clean);
             count++;
           }
-          if (CONFIG.USE_SHIPPING_PRICE !== prevShipping) { getProductCards().forEach(clearCardCache); }
-          if (CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS !== prevHorizon || CONFIG.OUTLIER_REJECTION_ENABLED !== prevOutlierOn || CONFIG.OUTLIER_DEVIATION_BAND !== prevOutlierBand || CONFIG.OUTLIER_MAX_GLITCH_HOURS !== prevOutlierHours) recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
-          updateBodyClasses();
-          triggerProcessListings();
-          syncFieldsFromConfig(els);
+          applyPostResetEffects(prev);
           showToast(`${count} Einstellungen importiert`);
         } catch (err) {
           showToast('Import fehlgeschlagen: Ungültige JSON-Datei');
@@ -16810,27 +16908,9 @@ const SHADOW_MODAL_STYLES = `
     els.fabButton.addEventListener('click', openModal);
     els.btnResetDefaults?.addEventListener('click', () => {
       if (!window.confirm('Wirklich alle Einstellungen auf die Standardwerte zurücksetzen?')) return;
-      const prevShipping = CONFIG.USE_SHIPPING_PRICE;
-      const prevHorizon = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS;
-      const prevOutlierOn = CONFIG.OUTLIER_REJECTION_ENABLED;
-      const prevOutlierBand = CONFIG.OUTLIER_DEVIATION_BAND;
-      const prevOutlierHours = CONFIG.OUTLIER_MAX_GLITCH_HOURS;
+      const prev = captureResetSnapshot();
       resetConfigToDefaults({ includeSecrets: false, skipRender: true });
-      if (CONFIG.USE_SHIPPING_PRICE !== prevShipping) {
-        cancelBatchDealCheck();
-        getProductCards().forEach(clearCardCache);
-      }
-      if (
-        CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS !== prevHorizon ||
-        CONFIG.OUTLIER_REJECTION_ENABLED !== prevOutlierOn ||
-        CONFIG.OUTLIER_DEVIATION_BAND !== prevOutlierBand ||
-        CONFIG.OUTLIER_MAX_GLITCH_HOURS !== prevOutlierHours
-      ) {
-        recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
-      }
-      updateBodyClasses();
-      triggerProcessListings();
-      syncFieldsFromConfig(els);
+      applyPostResetEffects(prev);
       showToast('Einstellungen auf Standard zurückgesetzt');
     });
 
@@ -16845,11 +16925,7 @@ const SHADOW_MODAL_STYLES = `
 
       if (!window.confirm(`${group.label} auf Standardwerte zurücksetzen?`)) return;
 
-      const prevShipping = CONFIG.USE_SHIPPING_PRICE;
-      const prevHorizon = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS;
-      const prevOutlierOn = CONFIG.OUTLIER_REJECTION_ENABLED;
-      const prevOutlierBand = CONFIG.OUTLIER_DEVIATION_BAND;
-      const prevOutlierHours = CONFIG.OUTLIER_MAX_GLITCH_HOURS;
+      const prev = captureResetSnapshot();
 
       // Selectively reset page profiles for this group's keys without wiping other scopes
       const profiles = _getValue('PAGE_PROFILES', null);
@@ -16871,25 +16947,7 @@ const SHADOW_MODAL_STYLES = `
         }
       }
       updateConfigs(updates, { skipRender: true });
-
-      if (group.keys.includes('USE_SHIPPING_PRICE') && CONFIG.USE_SHIPPING_PRICE !== prevShipping) {
-        cancelBatchDealCheck();
-        getProductCards().forEach(clearCardCache);
-      }
-      if (
-        (group.keys.includes('BESTPREISE_MEDIAN_HORIZON_DAYS') && CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS !== prevHorizon) ||
-        (group.keys.includes('OUTLIER_REJECTION_ENABLED') && CONFIG.OUTLIER_REJECTION_ENABLED !== prevOutlierOn) ||
-        (group.keys.includes('OUTLIER_DEVIATION_BAND') && CONFIG.OUTLIER_DEVIATION_BAND !== prevOutlierBand) ||
-        (group.keys.includes('OUTLIER_MAX_GLITCH_HOURS') && CONFIG.OUTLIER_MAX_GLITCH_HOURS !== prevOutlierHours)
-      ) {
-        recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
-      }
-      if (group.keys.includes('DIM_OPACITY') || group.keys.includes('HIDE_ADS')) {
-        updateBodyClasses();
-      }
-
-      triggerProcessListings();
-      syncFieldsFromConfig(els);
+      applyPostResetEffects(prev, group.keys);
       showToast(`${group.label} auf Standard zurückgesetzt`);
     });
     els.btnClose.addEventListener('click', closeModal);
@@ -21817,7 +21875,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.558';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.560';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
