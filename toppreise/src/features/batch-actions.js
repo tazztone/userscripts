@@ -227,11 +227,86 @@ export function formatBatchCsv(items) {
 
 const FALLBACK_COMPARE_PROMPT =
   'Vergleiche folgende {anzahl} Angebote von Toppreise.ch (Preise in CHF) und bewerte Preis-Leistung, Stärken/Schwächen sowie welches Angebot der beste Deal ist (kurz auf Deutsch):';
+const FALLBACK_COMPARE_ITEM_TEMPLATE =
+  '{nr}. {titel} | Preis: {preis} | Rabatt: {rabatt} | Bisheriges Tief: {tief} | {median} | Händler: {haendler} | Specs: {specs}';
+
+export const COMPARE_PROMPT_TOKENS = Object.freeze(['anzahl', 'angebote']);
+export const COMPARE_ITEM_TOKENS = Object.freeze(['nr', 'titel', 'preis', 'rabatt', 'tief', 'median', 'haendler', 'offerten', 'specs', 'url']);
+
+const ITEM_TOKEN_RE = /\{(nr|titel|preis|rabatt|tief|median|haendler|offerten|specs|url)\}/gi;
+
+export function findUnknownPromptTokens(template, allowedTokens) {
+  const allowed = allowedTokens instanceof Set ? allowedTokens : new Set(allowedTokens || []);
+  const text = String(template || '');
+  const seen = new Set();
+  const out = [];
+  for (const m of text.matchAll(/\{([^{}\s]+)\}/g)) {
+    const key = m[1].toLowerCase();
+    if (!allowed.has(key) && !seen.has(m[0])) {
+      seen.add(m[0]);
+      out.push(m[0]);
+    }
+  }
+  return out;
+}
 
 function resolveCompareTemplate(promptTemplate) {
   const custom = String(promptTemplate ?? CONFIG?.BATCH_COMPARE_PROMPT ?? '').trim();
   const def = String(DEFAULTS?.BATCH_COMPARE_PROMPT || FALLBACK_COMPARE_PROMPT).trim();
   return custom || def;
+}
+
+function resolveCompareItemTemplate(itemTemplate) {
+  const custom = String(itemTemplate ?? CONFIG?.BATCH_COMPARE_ITEM_TEMPLATE ?? '').trim();
+  const def = String(DEFAULTS?.BATCH_COMPARE_ITEM_TEMPLATE || FALLBACK_COMPARE_ITEM_TEMPLATE).trim();
+  return custom || def;
+}
+
+function getEnabledItemTokens(itemTemplate) {
+  const tpl = resolveCompareItemTemplate(itemTemplate);
+  const active = new Set();
+  for (const m of tpl.matchAll(ITEM_TOKEN_RE)) {
+    active.add(m[1].toLowerCase());
+  }
+  return active;
+}
+
+export function formatComparisonItemLine(it, idx, itemTemplate, { titleMaxLen = Infinity, specMaxLen = Infinity } = {}) {
+  const tpl = resolveCompareItemTemplate(itemTemplate);
+  const values = {
+    nr: String(idx + 1),
+    titel: trimCompact(it?.title, titleMaxLen),
+    preis: String(it?.priceText || '').trim(),
+    rabatt: String(it?.discountText || '').trim(),
+    tief: String(it?.lowText || '').trim(),
+    median: String(it?.medianText || '').trim(),
+    haendler: String(it?.dealer || '').trim(),
+    offerten: it?.offerCount > 0 ? String(it.offerCount) : '',
+    specs: trimCompact(it?.specs, specMaxLen),
+    url: String(it?.url || '').trim()
+  };
+  const outLines = [];
+  for (const line of tpl.split(/\r?\n/)) {
+    const outSegs = [];
+    for (const seg of line.split('|')) {
+      const matches = [...seg.matchAll(ITEM_TOKEN_RE)];
+      if (matches.length > 0 && !matches.some(m => Boolean(values[m[1].toLowerCase()]))) {
+        continue;
+      }
+      const rendered = seg
+        .replace(ITEM_TOKEN_RE, (_, key) => values[key.toLowerCase()] || '')
+        .replace(/\(\s*[,·]+\s*/g, '(')
+        .replace(/\s*[,·]+\s*\)/g, ')')
+        .replace(/,\s*,+/g, ',')
+        .replace(/\(\s*\)/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (rendered) outSegs.push(rendered);
+    }
+    const joined = outSegs.join(' | ');
+    if (joined) outLines.push(joined);
+  }
+  return outLines.join('\n');
 }
 
 function formatComparisonPromptText(items, itemLines, { promptTemplate, shortHeader = false } = {}) {
@@ -247,17 +322,10 @@ function formatComparisonPromptText(items, itemLines, { promptTemplate, shortHea
 
 export function buildComparisonPrompt(items, opts = {}) {
   if (!Array.isArray(items) || items.length === 0) return '';
-  const itemLines = [];
-  items.forEach((it, idx) => {
-    const parts = [`${idx + 1}. ${it.title}`];
-    if (it.priceText) parts.push(`Preis: ${it.priceText}`);
-    if (it.discountText) parts.push(`Rabatt: ${it.discountText}`);
-    if (it.lowText) parts.push(`Bisheriges Tief: ${it.lowText}`);
-    if (it.medianText) parts.push(it.medianText);
-    if (it.dealer) parts.push(`Händler: ${it.dealer}`);
-    if (it.specs) parts.push(`Specs: ${it.specs}`);
-    itemLines.push(parts.join(' | '));
-  });
+  const itemLines = items
+    .map((it, idx) => formatComparisonItemLine(it, idx, opts.itemTemplate, opts))
+    .filter(Boolean);
+  if (itemLines.length === 0) return '';
   return formatComparisonPromptText(items, itemLines, opts);
 }
 
@@ -274,19 +342,30 @@ export function buildCompactComparisonPrompt(items, {
   titleMaxLen = 96,
   specMaxLen = Infinity,
   shortHeader = false,
-  promptTemplate
+  promptTemplate,
+  itemTemplate
 } = {}) {
   if (!Array.isArray(items) || items.length === 0) return '';
+  const tokens = getEnabledItemTokens(itemTemplate);
   const itemLines = [];
   items.forEach((it, idx) => {
     const tMax = minimal ? Math.min(titleMaxLen, 60) : titleMaxLen;
-    const title = trimCompact(it.title, tMax);
-    const meta = [it.priceText, it.discountText].filter(Boolean);
-    if (!minimal && it.lowText) meta.push(`Tief ${it.lowText}`);
+    const nrPart = tokens.has('nr') ? `${idx + 1}. ` : '';
+    const title = tokens.has('titel') ? trimCompact(it.title, tMax) : '';
+    const meta = [
+      tokens.has('preis') ? it.priceText : '',
+      tokens.has('rabatt') ? it.discountText : ''
+    ].filter(Boolean);
+    if (!minimal && tokens.has('tief') && it.lowText) meta.push(`Tief ${it.lowText}`);
+    if (!minimal && tokens.has('offerten') && it.offerCount > 0) meta.push(`${it.offerCount} Ang.`);
     const priceBit = meta.length ? `(${meta.join(', ')})` : '';
-    const specBit = (!minimal && it.specs) ? ` | ${trimCompact(it.specs, specMaxLen)}` : '';
-    itemLines.push(`${idx + 1}. ${title}${priceBit ? ` ${priceBit}` : ''}${specBit}`);
+    const specBit = (!minimal && tokens.has('specs') && it.specs) ? ` | ${trimCompact(it.specs, specMaxLen)}` : '';
+    const urlBit = (!minimal && tokens.has('url') && it.url) ? ` | ${it.url}` : '';
+    const head = [nrPart + title, priceBit].filter(Boolean).join(' ').trim();
+    const line = `${head}${specBit}${urlBit}`.trim();
+    if (line) itemLines.push(line);
   });
+  if (itemLines.length === 0) return '';
   return formatComparisonPromptText(items, itemLines, { promptTemplate, shortHeader });
 }
 
@@ -300,11 +379,29 @@ export function selectExternalComparisonQuery(items, fullPrompt = buildCompariso
     const tpl = resolveCompareTemplate(opts.promptTemplate);
     const def = String(DEFAULTS?.BATCH_COMPARE_PROMPT || FALLBACK_COMPARE_PROMPT).trim();
     const isCustom = tpl !== def;
+    const itemTpl = resolveCompareItemTemplate(opts.itemTemplate);
+    const defItemTpl = String(DEFAULTS?.BATCH_COMPARE_ITEM_TEMPLATE || FALLBACK_COMPARE_ITEM_TEMPLATE).trim();
+    const isCustomItem = itemTpl !== defItemTpl;
 
-    const tryFit = (cfg) => {
-      const candidate = buildCompactComparisonPrompt(items, { ...cfg, promptTemplate: opts.promptTemplate });
-      return candidate && encodeURIComponent(candidate).length <= MAX_AI_URL_QUERY_ENCODED ? candidate : '';
-    };
+    const fits = candidate => (candidate && encodeURIComponent(candidate).length <= MAX_AI_URL_QUERY_ENCODED ? candidate : '');
+
+    if (isCustomItem) {
+      for (const specMaxLen of [Infinity, 140, 90, 52]) {
+        const hit = fits(buildComparisonPrompt(items, {
+          promptTemplate: opts.promptTemplate,
+          itemTemplate: opts.itemTemplate,
+          titleMaxLen: 96,
+          specMaxLen
+        }));
+        if (hit) return { query: hit, needsPaste: false };
+      }
+    }
+
+    const tryFit = (cfg) => fits(buildCompactComparisonPrompt(items, {
+      ...cfg,
+      promptTemplate: opts.promptTemplate,
+      itemTemplate: opts.itemTemplate
+    }));
 
     for (const specMaxLen of [Infinity, 140, 90, 52]) {
       const hit = tryFit({ titleMaxLen: 96, specMaxLen, shortHeader: false });

@@ -527,7 +527,9 @@ describe('FILTER_CYCLE deal discount mapping', () => {
       assert.equal(sanitizeConfigValue('OPENROUTER_SEARCH_ENGINE', 'exa'), 'exa');
       assert.equal(sanitizeConfigValue('OPENROUTER_SEARCH_ENGINE', 'nope'), 'auto');
       assert.equal(sanitizeConfigValue('BATCH_COMPARE_PROMPT', 'Custom {anzahl} Deals:'), 'Custom {anzahl} Deals:');
+      assert.equal(sanitizeConfigValue('BATCH_COMPARE_ITEM_TEMPLATE', '{nr}. {titel} | {preis}'), '{nr}. {titel} | {preis}');
       assert.ok(RESET_GROUPS.review.keys.includes('BATCH_COMPARE_PROMPT'));
+      assert.ok(RESET_GROUPS.review.keys.includes('BATCH_COMPARE_ITEM_TEMPLATE'));
       assert.equal(sanitizeReviewKeyword('x'.repeat(300)).length, 300);
       assert.equal(sanitizeReviewKeyword('x'.repeat(600)).length, 500);
     });

@@ -6,6 +6,8 @@
 
 export const DEFAULT_BATCH_COMPARE_PROMPT =
   'Vergleiche folgende {anzahl} Angebote von Toppreise.ch (Preise in CHF) und bewerte Preis-Leistung, Stärken/Schwächen sowie welches Angebot der beste Deal ist (kurz auf Deutsch):';
+export const DEFAULT_BATCH_COMPARE_ITEM_TEMPLATE =
+  '{nr}. {titel} | Preis: {preis} | Rabatt: {rabatt} | Bisheriges Tief: {tief} | {median} | Händler: {haendler} | Specs: {specs}';
 
 export const DEFAULTS = Object.freeze({
   FILTER_NEG_ENABLED: false,
@@ -66,6 +68,7 @@ export const DEFAULTS = Object.freeze({
   BATCH_COPY_FORMAT: 'markdown',
   BATCH_AI_TARGET: 'google-ai',
   BATCH_COMPARE_PROMPT: DEFAULT_BATCH_COMPARE_PROMPT,
+  BATCH_COMPARE_ITEM_TEMPLATE: DEFAULT_BATCH_COMPARE_ITEM_TEMPLATE,
   DEALER_AUTOFETCH: false,
   NEGATIVE_TERMS: '',
   DISCORD_WEBHOOK_URL: '',
@@ -129,7 +132,7 @@ export const RESET_GROUPS = Object.freeze({
     label: 'Web-Suche',
     keys: [
       'REVIEW_SEARCH_ENABLED', 'REVIEW_SEARCH_KEYWORD', 'REVIEW_SEARCH_AI_MODE',
-      'BATCH_COMPARE_PROMPT',
+      'BATCH_COMPARE_PROMPT', 'BATCH_COMPARE_ITEM_TEMPLATE',
       'AI_SEARCH_PROVIDER', 'TAVILY_ENABLED', 'TAVILY_SEARCH_DEPTH', 'TAVILY_MAX_RESULTS',
       'OPENROUTER_MODEL', 'OPENROUTER_SEARCH_ENGINE', 'OPENROUTER_MAX_RESULTS'
     ]
@@ -278,6 +281,7 @@ export const SETTING_SCHEMA = {
   BATCH_COPY_FORMAT: { type: 'enum', default: 'markdown', allowed: ['markdown', 'tsv'] },
   BATCH_AI_TARGET: { type: 'enum', default: 'google-ai', allowed: ['openrouter', 'google-ai', 'chatgpt', 'perplexity', 'claude'] },
   BATCH_COMPARE_PROMPT: { type: 'string', default: DEFAULT_BATCH_COMPARE_PROMPT },
+  BATCH_COMPARE_ITEM_TEMPLATE: { type: 'string', default: DEFAULT_BATCH_COMPARE_ITEM_TEMPLATE },
   DEALER_AUTOFETCH: { type: 'bool', default: false },
   NEGATIVE_TERMS: { type: 'string', default: '' },
   DISCORD_WEBHOOK_URL: { type: 'string', default: '' },

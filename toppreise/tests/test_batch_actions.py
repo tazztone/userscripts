@@ -554,3 +554,32 @@ def test_batch_google_ai_keeps_full_specs_for_six_items_and_uses_custom_prompt(p
     assert 'AM5' in url
     assert 'PCIe%205.0' in url
     assert len(url) < 2000
+
+
+def test_batch_openrouter_and_google_respect_custom_item_template(page: Page):
+    captured = []
+
+    def handle_openrouter(route):
+        body = json.loads(route.request.post_data or '{}')
+        captured.append(body.get('messages', [{}])[0].get('content', ''))
+        route.fulfill(
+            status=200,
+            headers={'content-type': 'application/json', 'access-control-allow-origin': '*'},
+            body=json.dumps({'choices': [{'message': {'content': 'OK', 'annotations': []}}]})
+        )
+
+    page.route('https://openrouter.ai/api/v1/chat/completions', handle_openrouter)
+    page.evaluate("""() => {
+        window.ToppreiseSuite.updateConfig('BATCH_CONFIRM_THRESHOLD', 50);
+        window.ToppreiseSuite.updateConfig('BATCH_AI_TARGET', 'openrouter');
+        window.ToppreiseSuite.updateConfig('OPENROUTER_API_KEY', 'sk-or-payload-test');
+        window.ToppreiseSuite.updateConfig('BATCH_COMPARE_ITEM_TEMPLATE', '{nr}. {titel} | {preis} | Link: {url}');
+    }""")
+
+    page.click('#tp-floating-batch-btn')
+    page.click('#tp-batch-ai-compare-btn')
+    page.locator('#tp-batch-ai-popout').wait_for(state='visible')
+    assert len(captured) == 1
+    assert 'Link: https://' in captured[0] or 'Link: file://' in captured[0] or 'Link: ' in captured[0]
+    assert 'Händler:' not in captured[0]
+    assert 'Specs:' not in captured[0]

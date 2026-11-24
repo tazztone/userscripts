@@ -10,6 +10,10 @@ import {
   formatBatchTsv,
   formatBatchCsv,
   buildComparisonPrompt,
+  formatComparisonItemLine,
+  findUnknownPromptTokens,
+  COMPARE_PROMPT_TOKENS,
+  COMPARE_ITEM_TOKENS,
   buildCompactComparisonPrompt,
   selectExternalComparisonQuery,
   buildExternalAiUrl,
@@ -212,6 +216,76 @@ describe('batch-actions: export formatters & formula safety', () => {
     const longCl = buildExternalAiUrl('claude', longPrompt);
     assert.equal(longCl.needsPaste, true);
     assert.equal(longCl.url, 'https://claude.ai/new');
+  });
+
+  it('formats per-product payload templates, omits empty segments cleanly & respects excluded fields in compact URLs', () => {
+    const items = [
+      {
+        title: 'Board A',
+        priceText: 'CHF 80.00',
+        discountText: '-12%',
+        lowText: '',
+        medianText: '',
+        dealer: 'Digitec',
+        offerCount: 7,
+        specs: 'AM5 · DDR5 · PCIe 5.0',
+        url: 'https://www.toppreise.ch/p1'
+      },
+      {
+        title: 'Board B',
+        priceText: 'CHF 95.00',
+        discountText: '',
+        lowText: 'CHF 90.00',
+        medianText: 'Ø CHF 105.00',
+        dealer: '',
+        offerCount: 0,
+        specs: 'AM4 · DDR4',
+        url: 'https://www.toppreise.ch/p2'
+      }
+    ];
+
+    // Custom item template skips empty tokens/segments and keeps negative discount intact inside parens
+    const customLine1 = formatComparisonItemLine(items[0], 0, '{nr}. {titel} ({preis}, {rabatt}) | Shops: {offerten} | {url}');
+    assert.equal(customLine1, '1. Board A (CHF 80.00, -12%) | Shops: 7 | https://www.toppreise.ch/p1');
+    const customLine2 = formatComparisonItemLine(items[1], 1, '{nr}. {titel} ({preis}, {rabatt}) | Shops: {offerten} | {url}');
+    assert.equal(customLine2, '2. Board B (CHF 95.00) | https://www.toppreise.ch/p2');
+
+    // Empty paren segment disappears entirely when all tokens inside it are empty
+    assert.equal(
+      formatComparisonItemLine({ title: 'Bare', priceText: '', discountText: '' }, 0, '{nr}. {titel} | ({preis}, {rabatt}) | Händler: {haendler}'),
+      '1. Bare'
+    );
+
+    // Compact URL query preserves excluded fields (no dealer/rabatt/tief leakage) and includes enabled {url}/{offerten}
+    const prevItemTpl = CONFIG.BATCH_COMPARE_ITEM_TEMPLATE;
+    CONFIG.BATCH_COMPARE_ITEM_TEMPLATE = '{nr}. {titel} | {preis} | {specs} | {url}';
+    try {
+      const twelveBoards = Array.from({ length: 12 }, (_, i) => ({
+        title: `OLED Monitor Ultra ${i + 1}`,
+        priceText: `CHF ${400 + i}.00`,
+        discountText: '-30%',
+        lowText: 'CHF 420.00',
+        dealer: 'ShopSecret',
+        specs: '27 Zoll · 240 Hz · OLED · USB-C · DisplayHDR 400 True Black',
+        url: `https://www.toppreise.ch/p${i + 1}`
+      }));
+      const full = buildComparisonPrompt(twelveBoards);
+      assert.doesNotMatch(full, /ShopSecret/);
+      assert.doesNotMatch(full, /-30%/);
+      const compactSel = selectExternalComparisonQuery(twelveBoards, full);
+      assert.equal(compactSel.needsPaste, false);
+      assert.ok(encodeURIComponent(compactSel.query).length <= 1850);
+      assert.doesNotMatch(compactSel.query, /ShopSecret/);
+      assert.doesNotMatch(compactSel.query, /-30%/);
+      assert.doesNotMatch(compactSel.query, /Tief CHF/);
+    } finally {
+      CONFIG.BATCH_COMPARE_ITEM_TEMPLATE = prevItemTpl;
+    }
+
+    // Typo detector catches unknown tokens in both templates
+    assert.deepEqual(findUnknownPromptTokens('Vergleiche {anzhal} Deals: {angebote} {preis}', COMPARE_PROMPT_TOKENS), ['{anzhal}', '{preis}']);
+    assert.deepEqual(findUnknownPromptTokens('{nr}. {titel} | {pries} | {url}', COMPARE_ITEM_TOKENS), ['{pries}']);
+    assert.deepEqual(findUnknownPromptTokens('{nr}. {titel} | {preis}', COMPARE_ITEM_TOKENS), []);
   });
 });
 

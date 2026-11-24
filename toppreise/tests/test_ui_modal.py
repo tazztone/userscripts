@@ -1083,33 +1083,56 @@ def test_ai_prompts_edit_save_long_limit_and_reset(page: Page):
 
     single_ta = page.locator('#tp-root >> #tp-review-keyword-input')
     cmp_ta = page.locator('#tp-root >> #tp-batch-compare-prompt-input')
+    item_ta = page.locator('#tp-root >> #tp-batch-compare-item-input')
+    cmp_preview = page.locator('#tp-root >> #tp-batch-compare-preview')
+    cmp_warn = page.locator('#tp-root >> #tp-batch-compare-preview-warn')
     assert single_ta.is_visible()
     assert cmp_ta.is_visible()
+    assert item_ta.is_visible()
+    assert cmp_preview.is_visible()
+    assert 'ASUS Prime B840M-K' in (cmp_preview.text_content() or '')
+    assert not cmp_warn.is_visible()
 
     long_single = 'Bitte bewerte [Produkt] zum Preis {preis} detailliert: ' + ('Preis-Leistung, Garantie, Konkurrenzvergleich, ') * 4 + 'Fazit.'
     custom_cmp = 'Vergleiche diese {anzahl} Boards im Fokus AM5 vs AM4 & P/L:\n{angebote}'
+    custom_item = '{nr}. {titel} | {preis}'
     assert len(long_single) > 150
 
     single_ta.fill(long_single)
+    cmp_ta.fill('Test {anzhal} Tippfehler')
+    assert cmp_warn.is_visible()
+    assert '{anzhal}' in (cmp_warn.text_content() or '')
+
     cmp_ta.fill(custom_cmp)
+    assert not cmp_warn.is_visible()
+    item_ta.fill(custom_item)
+    page.locator('#tp-root >> #tp-batch-compare-item-chips button[data-token="{url}"]').click()
+    assert '{url}' in item_ta.input_value()
+    assert 'https://www.toppreise.ch/preisvergleich/p123' in (cmp_preview.text_content() or '')
+
     page.click('#tp-root >> #tp-btn-save')
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
 
     open_settings(page)
     assert single_ta.input_value() == long_single
     assert cmp_ta.input_value() == custom_cmp
+    assert '{url}' in item_ta.input_value()
 
-    # Inline standard reset button restores compare prompt
+    # Inline standard reset buttons restore compare prompt & item payload cleanly
     page.click('#tp-root >> #tp-batch-compare-prompt-reset')
+    page.click('#tp-root >> #tp-batch-compare-item-reset')
     assert '{anzahl}' in cmp_ta.input_value()
     assert 'AM5 vs AM4' not in cmp_ta.input_value()
+    assert '{haendler}' in item_ta.input_value()
 
-    # Section reset group 'review' restores both prompts cleanly
+    # Section reset group 'review' restores all prompts cleanly
     cmp_ta.fill(custom_cmp)
+    item_ta.fill('{nr}. {titel}')
     page.once("dialog", lambda d: d.accept())
     page.click('#tp-root >> [data-reset-group="review"]')
     assert '{anzahl}' in cmp_ta.input_value()
     assert 'AM5 vs AM4' not in cmp_ta.input_value()
+    assert '{haendler}' in item_ta.input_value()
     assert 'Testberichte zu:' in single_ta.input_value()
 
     page.click('#tp-root >> #tp-btn-close')

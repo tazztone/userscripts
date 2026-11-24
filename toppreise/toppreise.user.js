@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.557
+// @version      2.18.558
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -3197,7 +3197,264 @@ const STYLES_BATCH = `
 
 const STYLES = STYLES_CARDS + STYLES_BADGES + STYLES_CHROME + STYLES_CATEGORY_TREE + STYLES_OVERLAYS + STYLES_FLOATING_CTA + STYLES_BATCH;
 
+/**
+ * Shadow-modal secondary styles (split from ui/styles/shadow-modal.js):
+ * Discord share preview dialog, AI prompt editors, token chips & live previews.
+ */
+
+const SHADOW_SECTION_STYLES = `
+  .tp-prompt-row {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+  }
+  .tp-prompt-textarea {
+    flex: 1;
+    margin-top: 0 !important;
+    font-family: inherit;
+    resize: vertical;
+  }
+  .tp-prompt-reset-btn {
+    padding: 6px 10px !important;
+    font-size: var(--tp-fs-sm) !important;
+    height: 32px;
+    white-space: nowrap;
+  }
+  .tp-ai-split-row {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .tp-ai-split-col {
+    flex: 1;
+    min-width: 140px;
+  }
+  .tp-ai-split-col-wide {
+    flex: 1;
+    min-width: 150px;
+  }
+  .tp-token-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 6px;
+  }
+  .tp-token-chip {
+    padding: 2px 7px !important;
+    font-size: 11px !important;
+    line-height: 1.4;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  }
+  .tp-search-preview-text.tp-preview-pre {
+    white-space: pre-wrap;
+    max-height: 130px;
+    overflow-y: auto;
+  }
+  .tp-preview-warn {
+    font-size: 11px;
+    color: #b45309;
+    background: rgba(245, 158, 11, 0.12);
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    border-radius: 4px;
+    padding: 4px 8px;
+  }
+
+  /* Discord Share Preview Dialog */
+  dialog#tp-modal-share-preview {
+    box-sizing: border-box;
+    width: 92%;
+    max-width: 520px;
+    max-height: 85vh;
+    background: rgba(255, 255, 255, 0.98);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--tp-line-soft);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    border-radius: 16px;
+    color: var(--tp-txt);
+    padding: 20px;
+    margin: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    overflow: hidden;
+  }
+  dialog#tp-modal-share-preview:not([open]) { display: none; }
+  dialog#tp-modal-share-preview::backdrop {
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+  .tp-share-preview-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+  .tp-share-preview-title {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.3;
+    color: var(--tp-txt);
+  }
+  .tp-share-preview-close {
+    background: none;
+    border: none;
+    font-size: 22px;
+    cursor: pointer;
+    color: var(--tp-mut);
+    line-height: 1;
+    padding: 4px 6px;
+    min-width: 28px;
+    min-height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+  }
+  .tp-share-preview-close:hover { color: var(--tp-txt); }
+  .tp-share-preview-close:focus-visible { outline: 2px solid var(--tp-focus); outline-offset: 2px; }
+  .tp-share-preview-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .tp-share-preview-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 24px;
+    color: var(--tp-mut);
+    font-size: 13px;
+  }
+  .tp-share-preview-error {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    color: #dc2626;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .tp-share-preview-label { font-size: 12px; font-weight: 600; color: var(--tp-mut); margin-bottom: 4px; }
+  .tp-share-preview-message {
+    background: #2b2d31;
+    color: #dbdee1;
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 13px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  .tp-share-preview-message .tp-md-lg { font-size: 16px; font-weight: 800; }
+  .tp-share-preview-message .tp-md-md { font-size: 14px; font-weight: 800; }
+  .tp-share-preview-message .tp-md-sm { font-size: 12px; font-weight: 700; }
+  .tp-share-preview-message .tp-md-link { font-weight: 700; color: #00a8fc; text-decoration: none; }
+  .tp-share-preview-message .tp-md-url { opacity: .65; font-size: 11px; }
+  .tp-share-preview-message .tp-md-quote { display: block; border-left: 3px solid #5865f2; padding-left: 8px; margin: 2px 0; opacity: .9; }
+  .tp-share-comment-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 8px;
+  }
+  .tp-share-comment-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .tp-share-comment-count {
+    font-size: 11px;
+    color: var(--tp-mut);
+    font-variant-numeric: tabular-nums;
+  }
+  .tp-share-comment-input {
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 48px;
+    max-height: 120px;
+    resize: vertical;
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 13px;
+    font-family: inherit;
+    line-height: 1.4;
+    border: 1px solid var(--tp-line-soft);
+    background: var(--tp-bg, #ffffff);
+    color: var(--tp-txt, #1e293b);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .tp-share-comment-input:focus {
+    outline: none;
+    border-color: #5865f2;
+    box-shadow: 0 0 0 2px rgba(88, 101, 242, 0.2);
+  }
+  .tp-share-reply-preview-wrap {
+    margin-top: 6px;
+  }
+  #tp-share-reply-preview {
+    max-height: 150px;
+    overflow-y: auto;
+  }
+  .tp-share-preview-images {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+  }
+  .tp-share-preview-img {
+    max-height: 120px;
+    max-width: 100%;
+    border-radius: 6px;
+    border: 1px solid var(--tp-line-soft);
+    object-fit: contain;
+    background: #fff;
+  }
+  .tp-share-preview-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    flex-shrink: 0;
+    padding-top: 10px;
+    border-top: 1px solid var(--tp-line-soft);
+  }
+  .tp-share-preview-channels {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .tp-share-channel-btn {
+    background: #5865f2;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 7px 14px;
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+  .tp-share-channel-btn:hover:not(:disabled) {
+    background: #4752c4;
+  }
+  .tp-share-channel-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+`;
+
 /** Shadow-modal part (split from ui/styles.js): isolated Shadow DOM dialog styles. */
+
 
 
 const SHADOW_MODAL_STYLES = `
@@ -3629,198 +3886,7 @@ const SHADOW_MODAL_STYLES = `
   }
   .tp-toast.fade-out { opacity: 0; transform: translateY(6px); }
 
-  /* Discord Share Preview Dialog */
-  dialog#tp-modal-share-preview {
-    box-sizing: border-box;
-    width: 92%;
-    max-width: 520px;
-    max-height: 85vh;
-    background: rgba(255, 255, 255, 0.98);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border: 1px solid var(--tp-line-soft);
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-    border-radius: 16px;
-    color: var(--tp-txt);
-    padding: 20px;
-    margin: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    overflow: hidden;
-  }
-  dialog#tp-modal-share-preview:not([open]) { display: none; }
-  dialog#tp-modal-share-preview::backdrop {
-    background: rgba(15, 23, 42, 0.6);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-  }
-  .tp-share-preview-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 12px;
-    flex-shrink: 0;
-  }
-  .tp-share-preview-title {
-    margin: 0;
-    font-size: 16px;
-    font-weight: 700;
-    line-height: 1.3;
-    color: var(--tp-txt);
-  }
-  .tp-share-preview-close {
-    background: none;
-    border: none;
-    font-size: 22px;
-    cursor: pointer;
-    color: var(--tp-mut);
-    line-height: 1;
-    padding: 4px 6px;
-    min-width: 28px;
-    min-height: 28px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 6px;
-  }
-  .tp-share-preview-close:hover { color: var(--tp-txt); }
-  .tp-share-preview-close:focus-visible { outline: 2px solid var(--tp-focus); outline-offset: 2px; }
-  .tp-share-preview-body {
-    flex: 1 1 auto;
-    min-height: 0;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-  .tp-share-preview-loading {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    padding: 24px;
-    color: var(--tp-mut);
-    font-size: 13px;
-  }
-  .tp-share-preview-error {
-    background: rgba(239, 68, 68, 0.1);
-    border: 1px solid rgba(239, 68, 68, 0.35);
-    color: #dc2626;
-    padding: 8px 12px;
-    border-radius: 8px;
-    font-size: 12px;
-    font-weight: 600;
-  }
-  .tp-share-preview-label { font-size: 12px; font-weight: 600; color: var(--tp-mut); margin-bottom: 4px; }
-  .tp-share-preview-message {
-    background: #2b2d31;
-    color: #dbdee1;
-    border-radius: 8px;
-    padding: 12px;
-    font-size: 13px;
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-    word-break: break-word;
-  }
-  .tp-share-preview-message .tp-md-lg { font-size: 16px; font-weight: 800; }
-  .tp-share-preview-message .tp-md-md { font-size: 14px; font-weight: 800; }
-  .tp-share-preview-message .tp-md-sm { font-size: 12px; font-weight: 700; }
-  .tp-share-preview-message .tp-md-link { font-weight: 700; color: #00a8fc; text-decoration: none; }
-  .tp-share-preview-message .tp-md-url { opacity: .65; font-size: 11px; }
-  .tp-share-preview-message .tp-md-quote { display: block; border-left: 3px solid #5865f2; padding-left: 8px; margin: 2px 0; opacity: .9; }
-  .tp-share-comment-wrap {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    margin-top: 8px;
-  }
-  .tp-share-comment-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-  .tp-share-comment-count {
-    font-size: 11px;
-    color: var(--tp-mut);
-    font-variant-numeric: tabular-nums;
-  }
-  .tp-share-comment-input {
-    width: 100%;
-    box-sizing: border-box;
-    min-height: 48px;
-    max-height: 120px;
-    resize: vertical;
-    border-radius: 8px;
-    padding: 8px 10px;
-    font-size: 13px;
-    font-family: inherit;
-    line-height: 1.4;
-    border: 1px solid var(--tp-line-soft);
-    background: var(--tp-bg, #ffffff);
-    color: var(--tp-txt, #1e293b);
-    transition: border-color 0.15s ease, box-shadow 0.15s ease;
-  }
-  .tp-share-comment-input:focus {
-    outline: none;
-    border-color: #5865f2;
-    box-shadow: 0 0 0 2px rgba(88, 101, 242, 0.2);
-  }
-  .tp-share-reply-preview-wrap {
-    margin-top: 6px;
-  }
-  #tp-share-reply-preview {
-    max-height: 150px;
-    overflow-y: auto;
-  }
-  .tp-share-preview-images {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-    margin-top: 8px;
-  }
-  .tp-share-preview-img {
-    max-height: 120px;
-    max-width: 100%;
-    border-radius: 6px;
-    border: 1px solid var(--tp-line-soft);
-    object-fit: contain;
-    background: #fff;
-  }
-  .tp-share-preview-footer {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-    flex-shrink: 0;
-    padding-top: 10px;
-    border-top: 1px solid var(--tp-line-soft);
-  }
-  .tp-share-preview-channels {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-  .tp-share-channel-btn {
-    background: #5865f2;
-    color: #fff;
-    border: none;
-    border-radius: 8px;
-    padding: 7px 14px;
-    font-weight: 600;
-    font-size: 13px;
-    cursor: pointer;
-    transition: background 0.15s ease;
-  }
-  .tp-share-channel-btn:hover:not(:disabled) {
-    background: #4752c4;
-  }
-  .tp-share-channel-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
+  ${SHADOW_SECTION_STYLES}
 
   .tp-btn:focus-visible, .tp-field-dark:focus-visible,
   .tp-switch input:focus-visible + .tp-slider,
@@ -5129,6 +5195,8 @@ const SHADOW_MODAL_STYLES = `
 
   const DEFAULT_BATCH_COMPARE_PROMPT =
     'Vergleiche folgende {anzahl} Angebote von Toppreise.ch (Preise in CHF) und bewerte Preis-Leistung, Stärken/Schwächen sowie welches Angebot der beste Deal ist (kurz auf Deutsch):';
+  const DEFAULT_BATCH_COMPARE_ITEM_TEMPLATE =
+    '{nr}. {titel} | Preis: {preis} | Rabatt: {rabatt} | Bisheriges Tief: {tief} | {median} | Händler: {haendler} | Specs: {specs}';
 
   const DEFAULTS = Object.freeze({
     FILTER_NEG_ENABLED: false,
@@ -5189,6 +5257,7 @@ const SHADOW_MODAL_STYLES = `
     BATCH_COPY_FORMAT: 'markdown',
     BATCH_AI_TARGET: 'google-ai',
     BATCH_COMPARE_PROMPT: DEFAULT_BATCH_COMPARE_PROMPT,
+    BATCH_COMPARE_ITEM_TEMPLATE: DEFAULT_BATCH_COMPARE_ITEM_TEMPLATE,
     DEALER_AUTOFETCH: false,
     NEGATIVE_TERMS: '',
     DISCORD_WEBHOOK_URL: '',
@@ -5252,7 +5321,7 @@ const SHADOW_MODAL_STYLES = `
       label: 'Web-Suche',
       keys: [
         'REVIEW_SEARCH_ENABLED', 'REVIEW_SEARCH_KEYWORD', 'REVIEW_SEARCH_AI_MODE',
-        'BATCH_COMPARE_PROMPT',
+        'BATCH_COMPARE_PROMPT', 'BATCH_COMPARE_ITEM_TEMPLATE',
         'AI_SEARCH_PROVIDER', 'TAVILY_ENABLED', 'TAVILY_SEARCH_DEPTH', 'TAVILY_MAX_RESULTS',
         'OPENROUTER_MODEL', 'OPENROUTER_SEARCH_ENGINE', 'OPENROUTER_MAX_RESULTS'
       ]
@@ -5401,6 +5470,7 @@ const SHADOW_MODAL_STYLES = `
     BATCH_COPY_FORMAT: { type: 'enum', default: 'markdown', allowed: ['markdown', 'tsv'] },
     BATCH_AI_TARGET: { type: 'enum', default: 'google-ai', allowed: ['openrouter', 'google-ai', 'chatgpt', 'perplexity', 'claude'] },
     BATCH_COMPARE_PROMPT: { type: 'string', default: DEFAULT_BATCH_COMPARE_PROMPT },
+    BATCH_COMPARE_ITEM_TEMPLATE: { type: 'string', default: DEFAULT_BATCH_COMPARE_ITEM_TEMPLATE },
     DEALER_AUTOFETCH: { type: 'bool', default: false },
     NEGATIVE_TERMS: { type: 'string', default: '' },
     DISCORD_WEBHOOK_URL: { type: 'string', default: '' },
@@ -6078,6 +6148,11 @@ const SHADOW_MODAL_STYLES = `
           case 'BATCH_COMPARE_PROMPT': {
             const input = shadow.getElementById('tp-batch-compare-prompt-input');
             if (input) input.value = val || DEFAULTS.BATCH_COMPARE_PROMPT;
+            break;
+          }
+          case 'BATCH_COMPARE_ITEM_TEMPLATE': {
+            const input = shadow.getElementById('tp-batch-compare-item-input');
+            if (input) input.value = val || DEFAULTS.BATCH_COMPARE_ITEM_TEMPLATE;
             break;
           }
           case 'REVIEW_SEARCH_AI_MODE': {
@@ -11223,11 +11298,86 @@ const SHADOW_MODAL_STYLES = `
 
   const FALLBACK_COMPARE_PROMPT =
     'Vergleiche folgende {anzahl} Angebote von Toppreise.ch (Preise in CHF) und bewerte Preis-Leistung, Stärken/Schwächen sowie welches Angebot der beste Deal ist (kurz auf Deutsch):';
+  const FALLBACK_COMPARE_ITEM_TEMPLATE =
+    '{nr}. {titel} | Preis: {preis} | Rabatt: {rabatt} | Bisheriges Tief: {tief} | {median} | Händler: {haendler} | Specs: {specs}';
+
+  const COMPARE_PROMPT_TOKENS = Object.freeze(['anzahl', 'angebote']);
+  const COMPARE_ITEM_TOKENS = Object.freeze(['nr', 'titel', 'preis', 'rabatt', 'tief', 'median', 'haendler', 'offerten', 'specs', 'url']);
+
+  const ITEM_TOKEN_RE = /\{(nr|titel|preis|rabatt|tief|median|haendler|offerten|specs|url)\}/gi;
+
+  function findUnknownPromptTokens(template, allowedTokens) {
+    const allowed = allowedTokens instanceof Set ? allowedTokens : new Set(allowedTokens || []);
+    const text = String(template || '');
+    const seen = new Set();
+    const out = [];
+    for (const m of text.matchAll(/\{([^{}\s]+)\}/g)) {
+      const key = m[1].toLowerCase();
+      if (!allowed.has(key) && !seen.has(m[0])) {
+        seen.add(m[0]);
+        out.push(m[0]);
+      }
+    }
+    return out;
+  }
 
   function resolveCompareTemplate(promptTemplate) {
     const custom = String(promptTemplate ?? CONFIG?.BATCH_COMPARE_PROMPT ?? '').trim();
     const def = String(DEFAULTS?.BATCH_COMPARE_PROMPT || FALLBACK_COMPARE_PROMPT).trim();
     return custom || def;
+  }
+
+  function resolveCompareItemTemplate(itemTemplate) {
+    const custom = String(itemTemplate ?? CONFIG?.BATCH_COMPARE_ITEM_TEMPLATE ?? '').trim();
+    const def = String(DEFAULTS?.BATCH_COMPARE_ITEM_TEMPLATE || FALLBACK_COMPARE_ITEM_TEMPLATE).trim();
+    return custom || def;
+  }
+
+  function getEnabledItemTokens(itemTemplate) {
+    const tpl = resolveCompareItemTemplate(itemTemplate);
+    const active = new Set();
+    for (const m of tpl.matchAll(ITEM_TOKEN_RE)) {
+      active.add(m[1].toLowerCase());
+    }
+    return active;
+  }
+
+  function formatComparisonItemLine(it, idx, itemTemplate, { titleMaxLen = Infinity, specMaxLen = Infinity } = {}) {
+    const tpl = resolveCompareItemTemplate(itemTemplate);
+    const values = {
+      nr: String(idx + 1),
+      titel: trimCompact(it?.title, titleMaxLen),
+      preis: String(it?.priceText || '').trim(),
+      rabatt: String(it?.discountText || '').trim(),
+      tief: String(it?.lowText || '').trim(),
+      median: String(it?.medianText || '').trim(),
+      haendler: String(it?.dealer || '').trim(),
+      offerten: it?.offerCount > 0 ? String(it.offerCount) : '',
+      specs: trimCompact(it?.specs, specMaxLen),
+      url: String(it?.url || '').trim()
+    };
+    const outLines = [];
+    for (const line of tpl.split(/\r?\n/)) {
+      const outSegs = [];
+      for (const seg of line.split('|')) {
+        const matches = [...seg.matchAll(ITEM_TOKEN_RE)];
+        if (matches.length > 0 && !matches.some(m => Boolean(values[m[1].toLowerCase()]))) {
+          continue;
+        }
+        const rendered = seg
+          .replace(ITEM_TOKEN_RE, (_, key) => values[key.toLowerCase()] || '')
+          .replace(/\(\s*[,·]+\s*/g, '(')
+          .replace(/\s*[,·]+\s*\)/g, ')')
+          .replace(/,\s*,+/g, ',')
+          .replace(/\(\s*\)/g, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+        if (rendered) outSegs.push(rendered);
+      }
+      const joined = outSegs.join(' | ');
+      if (joined) outLines.push(joined);
+    }
+    return outLines.join('\n');
   }
 
   function formatComparisonPromptText(items, itemLines, { promptTemplate, shortHeader = false } = {}) {
@@ -11243,17 +11393,10 @@ const SHADOW_MODAL_STYLES = `
 
   function buildComparisonPrompt(items, opts = {}) {
     if (!Array.isArray(items) || items.length === 0) return '';
-    const itemLines = [];
-    items.forEach((it, idx) => {
-      const parts = [`${idx + 1}. ${it.title}`];
-      if (it.priceText) parts.push(`Preis: ${it.priceText}`);
-      if (it.discountText) parts.push(`Rabatt: ${it.discountText}`);
-      if (it.lowText) parts.push(`Bisheriges Tief: ${it.lowText}`);
-      if (it.medianText) parts.push(it.medianText);
-      if (it.dealer) parts.push(`Händler: ${it.dealer}`);
-      if (it.specs) parts.push(`Specs: ${it.specs}`);
-      itemLines.push(parts.join(' | '));
-    });
+    const itemLines = items
+      .map((it, idx) => formatComparisonItemLine(it, idx, opts.itemTemplate, opts))
+      .filter(Boolean);
+    if (itemLines.length === 0) return '';
     return formatComparisonPromptText(items, itemLines, opts);
   }
 
@@ -11270,19 +11413,30 @@ const SHADOW_MODAL_STYLES = `
     titleMaxLen = 96,
     specMaxLen = Infinity,
     shortHeader = false,
-    promptTemplate
+    promptTemplate,
+    itemTemplate
   } = {}) {
     if (!Array.isArray(items) || items.length === 0) return '';
+    const tokens = getEnabledItemTokens(itemTemplate);
     const itemLines = [];
     items.forEach((it, idx) => {
       const tMax = minimal ? Math.min(titleMaxLen, 60) : titleMaxLen;
-      const title = trimCompact(it.title, tMax);
-      const meta = [it.priceText, it.discountText].filter(Boolean);
-      if (!minimal && it.lowText) meta.push(`Tief ${it.lowText}`);
+      const nrPart = tokens.has('nr') ? `${idx + 1}. ` : '';
+      const title = tokens.has('titel') ? trimCompact(it.title, tMax) : '';
+      const meta = [
+        tokens.has('preis') ? it.priceText : '',
+        tokens.has('rabatt') ? it.discountText : ''
+      ].filter(Boolean);
+      if (!minimal && tokens.has('tief') && it.lowText) meta.push(`Tief ${it.lowText}`);
+      if (!minimal && tokens.has('offerten') && it.offerCount > 0) meta.push(`${it.offerCount} Ang.`);
       const priceBit = meta.length ? `(${meta.join(', ')})` : '';
-      const specBit = (!minimal && it.specs) ? ` | ${trimCompact(it.specs, specMaxLen)}` : '';
-      itemLines.push(`${idx + 1}. ${title}${priceBit ? ` ${priceBit}` : ''}${specBit}`);
+      const specBit = (!minimal && tokens.has('specs') && it.specs) ? ` | ${trimCompact(it.specs, specMaxLen)}` : '';
+      const urlBit = (!minimal && tokens.has('url') && it.url) ? ` | ${it.url}` : '';
+      const head = [nrPart + title, priceBit].filter(Boolean).join(' ').trim();
+      const line = `${head}${specBit}${urlBit}`.trim();
+      if (line) itemLines.push(line);
     });
+    if (itemLines.length === 0) return '';
     return formatComparisonPromptText(items, itemLines, { promptTemplate, shortHeader });
   }
 
@@ -11296,11 +11450,29 @@ const SHADOW_MODAL_STYLES = `
       const tpl = resolveCompareTemplate(opts.promptTemplate);
       const def = String(DEFAULTS?.BATCH_COMPARE_PROMPT || FALLBACK_COMPARE_PROMPT).trim();
       const isCustom = tpl !== def;
+      const itemTpl = resolveCompareItemTemplate(opts.itemTemplate);
+      const defItemTpl = String(DEFAULTS?.BATCH_COMPARE_ITEM_TEMPLATE || FALLBACK_COMPARE_ITEM_TEMPLATE).trim();
+      const isCustomItem = itemTpl !== defItemTpl;
 
-      const tryFit = (cfg) => {
-        const candidate = buildCompactComparisonPrompt(items, { ...cfg, promptTemplate: opts.promptTemplate });
-        return candidate && encodeURIComponent(candidate).length <= MAX_AI_URL_QUERY_ENCODED ? candidate : '';
-      };
+      const fits = candidate => (candidate && encodeURIComponent(candidate).length <= MAX_AI_URL_QUERY_ENCODED ? candidate : '');
+
+      if (isCustomItem) {
+        for (const specMaxLen of [Infinity, 140, 90, 52]) {
+          const hit = fits(buildComparisonPrompt(items, {
+            promptTemplate: opts.promptTemplate,
+            itemTemplate: opts.itemTemplate,
+            titleMaxLen: 96,
+            specMaxLen
+          }));
+          if (hit) return { query: hit, needsPaste: false };
+        }
+      }
+
+      const tryFit = (cfg) => fits(buildCompactComparisonPrompt(items, {
+        ...cfg,
+        promptTemplate: opts.promptTemplate,
+        itemTemplate: opts.itemTemplate
+      }));
 
       for (const specMaxLen of [Infinity, 140, 90, 52]) {
         const hit = tryFit({ titleMaxLen: 96, specMaxLen, shortHeader: false });
@@ -15300,6 +15472,32 @@ const SHADOW_MODAL_STYLES = `
    */
 
 
+
+  const COMPARE_PREVIEW_SAMPLE = Object.freeze([
+    {
+      title: 'ASUS Prime B840M-K',
+      priceText: 'CHF 79.62',
+      discountText: '-12%',
+      lowText: 'CHF 88.90',
+      medianText: 'Ø-Preis (1J): CHF 95.00',
+      dealer: 'Digitec',
+      offerCount: 9,
+      specs: 'AM5 · micro ATX · DDR5',
+      url: 'https://www.toppreise.ch/preisvergleich/p123'
+    },
+    {
+      title: 'GIGABYTE B550 X',
+      priceText: 'CHF 87.90',
+      discountText: '-5%',
+      lowText: '',
+      medianText: 'Ø-Preis (1J): CHF 92.50',
+      dealer: 'Galaxus',
+      offerCount: 4,
+      specs: 'AM4 · ATX · DDR4',
+      url: 'https://www.toppreise.ch/preisvergleich/p456'
+    }
+  ]);
+
   function renderAiProviderTopMarkup() {
     return `
           <div class="tp-settings-subhead">KI-Anbieter (Direkt-Fazit, Discord &amp; Batch)</div>
@@ -15330,8 +15528,8 @@ const SHADOW_MODAL_STYLES = `
               <label for="tp-openrouter-model-input" title="OpenRouter Modell-ID für Web-Suche &amp; Batch-Vergleich.">OpenRouter Modell</label>
               <input type="text" id="tp-openrouter-model-input" class="tp-field-dark" placeholder="google/gemini-2.5-flash" spellcheck="false">
             </div>
-            <div class="tp-settings-group" style="display:flex;gap:12px;flex-wrap:wrap;">
-              <div style="flex:1;min-width:140px;">
+            <div class="tp-settings-group tp-ai-split-row">
+              <div class="tp-ai-split-col">
                 <label for="tp-openrouter-engine-select" title="Web-Search Engine für openrouter:web_search.">Such-Engine</label>
                 <select id="tp-openrouter-engine-select" class="tp-select tp-field-dark">
                   <option value="auto">Auto (Standard)</option>
@@ -15342,7 +15540,7 @@ const SHADOW_MODAL_STYLES = `
                   <option value="firecrawl">Firecrawl</option>
                 </select>
               </div>
-              <div style="flex:1;min-width:140px;">
+              <div class="tp-ai-split-col">
                 <label for="tp-openrouter-max-results" title="Maximale Web-Quellen pro OpenRouter-Anfrage.">Max. Quellen</label>
                 <select id="tp-openrouter-max-results" class="tp-select tp-field-dark">
                   <option value="3">3 Quellen</option>
@@ -15365,8 +15563,8 @@ const SHADOW_MODAL_STYLES = `
             <span>Batch-Konfiguration</span>
             <button type="button" class="tp-btn-group-reset" data-reset-group="batch" title="Batch-Aktionen auf Standard zurücksetzen" aria-label="Batch-Aktionen auf Standard zurücksetzen">↺</button>
           </div>
-          <div class="tp-settings-group" style="display:flex;gap:12px;flex-wrap:wrap;">
-            <div style="flex:1;min-width:150px;">
+          <div class="tp-settings-group tp-ai-split-row">
+            <div class="tp-ai-split-col-wide">
               <label for="tp-batch-ai-target-select" title="Ziel-Plattform für 🤖 KI-Vergleich im Batch-Menü.">Batch KI-Vergleich Ziel</label>
               <select id="tp-batch-ai-target-select" class="tp-select tp-field-dark">
                 <option value="google-ai">Google AI-Modus (&amp;udm=50)</option>
@@ -15376,7 +15574,7 @@ const SHADOW_MODAL_STYLES = `
                 <option value="claude">Claude</option>
               </select>
             </div>
-            <div style="flex:1;min-width:140px;">
+            <div class="tp-ai-split-col">
               <label for="tp-batch-confirm-threshold-input" title="Ab dieser Anzahl Karten fragt Batch vor Tabs, Händler-Laden oder API-Calls nach (1–100).">Bestätigung ab N Karten</label>
               <input type="number" id="tp-batch-confirm-threshold-input" class="tp-field-dark" min="1" max="100" step="1" value="10">
             </div>
@@ -15406,9 +15604,9 @@ const SHADOW_MODAL_STYLES = `
           </div>
           <div class="tp-settings-group">
             <label for="tp-review-keyword-input" title="Dieser Prompt wird für Karte 🌐 und Batch Einzelsuche verwendet.">Einzel-Suche Prompt (🌐 Karte &amp; Batch-Einzelsuche)</label>
-            <div style="display:flex;gap:8px;align-items:flex-start;">
-              <textarea id="tp-review-keyword-input" class="tp-field-dark" rows="2" maxlength="500" placeholder="Suchbegriff eingeben…" spellcheck="false" autocomplete="off" style="flex:1;margin-top:0;font-family:inherit;resize:vertical;">Testberichte zu: [Produkt]. Ist der Preis von {preis} ein guter Deal? Bewerte Preis-Leistung, Stärken und Schwächen kurz auf Deutsch.</textarea>
-              <button type="button" id="tp-review-keyword-reset" class="tp-btn tp-btn-secondary" style="padding:6px 10px;font-size:var(--tp-fs-sm);height:32px;white-space:nowrap;" title="Auf Standard-Suchbegriff zurücksetzen">↺ Standard</button>
+            <div class="tp-prompt-row">
+              <textarea id="tp-review-keyword-input" class="tp-field-dark tp-prompt-textarea" rows="2" maxlength="500" placeholder="Suchbegriff eingeben…" spellcheck="false" autocomplete="off">Testberichte zu: [Produkt]. Ist der Preis von {preis} ein guter Deal? Bewerte Preis-Leistung, Stärken und Schwächen kurz auf Deutsch.</textarea>
+              <button type="button" id="tp-review-keyword-reset" class="tp-btn tp-btn-secondary tp-prompt-reset-btn" title="Auf Standard-Suchbegriff zurücksetzen">↺ Standard</button>
             </div>
             <span class="tp-switch-desc tp-field-hint">Platzhalter: <code>[Produkt]</code> (wird sonst vorangestellt) und <code>{preis}</code> (ohne Preisdaten automatisch entfernt).</span>
             <div class="tp-search-preview-box">
@@ -15425,11 +15623,25 @@ const SHADOW_MODAL_STYLES = `
           </div>
           <div class="tp-settings-group">
             <label for="tp-batch-compare-prompt-input" title="Dieser Prompt wird für 🤖 KI-Vergleich im Batch-Menü verwendet.">KI-Vergleich Prompt (🤖 Batch)</label>
-            <div style="display:flex;gap:8px;align-items:flex-start;">
-              <textarea id="tp-batch-compare-prompt-input" class="tp-field-dark" rows="2" maxlength="500" placeholder="Vergleichs-Prompt eingeben…" spellcheck="false" autocomplete="off" style="flex:1;margin-top:0;font-family:inherit;resize:vertical;"></textarea>
-              <button type="button" id="tp-batch-compare-prompt-reset" class="tp-btn tp-btn-secondary" style="padding:6px 10px;font-size:var(--tp-fs-sm);height:32px;white-space:nowrap;" title="Auf Standard-Prompt zurücksetzen">↺ Standard</button>
+            <div class="tp-prompt-row">
+              <textarea id="tp-batch-compare-prompt-input" class="tp-field-dark tp-prompt-textarea" rows="2" maxlength="500" placeholder="Vergleichs-Prompt eingeben…" spellcheck="false" autocomplete="off"></textarea>
+              <button type="button" id="tp-batch-compare-prompt-reset" class="tp-btn tp-btn-secondary tp-prompt-reset-btn" title="Auf Standard-Prompt zurücksetzen">↺ Standard</button>
             </div>
             <span class="tp-switch-desc tp-field-hint">Platzhalter: <code>{anzahl}</code> und optional <code>{angebote}</code> (sonst automatisch angehängt). OpenRouter erhält alle Daten ungekürzt; URL-Ziele passen Specs adaptiv ans URL-Limit (~1850 Zeichen) an.</span>
+            <label for="tp-batch-compare-item-input" title="Format pro Angebot hinter dem Prompt (leere Felder &amp; Segmente entfallen automatisch).">Produktdaten pro Angebot (Payload)</label>
+            <div id="tp-batch-compare-item-chips" class="tp-token-chips">
+              ${COMPARE_ITEM_TOKENS.map(t => `<button type="button" class="tp-btn tp-btn-secondary tp-token-chip" data-token="{${t}}">{${t}}</button>`).join('')}
+            </div>
+            <div class="tp-prompt-row">
+              <textarea id="tp-batch-compare-item-input" class="tp-field-dark tp-prompt-textarea" rows="2" maxlength="500" placeholder="Format pro Angebot…" spellcheck="false" autocomplete="off"></textarea>
+              <button type="button" id="tp-batch-compare-item-reset" class="tp-btn tp-btn-secondary tp-prompt-reset-btn" title="Auf Standard-Produktformat zurücksetzen">↺ Standard</button>
+            </div>
+            <span class="tp-switch-desc tp-field-hint">Segmente mit <code>|</code> trennen — fehlende Felder werden sauber ausgeblendet.</span>
+            <div id="tp-batch-compare-preview-box" class="tp-search-preview-box">
+              <div class="tp-search-preview-title">Live-Vorschau KI-Vergleich (Beispiel: 2 Angebote)</div>
+              <div id="tp-batch-compare-preview" class="tp-search-preview-text tp-preview-pre"></div>
+              <div id="tp-batch-compare-preview-warn" class="tp-preview-warn" hidden></div>
+            </div>
           </div>
           <details class="tp-subsection" data-sub="review-google">
             <summary class="tp-subsection-header">🔍 Google-Suche</summary>
@@ -15472,15 +15684,15 @@ const SHADOW_MODAL_STYLES = `
                 <span class="tp-switch-desc tp-field-hint">Kostenloser Key von <a href="https://tavily.com" target="_blank" rel="noopener">tavily.com</a> (1'000 Anfragen/Monat). Ermöglicht KI-Kurzfazit per 1-Klick auf der Karte und <code>{ai}</code> im Discord-Post. Bleibt lokal im Browser.</span>
               </div>
             </div>
-            <div class="tp-settings-group" style="display:flex;gap:12px;flex-wrap:wrap;">
-              <div style="flex:1;min-width:140px;">
+            <div class="tp-settings-group tp-ai-split-row">
+              <div class="tp-ai-split-col">
                 <label title="Suchtiefe: Basic ist schnell (~1-2s). Advanced durchsucht mehr Webquellen (~2-4s).">Tavily Suchtiefe</label>
                 <select id="tp-tavily-search-depth" class="tp-select tp-field-dark">
                   <option value="basic">Basic (schnell, Standard)</option>
                   <option value="advanced">Advanced (gründlich)</option>
                 </select>
               </div>
-              <div style="flex:1;min-width:140px;">
+              <div class="tp-ai-split-col">
                 <label title="Anzahl der Webseiten, die Tavily für die Antwort analysiert.">Max. Quellen (Ergebnisse)</label>
                 <select id="tp-tavily-max-results" class="tp-select tp-field-dark">
                   <option value="3">3 Quellen</option>
@@ -15501,6 +15713,11 @@ const SHADOW_MODAL_STYLES = `
     return {
       batchComparePromptInput: shadow.getElementById('tp-batch-compare-prompt-input'),
       batchComparePromptReset: shadow.getElementById('tp-batch-compare-prompt-reset'),
+      batchCompareItemInput: shadow.getElementById('tp-batch-compare-item-input'),
+      batchCompareItemReset: shadow.getElementById('tp-batch-compare-item-reset'),
+      batchCompareItemChips: shadow.getElementById('tp-batch-compare-item-chips'),
+      batchComparePreview: shadow.getElementById('tp-batch-compare-preview'),
+      batchComparePreviewWarn: shadow.getElementById('tp-batch-compare-preview-warn'),
       aiProviderSelect: shadow.getElementById('tp-ai-provider-select'),
       openrouterBlock: shadow.getElementById('tp-ai-openrouter-block'),
       tavilyBlock: shadow.getElementById('tp-ai-tavily-block'),
@@ -15514,6 +15731,28 @@ const SHADOW_MODAL_STYLES = `
       batchAiTargetSelect: shadow.getElementById('tp-batch-ai-target-select'),
       batchConfirmThresholdInput: shadow.getElementById('tp-batch-confirm-threshold-input')
     };
+  }
+
+  function updateComparePreview(els) {
+    if (!els.batchComparePreview) return;
+    const promptTpl = String(els.batchComparePromptInput?.value || '').trim() || DEFAULTS.BATCH_COMPARE_PROMPT;
+    const itemTpl = String(els.batchCompareItemInput?.value || '').trim() || DEFAULTS.BATCH_COMPARE_ITEM_TEMPLATE;
+    els.batchComparePreview.textContent = buildComparisonPrompt(COMPARE_PREVIEW_SAMPLE, {
+      promptTemplate: promptTpl,
+      itemTemplate: itemTpl
+    });
+    if (els.batchComparePreviewWarn) {
+      const badPrompt = findUnknownPromptTokens(promptTpl, COMPARE_PROMPT_TOKENS);
+      const badItem = findUnknownPromptTokens(itemTpl, COMPARE_ITEM_TOKENS);
+      const allBad = [...new Set([...badPrompt, ...badItem])];
+      if (allBad.length > 0) {
+        els.batchComparePreviewWarn.textContent = `Hinweis: Unbekannte(r) Platzhalter ${allBad.join(', ')}`;
+        els.batchComparePreviewWarn.hidden = false;
+      } else {
+        els.batchComparePreviewWarn.textContent = '';
+        els.batchComparePreviewWarn.hidden = true;
+      }
+    }
   }
 
   function syncProviderBlockDimming(els) {
@@ -15530,6 +15769,7 @@ const SHADOW_MODAL_STYLES = `
   function syncAiSectionFromConfig(els) {
     const prov = effectiveAiProvider(CONFIG);
     if (els.batchComparePromptInput) els.batchComparePromptInput.value = CONFIG.BATCH_COMPARE_PROMPT || DEFAULTS.BATCH_COMPARE_PROMPT;
+    if (els.batchCompareItemInput) els.batchCompareItemInput.value = CONFIG.BATCH_COMPARE_ITEM_TEMPLATE || DEFAULTS.BATCH_COMPARE_ITEM_TEMPLATE;
     if (els.aiProviderSelect) els.aiProviderSelect.value = prov;
     if (els.openrouterApiKeyInput) els.openrouterApiKeyInput.value = '';
     if (els.openrouterApiKeyEditor) els.openrouterApiKeyEditor.style.display = 'none';
@@ -15547,16 +15787,41 @@ const SHADOW_MODAL_STYLES = `
     if (els.openrouterMaxResults) els.openrouterMaxResults.value = String(CONFIG.OPENROUTER_MAX_RESULTS || 5);
     if (els.batchAiTargetSelect) els.batchAiTargetSelect.value = CONFIG.BATCH_AI_TARGET || 'google-ai';
     if (els.batchConfirmThresholdInput) els.batchConfirmThresholdInput.value = String(CONFIG.BATCH_CONFIRM_THRESHOLD ?? 10);
+    updateComparePreview(els);
     syncProviderBlockDimming(els);
     revealSelectedProviderBlock(els, prov);
   }
 
   function bindAiSectionEvents(els) {
+    els.batchComparePromptInput?.addEventListener('input', () => updateComparePreview(els));
+    els.batchCompareItemInput?.addEventListener('input', () => updateComparePreview(els));
+
     els.batchComparePromptReset?.addEventListener('click', () => {
       if (els.batchComparePromptInput) {
         els.batchComparePromptInput.value = DEFAULTS.BATCH_COMPARE_PROMPT;
+        updateComparePreview(els);
         els.batchComparePromptInput.focus();
       }
+    });
+
+    els.batchCompareItemReset?.addEventListener('click', () => {
+      if (els.batchCompareItemInput) {
+        els.batchCompareItemInput.value = DEFAULTS.BATCH_COMPARE_ITEM_TEMPLATE;
+        updateComparePreview(els);
+        els.batchCompareItemInput.focus();
+      }
+    });
+
+    els.batchCompareItemChips?.addEventListener('click', e => {
+      const token = e.target?.closest?.('button')?.dataset?.token;
+      const ta = els.batchCompareItemInput;
+      if (!token || !ta) return;
+      const start = ta.selectionStart ?? ta.value.length;
+      const end = ta.selectionEnd ?? ta.value.length;
+      ta.value = ta.value.slice(0, start) + token + ta.value.slice(end);
+      ta.focus();
+      ta.setSelectionRange?.(start + token.length, start + token.length);
+      updateComparePreview(els);
     });
 
     els.openrouterApiKeyReveal?.addEventListener('click', e => {
@@ -15594,6 +15859,10 @@ const SHADOW_MODAL_STYLES = `
     if (els.batchComparePromptInput) {
       const raw = String(els.batchComparePromptInput.value || '').trim();
       updates.BATCH_COMPARE_PROMPT = raw || DEFAULTS.BATCH_COMPARE_PROMPT;
+    }
+    if (els.batchCompareItemInput) {
+      const rawItem = String(els.batchCompareItemInput.value || '').trim();
+      updates.BATCH_COMPARE_ITEM_TEMPLATE = rawItem || DEFAULTS.BATCH_COMPARE_ITEM_TEMPLATE;
     }
     if (els.aiProviderSelect) {
       const prov = els.aiProviderSelect.value;
@@ -21548,7 +21817,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.557';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.558';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

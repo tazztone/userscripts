@@ -55,6 +55,7 @@ export function buildBundle() {
     'ui/styles/floating-cta.js',
     'ui/styles/batch.js',
     'ui/styles.js',
+    'ui/styles/shadow-sections.js',
     'ui/styles/shadow-modal.js'
   ];
   const stylesCode = STYLE_PARTS.map(rel => stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, rel), 'utf-8'))).join('\n\n');

@@ -4,6 +4,37 @@
  */
 
 import { CONFIG, DEFAULTS, effectiveAiProvider } from '../state/config.js';
+import {
+  buildComparisonPrompt,
+  findUnknownPromptTokens,
+  COMPARE_PROMPT_TOKENS,
+  COMPARE_ITEM_TOKENS
+} from '../features/batch-actions.js';
+
+const COMPARE_PREVIEW_SAMPLE = Object.freeze([
+  {
+    title: 'ASUS Prime B840M-K',
+    priceText: 'CHF 79.62',
+    discountText: '-12%',
+    lowText: 'CHF 88.90',
+    medianText: 'Ø-Preis (1J): CHF 95.00',
+    dealer: 'Digitec',
+    offerCount: 9,
+    specs: 'AM5 · micro ATX · DDR5',
+    url: 'https://www.toppreise.ch/preisvergleich/p123'
+  },
+  {
+    title: 'GIGABYTE B550 X',
+    priceText: 'CHF 87.90',
+    discountText: '-5%',
+    lowText: '',
+    medianText: 'Ø-Preis (1J): CHF 92.50',
+    dealer: 'Galaxus',
+    offerCount: 4,
+    specs: 'AM4 · ATX · DDR4',
+    url: 'https://www.toppreise.ch/preisvergleich/p456'
+  }
+]);
 
 export function renderAiProviderTopMarkup() {
   return `
@@ -35,8 +66,8 @@ export function renderAiProviderTopMarkup() {
             <label for="tp-openrouter-model-input" title="OpenRouter Modell-ID für Web-Suche &amp; Batch-Vergleich.">OpenRouter Modell</label>
             <input type="text" id="tp-openrouter-model-input" class="tp-field-dark" placeholder="google/gemini-2.5-flash" spellcheck="false">
           </div>
-          <div class="tp-settings-group" style="display:flex;gap:12px;flex-wrap:wrap;">
-            <div style="flex:1;min-width:140px;">
+          <div class="tp-settings-group tp-ai-split-row">
+            <div class="tp-ai-split-col">
               <label for="tp-openrouter-engine-select" title="Web-Search Engine für openrouter:web_search.">Such-Engine</label>
               <select id="tp-openrouter-engine-select" class="tp-select tp-field-dark">
                 <option value="auto">Auto (Standard)</option>
@@ -47,7 +78,7 @@ export function renderAiProviderTopMarkup() {
                 <option value="firecrawl">Firecrawl</option>
               </select>
             </div>
-            <div style="flex:1;min-width:140px;">
+            <div class="tp-ai-split-col">
               <label for="tp-openrouter-max-results" title="Maximale Web-Quellen pro OpenRouter-Anfrage.">Max. Quellen</label>
               <select id="tp-openrouter-max-results" class="tp-select tp-field-dark">
                 <option value="3">3 Quellen</option>
@@ -70,8 +101,8 @@ export function renderAiBatchSettingsMarkup() {
           <span>Batch-Konfiguration</span>
           <button type="button" class="tp-btn-group-reset" data-reset-group="batch" title="Batch-Aktionen auf Standard zurücksetzen" aria-label="Batch-Aktionen auf Standard zurücksetzen">↺</button>
         </div>
-        <div class="tp-settings-group" style="display:flex;gap:12px;flex-wrap:wrap;">
-          <div style="flex:1;min-width:150px;">
+        <div class="tp-settings-group tp-ai-split-row">
+          <div class="tp-ai-split-col-wide">
             <label for="tp-batch-ai-target-select" title="Ziel-Plattform für 🤖 KI-Vergleich im Batch-Menü.">Batch KI-Vergleich Ziel</label>
             <select id="tp-batch-ai-target-select" class="tp-select tp-field-dark">
               <option value="google-ai">Google AI-Modus (&amp;udm=50)</option>
@@ -81,7 +112,7 @@ export function renderAiBatchSettingsMarkup() {
               <option value="claude">Claude</option>
             </select>
           </div>
-          <div style="flex:1;min-width:140px;">
+          <div class="tp-ai-split-col">
             <label for="tp-batch-confirm-threshold-input" title="Ab dieser Anzahl Karten fragt Batch vor Tabs, Händler-Laden oder API-Calls nach (1–100).">Bestätigung ab N Karten</label>
             <input type="number" id="tp-batch-confirm-threshold-input" class="tp-field-dark" min="1" max="100" step="1" value="10">
           </div>
@@ -111,9 +142,9 @@ export function renderReviewSection() {
         </div>
         <div class="tp-settings-group">
           <label for="tp-review-keyword-input" title="Dieser Prompt wird für Karte 🌐 und Batch Einzelsuche verwendet.">Einzel-Suche Prompt (🌐 Karte &amp; Batch-Einzelsuche)</label>
-          <div style="display:flex;gap:8px;align-items:flex-start;">
-            <textarea id="tp-review-keyword-input" class="tp-field-dark" rows="2" maxlength="500" placeholder="Suchbegriff eingeben…" spellcheck="false" autocomplete="off" style="flex:1;margin-top:0;font-family:inherit;resize:vertical;">Testberichte zu: [Produkt]. Ist der Preis von {preis} ein guter Deal? Bewerte Preis-Leistung, Stärken und Schwächen kurz auf Deutsch.</textarea>
-            <button type="button" id="tp-review-keyword-reset" class="tp-btn tp-btn-secondary" style="padding:6px 10px;font-size:var(--tp-fs-sm);height:32px;white-space:nowrap;" title="Auf Standard-Suchbegriff zurücksetzen">↺ Standard</button>
+          <div class="tp-prompt-row">
+            <textarea id="tp-review-keyword-input" class="tp-field-dark tp-prompt-textarea" rows="2" maxlength="500" placeholder="Suchbegriff eingeben…" spellcheck="false" autocomplete="off">Testberichte zu: [Produkt]. Ist der Preis von {preis} ein guter Deal? Bewerte Preis-Leistung, Stärken und Schwächen kurz auf Deutsch.</textarea>
+            <button type="button" id="tp-review-keyword-reset" class="tp-btn tp-btn-secondary tp-prompt-reset-btn" title="Auf Standard-Suchbegriff zurücksetzen">↺ Standard</button>
           </div>
           <span class="tp-switch-desc tp-field-hint">Platzhalter: <code>[Produkt]</code> (wird sonst vorangestellt) und <code>{preis}</code> (ohne Preisdaten automatisch entfernt).</span>
           <div class="tp-search-preview-box">
@@ -130,11 +161,25 @@ export function renderReviewSection() {
         </div>
         <div class="tp-settings-group">
           <label for="tp-batch-compare-prompt-input" title="Dieser Prompt wird für 🤖 KI-Vergleich im Batch-Menü verwendet.">KI-Vergleich Prompt (🤖 Batch)</label>
-          <div style="display:flex;gap:8px;align-items:flex-start;">
-            <textarea id="tp-batch-compare-prompt-input" class="tp-field-dark" rows="2" maxlength="500" placeholder="Vergleichs-Prompt eingeben…" spellcheck="false" autocomplete="off" style="flex:1;margin-top:0;font-family:inherit;resize:vertical;"></textarea>
-            <button type="button" id="tp-batch-compare-prompt-reset" class="tp-btn tp-btn-secondary" style="padding:6px 10px;font-size:var(--tp-fs-sm);height:32px;white-space:nowrap;" title="Auf Standard-Prompt zurücksetzen">↺ Standard</button>
+          <div class="tp-prompt-row">
+            <textarea id="tp-batch-compare-prompt-input" class="tp-field-dark tp-prompt-textarea" rows="2" maxlength="500" placeholder="Vergleichs-Prompt eingeben…" spellcheck="false" autocomplete="off"></textarea>
+            <button type="button" id="tp-batch-compare-prompt-reset" class="tp-btn tp-btn-secondary tp-prompt-reset-btn" title="Auf Standard-Prompt zurücksetzen">↺ Standard</button>
           </div>
           <span class="tp-switch-desc tp-field-hint">Platzhalter: <code>{anzahl}</code> und optional <code>{angebote}</code> (sonst automatisch angehängt). OpenRouter erhält alle Daten ungekürzt; URL-Ziele passen Specs adaptiv ans URL-Limit (~1850 Zeichen) an.</span>
+          <label for="tp-batch-compare-item-input" title="Format pro Angebot hinter dem Prompt (leere Felder &amp; Segmente entfallen automatisch).">Produktdaten pro Angebot (Payload)</label>
+          <div id="tp-batch-compare-item-chips" class="tp-token-chips">
+            ${COMPARE_ITEM_TOKENS.map(t => `<button type="button" class="tp-btn tp-btn-secondary tp-token-chip" data-token="{${t}}">{${t}}</button>`).join('')}
+          </div>
+          <div class="tp-prompt-row">
+            <textarea id="tp-batch-compare-item-input" class="tp-field-dark tp-prompt-textarea" rows="2" maxlength="500" placeholder="Format pro Angebot…" spellcheck="false" autocomplete="off"></textarea>
+            <button type="button" id="tp-batch-compare-item-reset" class="tp-btn tp-btn-secondary tp-prompt-reset-btn" title="Auf Standard-Produktformat zurücksetzen">↺ Standard</button>
+          </div>
+          <span class="tp-switch-desc tp-field-hint">Segmente mit <code>|</code> trennen — fehlende Felder werden sauber ausgeblendet.</span>
+          <div id="tp-batch-compare-preview-box" class="tp-search-preview-box">
+            <div class="tp-search-preview-title">Live-Vorschau KI-Vergleich (Beispiel: 2 Angebote)</div>
+            <div id="tp-batch-compare-preview" class="tp-search-preview-text tp-preview-pre"></div>
+            <div id="tp-batch-compare-preview-warn" class="tp-preview-warn" hidden></div>
+          </div>
         </div>
         <details class="tp-subsection" data-sub="review-google">
           <summary class="tp-subsection-header">🔍 Google-Suche</summary>
@@ -177,15 +222,15 @@ ${renderAiProviderTopMarkup()}
               <span class="tp-switch-desc tp-field-hint">Kostenloser Key von <a href="https://tavily.com" target="_blank" rel="noopener">tavily.com</a> (1'000 Anfragen/Monat). Ermöglicht KI-Kurzfazit per 1-Klick auf der Karte und <code>{ai}</code> im Discord-Post. Bleibt lokal im Browser.</span>
             </div>
           </div>
-          <div class="tp-settings-group" style="display:flex;gap:12px;flex-wrap:wrap;">
-            <div style="flex:1;min-width:140px;">
+          <div class="tp-settings-group tp-ai-split-row">
+            <div class="tp-ai-split-col">
               <label title="Suchtiefe: Basic ist schnell (~1-2s). Advanced durchsucht mehr Webquellen (~2-4s).">Tavily Suchtiefe</label>
               <select id="tp-tavily-search-depth" class="tp-select tp-field-dark">
                 <option value="basic">Basic (schnell, Standard)</option>
                 <option value="advanced">Advanced (gründlich)</option>
               </select>
             </div>
-            <div style="flex:1;min-width:140px;">
+            <div class="tp-ai-split-col">
               <label title="Anzahl der Webseiten, die Tavily für die Antwort analysiert.">Max. Quellen (Ergebnisse)</label>
               <select id="tp-tavily-max-results" class="tp-select tp-field-dark">
                 <option value="3">3 Quellen</option>
@@ -206,6 +251,11 @@ export function collectAiSectionElements(shadow) {
   return {
     batchComparePromptInput: shadow.getElementById('tp-batch-compare-prompt-input'),
     batchComparePromptReset: shadow.getElementById('tp-batch-compare-prompt-reset'),
+    batchCompareItemInput: shadow.getElementById('tp-batch-compare-item-input'),
+    batchCompareItemReset: shadow.getElementById('tp-batch-compare-item-reset'),
+    batchCompareItemChips: shadow.getElementById('tp-batch-compare-item-chips'),
+    batchComparePreview: shadow.getElementById('tp-batch-compare-preview'),
+    batchComparePreviewWarn: shadow.getElementById('tp-batch-compare-preview-warn'),
     aiProviderSelect: shadow.getElementById('tp-ai-provider-select'),
     openrouterBlock: shadow.getElementById('tp-ai-openrouter-block'),
     tavilyBlock: shadow.getElementById('tp-ai-tavily-block'),
@@ -219,6 +269,28 @@ export function collectAiSectionElements(shadow) {
     batchAiTargetSelect: shadow.getElementById('tp-batch-ai-target-select'),
     batchConfirmThresholdInput: shadow.getElementById('tp-batch-confirm-threshold-input')
   };
+}
+
+function updateComparePreview(els) {
+  if (!els.batchComparePreview) return;
+  const promptTpl = String(els.batchComparePromptInput?.value || '').trim() || DEFAULTS.BATCH_COMPARE_PROMPT;
+  const itemTpl = String(els.batchCompareItemInput?.value || '').trim() || DEFAULTS.BATCH_COMPARE_ITEM_TEMPLATE;
+  els.batchComparePreview.textContent = buildComparisonPrompt(COMPARE_PREVIEW_SAMPLE, {
+    promptTemplate: promptTpl,
+    itemTemplate: itemTpl
+  });
+  if (els.batchComparePreviewWarn) {
+    const badPrompt = findUnknownPromptTokens(promptTpl, COMPARE_PROMPT_TOKENS);
+    const badItem = findUnknownPromptTokens(itemTpl, COMPARE_ITEM_TOKENS);
+    const allBad = [...new Set([...badPrompt, ...badItem])];
+    if (allBad.length > 0) {
+      els.batchComparePreviewWarn.textContent = `Hinweis: Unbekannte(r) Platzhalter ${allBad.join(', ')}`;
+      els.batchComparePreviewWarn.hidden = false;
+    } else {
+      els.batchComparePreviewWarn.textContent = '';
+      els.batchComparePreviewWarn.hidden = true;
+    }
+  }
 }
 
 function syncProviderBlockDimming(els) {
@@ -235,6 +307,7 @@ function revealSelectedProviderBlock(els, prov) {
 export function syncAiSectionFromConfig(els) {
   const prov = effectiveAiProvider(CONFIG);
   if (els.batchComparePromptInput) els.batchComparePromptInput.value = CONFIG.BATCH_COMPARE_PROMPT || DEFAULTS.BATCH_COMPARE_PROMPT;
+  if (els.batchCompareItemInput) els.batchCompareItemInput.value = CONFIG.BATCH_COMPARE_ITEM_TEMPLATE || DEFAULTS.BATCH_COMPARE_ITEM_TEMPLATE;
   if (els.aiProviderSelect) els.aiProviderSelect.value = prov;
   if (els.openrouterApiKeyInput) els.openrouterApiKeyInput.value = '';
   if (els.openrouterApiKeyEditor) els.openrouterApiKeyEditor.style.display = 'none';
@@ -252,16 +325,41 @@ export function syncAiSectionFromConfig(els) {
   if (els.openrouterMaxResults) els.openrouterMaxResults.value = String(CONFIG.OPENROUTER_MAX_RESULTS || 5);
   if (els.batchAiTargetSelect) els.batchAiTargetSelect.value = CONFIG.BATCH_AI_TARGET || 'google-ai';
   if (els.batchConfirmThresholdInput) els.batchConfirmThresholdInput.value = String(CONFIG.BATCH_CONFIRM_THRESHOLD ?? 10);
+  updateComparePreview(els);
   syncProviderBlockDimming(els);
   revealSelectedProviderBlock(els, prov);
 }
 
 export function bindAiSectionEvents(els) {
+  els.batchComparePromptInput?.addEventListener('input', () => updateComparePreview(els));
+  els.batchCompareItemInput?.addEventListener('input', () => updateComparePreview(els));
+
   els.batchComparePromptReset?.addEventListener('click', () => {
     if (els.batchComparePromptInput) {
       els.batchComparePromptInput.value = DEFAULTS.BATCH_COMPARE_PROMPT;
+      updateComparePreview(els);
       els.batchComparePromptInput.focus();
     }
+  });
+
+  els.batchCompareItemReset?.addEventListener('click', () => {
+    if (els.batchCompareItemInput) {
+      els.batchCompareItemInput.value = DEFAULTS.BATCH_COMPARE_ITEM_TEMPLATE;
+      updateComparePreview(els);
+      els.batchCompareItemInput.focus();
+    }
+  });
+
+  els.batchCompareItemChips?.addEventListener('click', e => {
+    const token = e.target?.closest?.('button')?.dataset?.token;
+    const ta = els.batchCompareItemInput;
+    if (!token || !ta) return;
+    const start = ta.selectionStart ?? ta.value.length;
+    const end = ta.selectionEnd ?? ta.value.length;
+    ta.value = ta.value.slice(0, start) + token + ta.value.slice(end);
+    ta.focus();
+    ta.setSelectionRange?.(start + token.length, start + token.length);
+    updateComparePreview(els);
   });
 
   els.openrouterApiKeyReveal?.addEventListener('click', e => {
@@ -299,6 +397,10 @@ export function collectAiSectionUpdates(els, updates) {
   if (els.batchComparePromptInput) {
     const raw = String(els.batchComparePromptInput.value || '').trim();
     updates.BATCH_COMPARE_PROMPT = raw || DEFAULTS.BATCH_COMPARE_PROMPT;
+  }
+  if (els.batchCompareItemInput) {
+    const rawItem = String(els.batchCompareItemInput.value || '').trim();
+    updates.BATCH_COMPARE_ITEM_TEMPLATE = rawItem || DEFAULTS.BATCH_COMPARE_ITEM_TEMPLATE;
   }
   if (els.aiProviderSelect) {
     const prov = els.aiProviderSelect.value;

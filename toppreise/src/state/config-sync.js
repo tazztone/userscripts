@@ -167,6 +167,11 @@ export function syncUiControl(key, val, opts = {}, shadowRoot = null) {
           if (input) input.value = val || DEFAULTS.BATCH_COMPARE_PROMPT;
           break;
         }
+        case 'BATCH_COMPARE_ITEM_TEMPLATE': {
+          const input = shadow.getElementById('tp-batch-compare-item-input');
+          if (input) input.value = val || DEFAULTS.BATCH_COMPARE_ITEM_TEMPLATE;
+          break;
+        }
         case 'REVIEW_SEARCH_AI_MODE': {
           const toggle = shadow.getElementById('tp-review-ai-mode-toggle');
           if (toggle) toggle.checked = !!val;
