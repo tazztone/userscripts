@@ -78,8 +78,9 @@ ffmpeg -y -ss 00:00:05 -i toppreise/docs/videos/explainer.mp4 -vframes 1 -vf "sc
 
 Deployment is automated via GitHub Actions:
 
-- **Workflow File**: [`.github/workflows/deploy-pages.yml`](../.github/workflows/deploy-pages.yml)
-- **Trigger**: Any push to `main` modifying `toppreise/site/**` or the workflow itself.
+- **Workflow File**: [`.github/workflows/deploy-pages.yml`](../../.github/workflows/deploy-pages.yml)
+- **Trigger**: Any push to `main` modifying `toppreise/site/**`, `toppreise/src/**`, `toppreise/tools/**`, or the workflow itself (`workflow_dispatch` also supported).
+- **Jobs**: Two-job pipeline (`build` compiles `toppreise/site/demo/toppreise.user.js` and uploads the `github-pages` artifact; `deploy` publishes via `actions/deploy-pages@v4`).
 - **Artifact Path**: `toppreise/site/`
 - **Live URL**: `https://tazztone.github.io/userscripts/`
 
