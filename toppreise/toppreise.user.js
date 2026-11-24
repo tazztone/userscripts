@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.566
+// @version      2.18.567
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -3270,10 +3270,8 @@ const STYLES_BATCH = `
     flex-direction: column !important;
     gap: 5px !important;
   }
-  .tp-launcher-speed-row {
-    display: grid !important;
-    grid-template-columns: 1fr 1fr !important;
-    gap: 6px !important;
+  .tp-launcher-btn-full {
+    width: 100% !important;
   }
   .tp-launcher-or-box {
     padding: 8px !important;
@@ -7040,6 +7038,7 @@ const SHADOW_MODAL_STYLES = `
       readAs = null,
       customFetch = null,
       signal = null,
+      isOk = null,
     } = opts || {};
 
     const fetchFn = customFetch || globalThis.fetch;
@@ -7081,6 +7080,8 @@ const SHADOW_MODAL_STYLES = `
         signal: controller.signal,
       });
 
+      const ok = typeof isOk === 'function' ? Boolean(isOk(res)) : Boolean(res?.ok);
+
       if (readAs === 'text' || readAs === 'json' || readAs === 'blob') {
         const body = typeof res?.[readAs] === 'function' ? await res[readAs]() : null;
         const elapsed = Date.now() - startedAt;
@@ -7088,7 +7089,7 @@ const SHADOW_MODAL_STYLES = `
           ? body.length
           : (body && typeof body.size === 'number' ? body.size : null);
         logActivity(
-          res.ok ? 'debug' : 'warn',
+          ok ? 'debug' : 'warn',
           source,
           `${tag}${res.status} ${safeUrl} (${elapsed}ms${bytes != null ? `, ${bytes}B` : ''})`
         );
@@ -7096,7 +7097,7 @@ const SHADOW_MODAL_STYLES = `
       }
 
       const elapsed = Date.now() - startedAt;
-      logActivity(res.ok ? 'debug' : 'warn', source, `${tag}${res.status} ${safeUrl} (${elapsed}ms)`);
+      logActivity(ok ? 'debug' : 'warn', source, `${tag}${res.status} ${safeUrl} (${elapsed}ms)`);
       return res;
     } catch (err) {
       const elapsed = Date.now() - startedAt;
@@ -7126,6 +7127,7 @@ const SHADOW_MODAL_STYLES = `
       signal = null,
       source = 'net',
       label = '',
+      isOk = null,
     } = opts || {};
 
     const gmFn = globalThis.GM_xmlhttpRequest;
@@ -7184,7 +7186,9 @@ const SHADOW_MODAL_STYLES = `
             settled = true;
             cleanup();
             const elapsed = Date.now() - startedAt;
-            const ok = res && res.status >= 200 && res.status < 300;
+            const ok = typeof isOk === 'function'
+              ? Boolean(isOk(res))
+              : Boolean(res && res.status >= 200 && res.status < 300);
             logActivity(ok ? 'debug' : 'warn', source, `${tag}GM ${res?.status ?? '?'} ${safeUrl} (${elapsed}ms)`);
             resolve(res);
           },
@@ -8487,13 +8491,22 @@ const SHADOW_MODAL_STYLES = `
         }
       }
 
+      const isAsinHeadOk = (res, resolvedUrl) =>
+        (res?.status >= 200 && res?.status < 300)
+        || (res?.status === 405 && isAllowedAmazonUrl(resolvedUrl));
+
       try {
         if (typeof GM_xmlhttpRequest !== 'undefined') {
           const res = await gmRequestWithTimeout({
             method: 'HEAD',
             url: target,
             headers: { 'Referer': (typeof location !== 'undefined' && location.href) ? location.href : 'https://www.toppreise.ch/' },
-          }, { timeoutMs: 6000, source: 'asin', label: 'HEAD' });
+          }, {
+            timeoutMs: 6000,
+            source: 'asin',
+            label: 'HEAD',
+            isOk: r => isAsinHeadOk(r, r?.finalUrl || r?.responseHeaders?.match(/(?:^|\r?\n)location:\s*([^\r\n]+)/i)?.[1] || ''),
+          });
           const loc = res?.finalUrl || res?.responseHeaders?.match(/(?:^|\r?\n)location:\s*([^\r\n]+)/i)?.[1] || '';
           const asin = isAllowedAmazonUrl(loc) ? parseAmazonAsin(loc) : null;
           if (asin && productId) {
@@ -8503,7 +8516,11 @@ const SHADOW_MODAL_STYLES = `
           return asin || null;
         }
         if (typeof fetch !== 'undefined') {
-          const { res } = await fetchWithTimeout(target, { method: 'HEAD', redirect: 'follow' }, { timeoutMs: 6000, source: 'asin', label: 'HEAD' });
+          const res = await fetchWithTimeout(
+            target,
+            { method: 'HEAD', redirect: 'follow' },
+            { timeoutMs: 6000, source: 'asin', label: 'HEAD', isOk: r => isAsinHeadOk(r, r?.url || '') }
+          );
           const asin = isAllowedAmazonUrl(res.url) ? parseAmazonAsin(res.url) : null;
           if (asin && productId) {
             lruSet(memoryAsinCache, productId, asin, 500);
@@ -15139,29 +15156,24 @@ const SHADOW_MODAL_STYLES = `
       ? Math.max(1, Math.min(itemCount, parseInt(limitInput.value, 10) || itemCount))
       : itemCount);
 
-    // Speed section: Google Search + Google AI
+    // Speed section: Google Search (routed by REVIEW_SEARCH_AI_MODE)
+    const useGoogleAi = CONFIG.REVIEW_SEARCH_AI_MODE === true;
     const speedGroup = document.createElement('div');
     speedGroup.className = 'tp-launcher-group';
     const speedLabel = document.createElement('div');
     speedLabel.className = 'tp-bp-group-label';
     speedLabel.textContent = '⚡ Schnell — Google';
-    const speedRow = document.createElement('div');
-    speedRow.className = 'tp-launcher-speed-row';
 
     const googleBtn = document.createElement('button');
     googleBtn.type = 'button';
     googleBtn.id = 'tp-launcher-google-btn';
-    googleBtn.className = 'tp-launcher-btn';
-    googleBtn.textContent = '🔍 Google Suche';
+    googleBtn.className = 'tp-launcher-btn tp-launcher-btn-full';
+    googleBtn.textContent = useGoogleAi ? '✨ Google AI' : '🔍 Google Suche';
+    googleBtn.title = useGoogleAi
+      ? 'Google AI-Modus (&udm=50) — umschaltbar in Einstellungen'
+      : 'Klassische Google-Suche — AI-Modus (&udm=50) in Einstellungen aktivierbar';
 
-    const googleAiBtn = document.createElement('button');
-    googleAiBtn.type = 'button';
-    googleAiBtn.id = 'tp-launcher-google-ai-btn';
-    googleAiBtn.className = 'tp-launcher-btn';
-    googleAiBtn.textContent = '✨ Google AI';
-
-    speedRow.append(googleBtn, googleAiBtn);
-    speedGroup.append(speedLabel, speedRow);
+    speedGroup.append(speedLabel, googleBtn);
     el.appendChild(speedGroup);
 
     // Research section: OpenRouter + model picker
@@ -15313,12 +15325,12 @@ const SHADOW_MODAL_STYLES = `
     googleBtn.addEventListener('click', () => {
       const limit = currentLimit();
       closeAiLauncherPopover();
-      onLaunch?.({ engine: 'google', model: '', googleAiMode: false, limit });
-    });
-    googleAiBtn.addEventListener('click', () => {
-      const limit = currentLimit();
-      closeAiLauncherPopover();
-      onLaunch?.({ engine: 'google-ai', model: '', googleAiMode: true, limit });
+      onLaunch?.({
+        engine: useGoogleAi ? 'google-ai' : 'google',
+        model: '',
+        googleAiMode: useGoogleAi,
+        limit
+      });
     });
     closeBtn.addEventListener('click', closeAiLauncherPopover);
 
@@ -20004,6 +20016,7 @@ const SHADOW_MODAL_STYLES = `
         reqModal._tpAlarmObserver = null;
         if (reqModal.dataset.tpAlarmAttempt === reqAttempt) reqModal.dataset.tpAlarmState = 'cancelled';
         delete reqModal._tpBatchAlarmOpts;
+        delete reqModal._tpDismissDialog;
         batchOpts?.onResult?.({ status: 'cancelled', targetPrice: reqSnap.target });
       };
       const flagUnconfirmed = () => {
@@ -20036,8 +20049,12 @@ const SHADOW_MODAL_STYLES = `
             if (reqModal.dataset.tpAlarmAttempt === reqAttempt) reqModal.dataset.tpAlarmState = 'confirmed';
             showToast(formatAlarmToast(reqSnap.target, reqSnap.duration));
             const closeBtn = reqModal.closest('.AbstractDialog, .AbstractDialog_NewInfoMailFormDialog')?.querySelector('.AbstractDialog_CloseButton') ||
-                             document.querySelector('#tmpAbstractDialogContainer .AbstractDialog_CloseButton');
+                             reqModal.closest('.AbstractDialog, .AbstractDialog_NewInfoMailFormDialog, .modal')?.querySelector('.close, .btn-close, [data-dismiss="modal"], [data-bs-dismiss="modal"]') ||
+                             document.querySelector('#tmpAbstractDialogContainer .AbstractDialog_CloseButton, .AbstractDialog.show .AbstractDialog_CloseButton, .AbstractDialog_NewInfoMailFormDialog.show .AbstractDialog_CloseButton');
+            const dismissFn = reqModal._tpDismissDialog;
+            delete reqModal._tpDismissDialog;
             if (closeBtn) closeBtn.click();
+            else if (typeof dismissFn === 'function') dismissFn();
             else logActivity('warn', 'price-alarm', 'Preisalarm: kein Close-Button gefunden');
             delete reqModal._tpBatchAlarmOpts;
             batchOpts?.onResult?.({ status: 'confirmed', targetPrice: reqSnap.target });
@@ -20048,6 +20065,7 @@ const SHADOW_MODAL_STYLES = `
             reqModal._tpAlarmObserver = null;
             if (reqModal.dataset.tpAlarmAttempt === reqAttempt) reqModal.dataset.tpAlarmState = 'cancelled';
             delete reqModal._tpBatchAlarmOpts;
+            delete reqModal._tpDismissDialog;
             batchOpts?.onResult?.({ status: 'cancelled', targetPrice: reqSnap.target });
           }
         });
@@ -20176,10 +20194,11 @@ const SHADOW_MODAL_STYLES = `
       .filter(Boolean);
     const content = dialogNode.querySelector(SELECTORS.alarm.content);
     if (content) content.replaceChildren(...nodes);
-    if (batchOpts) {
-      const formEl = dialogNode.querySelector(SELECTORS.alarm.form);
-      if (!formEl) return false;
-      formEl._tpBatchAlarmOpts = batchOpts;
+    const formEl = dialogNode.querySelector(SELECTORS.alarm.form);
+    if (batchOpts && !formEl) return false;
+    if (formEl) {
+      formEl._tpDismissDialog = dismissDialog;
+      if (batchOpts) formEl._tpBatchAlarmOpts = batchOpts;
     }
 
     if (dialogId) {
@@ -22913,7 +22932,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.566';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.567';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

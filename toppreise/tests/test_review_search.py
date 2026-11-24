@@ -211,12 +211,21 @@ def test_review_ai_popover_open_and_close(page: Page):
     btn.dispatch_event('click')
     launcher = page.locator('#tp-ai-launcher-popover')
     launcher.wait_for(state='visible')
-    assert page.locator('#tp-launcher-google-btn').is_visible()
-    assert page.locator('#tp-launcher-google-ai-btn').is_visible()
+    g_btn = page.locator('#tp-launcher-google-btn')
+    assert g_btn.is_visible()
+    assert 'Google Suche' in (g_btn.text_content() or '')
     assert page.locator('#tp-launcher-or-setup-btn').is_visible()
     assert page.locator('#tp-launcher-tavily-btn').count() == 0
 
     # Escape closes launcher
+    page.keyboard.press('Escape')
+    launcher.wait_for(state='detached')
+
+    # With REVIEW_SEARCH_AI_MODE enabled -> single Google button reflects Google AI
+    page.evaluate("() => window.ToppreiseSuite?.updateConfig?.('REVIEW_SEARCH_AI_MODE', true)")
+    btn.dispatch_event('click')
+    launcher.wait_for(state='visible')
+    assert 'Google AI' in (g_btn.text_content() or '')
     page.keyboard.press('Escape')
     launcher.wait_for(state='detached')
 

@@ -74,6 +74,7 @@ def test_batch_confirm_threshold_gate_and_google_ai_fallback(page: Page):
         window.open = (url) => { window.__tpOpenedUrls.push(url); return null; };
         window.ToppreiseSuite.updateConfig('BATCH_CONFIRM_THRESHOLD', 2);
         window.ToppreiseSuite.updateConfig('AI_SEARCH_PROVIDER', 'google');
+        window.ToppreiseSuite.updateConfig('REVIEW_SEARCH_AI_MODE', true);
     }""")
 
     page.click('#tp-floating-batch-btn')
@@ -83,7 +84,7 @@ def test_batch_confirm_threshold_gate_and_google_ai_fallback(page: Page):
     launcher = page.locator('#tp-ai-launcher-popover')
     assert launcher.is_visible()
     page.fill('#tp-launcher-limit-input', '2')
-    page.click('#tp-launcher-google-ai-btn')
+    page.click('#tp-launcher-google-btn')
 
     # window.open returned null -> blocked links fallback popout appears with &udm=50 links
     ai_pop = page.locator('#tp-batch-ai-popout')
@@ -466,6 +467,7 @@ def test_batch_google_ai_comparison_compacts_query_and_uses_paste_modal_when_hug
         });
         window.ToppreiseSuite.updateConfig('BATCH_CONFIRM_THRESHOLD', 100);
         window.ToppreiseSuite.updateConfig('BATCH_AI_TARGET', 'google-ai');
+        window.ToppreiseSuite.updateConfig('REVIEW_SEARCH_AI_MODE', true);
         window.ToppreiseSuite.updateConfig('BATCH_SCOPE_DEFAULT', 'visible');
 
         const host = document.querySelector('.Plugin_Product').parentElement;
@@ -496,7 +498,7 @@ def test_batch_google_ai_comparison_compacts_query_and_uses_paste_modal_when_hug
     page.click('#tp-floating-batch-btn')
     page.click('#tp-batch-ai-compare-btn')
     page.locator('#tp-ai-launcher-popover').wait_for(state='visible')
-    page.click('#tp-launcher-google-ai-btn')
+    page.click('#tp-launcher-google-btn')
     page.wait_for_function("() => window.__tpOpenedUrls.length === 1")
 
     url = page.evaluate("() => window.__tpOpenedUrls[0]")
@@ -526,7 +528,7 @@ def test_batch_google_ai_comparison_compacts_query_and_uses_paste_modal_when_hug
 
     page.click('#tp-batch-ai-compare-btn')
     page.locator('#tp-ai-launcher-popover').wait_for(state='visible')
-    page.click('#tp-launcher-google-ai-btn')
+    page.click('#tp-launcher-google-btn')
     ai_pop = page.locator('#tp-batch-ai-popout')
     ai_pop.wait_for(state='visible')
     assert page.evaluate("() => window.__tpOpenedUrls.length") == 1
@@ -557,7 +559,7 @@ def test_batch_google_ai_keeps_full_specs_for_six_items_and_uses_custom_prompt(p
     page.click('#tp-floating-batch-btn')
     page.click('#tp-batch-ai-compare-btn')
     page.locator('#tp-ai-launcher-popover').wait_for(state='visible')
-    page.click('#tp-launcher-google-ai-btn')
+    page.click('#tp-launcher-google-btn')
     page.wait_for_function("() => window.__tpOpenedUrls.length === 1")
 
     url = page.evaluate("() => window.__tpOpenedUrls[0]")

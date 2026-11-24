@@ -195,29 +195,24 @@ export function openAiLauncherPopover(opts = {}) {
     ? Math.max(1, Math.min(itemCount, parseInt(limitInput.value, 10) || itemCount))
     : itemCount);
 
-  // Speed section: Google Search + Google AI
+  // Speed section: Google Search (routed by REVIEW_SEARCH_AI_MODE)
+  const useGoogleAi = CONFIG.REVIEW_SEARCH_AI_MODE === true;
   const speedGroup = document.createElement('div');
   speedGroup.className = 'tp-launcher-group';
   const speedLabel = document.createElement('div');
   speedLabel.className = 'tp-bp-group-label';
   speedLabel.textContent = '⚡ Schnell — Google';
-  const speedRow = document.createElement('div');
-  speedRow.className = 'tp-launcher-speed-row';
 
   const googleBtn = document.createElement('button');
   googleBtn.type = 'button';
   googleBtn.id = 'tp-launcher-google-btn';
-  googleBtn.className = 'tp-launcher-btn';
-  googleBtn.textContent = '🔍 Google Suche';
+  googleBtn.className = 'tp-launcher-btn tp-launcher-btn-full';
+  googleBtn.textContent = useGoogleAi ? '✨ Google AI' : '🔍 Google Suche';
+  googleBtn.title = useGoogleAi
+    ? 'Google AI-Modus (&udm=50) — umschaltbar in Einstellungen'
+    : 'Klassische Google-Suche — AI-Modus (&udm=50) in Einstellungen aktivierbar';
 
-  const googleAiBtn = document.createElement('button');
-  googleAiBtn.type = 'button';
-  googleAiBtn.id = 'tp-launcher-google-ai-btn';
-  googleAiBtn.className = 'tp-launcher-btn';
-  googleAiBtn.textContent = '✨ Google AI';
-
-  speedRow.append(googleBtn, googleAiBtn);
-  speedGroup.append(speedLabel, speedRow);
+  speedGroup.append(speedLabel, googleBtn);
   el.appendChild(speedGroup);
 
   // Research section: OpenRouter + model picker
@@ -369,12 +364,12 @@ export function openAiLauncherPopover(opts = {}) {
   googleBtn.addEventListener('click', () => {
     const limit = currentLimit();
     closeAiLauncherPopover();
-    onLaunch?.({ engine: 'google', model: '', googleAiMode: false, limit });
-  });
-  googleAiBtn.addEventListener('click', () => {
-    const limit = currentLimit();
-    closeAiLauncherPopover();
-    onLaunch?.({ engine: 'google-ai', model: '', googleAiMode: true, limit });
+    onLaunch?.({
+      engine: useGoogleAi ? 'google-ai' : 'google',
+      model: '',
+      googleAiMode: useGoogleAi,
+      limit
+    });
   });
   closeBtn.addEventListener('click', closeAiLauncherPopover);
 

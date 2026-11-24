@@ -500,10 +500,8 @@ export const STYLES_BATCH = `
     flex-direction: column !important;
     gap: 5px !important;
   }
-  .tp-launcher-speed-row {
-    display: grid !important;
-    grid-template-columns: 1fr 1fr !important;
-    gap: 6px !important;
+  .tp-launcher-btn-full {
+    width: 100% !important;
   }
   .tp-launcher-or-box {
     padding: 8px !important;
