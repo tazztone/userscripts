@@ -443,4 +443,14 @@ describe('batch-actions: isBatchConfirmRequired', () => {
       CONFIG.BATCH_CONFIRM_THRESHOLD = prevThreshold;
     }
   });
+
+  it('buildExternalAiUrl distinguishes classic google from google-ai (&udm=50)', () => {
+    const classic = buildExternalAiUrl('google', 'Test query');
+    assert.equal(classic.url, 'https://www.google.com/search?q=Test%20query');
+    assert.equal(classic.needsPaste, false);
+
+    const ai = buildExternalAiUrl('google-ai', 'Test query');
+    assert.equal(ai.url, 'https://www.google.com/search?q=Test%20query&udm=50');
+    assert.equal(ai.needsPaste, false);
+  });
 });

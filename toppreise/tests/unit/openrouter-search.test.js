@@ -11,6 +11,9 @@ import {
   clearOpenRouterCache,
   fetchOpenRouterWebSearch,
   isConfiguredAiActive,
+  hasOpenRouterKey,
+  hasTavilyKey,
+  getCachedConfiguredAiSummary,
   fetchConfiguredAiSummary
 } from '../../src/features/openrouter-search.js';
 import { gmRequestWithTimeout } from '../../src/state/net.js';
@@ -248,5 +251,37 @@ describe('openrouter-search: cache & fetch', () => {
     const res = await fetchConfiguredAiSummary('Prod', 'Test', 'CHF 50', { searchContextSize: 'high' });
     assert.equal(res.answer, 'High ctx');
     assert.equal(sentBody.tools[0].parameters.search_context_size, 'high');
+  });
+
+  it('hasOpenRouterKey/hasTavilyKey and model-override cache lookup work without mutating CONFIG', async () => {
+    CONFIG.OPENROUTER_API_KEY = '  sk-or-test  ';
+    CONFIG.TAVILY_API_KEY = '';
+    CONFIG.OPENROUTER_MODEL = 'openrouter/free';
+    assert.equal(hasOpenRouterKey(CONFIG), true);
+    assert.equal(hasTavilyKey(CONFIG), false);
+
+    globalThis.fetch = async (_url, init) => {
+      const body = JSON.parse(init.body);
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ choices: [{ message: { content: `Model=${body.model}`, annotations: [] } }] })
+      };
+    };
+    const r = await fetchConfiguredAiSummary('ProdX', 'Test', 'CHF 10', {
+      provider: 'openrouter',
+      model: 'openai/gpt-4.1-mini'
+    });
+    assert.equal(r.answer, 'Model=openai/gpt-4.1-mini');
+    assert.equal(CONFIG.OPENROUTER_MODEL, 'openrouter/free');
+    const hit = getCachedConfiguredAiSummary('ProdX', 'Test', 'CHF 10', {
+      provider: 'openrouter',
+      model: 'openai/gpt-4.1-mini'
+    });
+    assert.equal(hit?.answer, 'Model=openai/gpt-4.1-mini');
+    assert.equal(getCachedConfiguredAiSummary('ProdX', 'Test', 'CHF 10', {
+      provider: 'openrouter',
+      model: 'openrouter/free'
+    }), null);
   });
 });

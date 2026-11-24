@@ -203,26 +203,31 @@ def test_tavily_key_settings_lifecycle(page: Page):
 
 
 def test_review_ai_popover_open_and_close(page: Page):
-    """Clicking 🌐 with configured Tavily key opens AI popover; Escape key closes it."""
+    """Clicking 🌐 opens launcher popover; Tavily launches when key is configured; Escape closes."""
     btn = page.locator('#card-cheapest a.tp-review-search-btn')
     assert btn.count() == 1
 
-    # Default: Tavily disabled, clicking 🌐 does not toast
+    # Clicking 🌐 opens the universal AI launcher popover
     btn.dispatch_event('click')
-    assert page.locator('#tp-ai-popout').count() == 0
-    assert page.evaluate("() => window.ToppreiseSuite?.lastToast?.() || ''") == ''
+    launcher = page.locator('#tp-ai-launcher-popover')
+    launcher.wait_for(state='visible')
+    assert page.locator('#tp-launcher-google-btn').is_visible()
+    assert page.locator('#tp-launcher-google-ai-btn').is_visible()
+    assert page.locator('#tp-launcher-or-setup-btn').is_visible()
+    assert page.locator('#tp-launcher-tavily-btn').count() == 0
 
-    # Enabled but without Tavily key: clicking 🌐 emits guidance toast and does not mount popover
-    page.evaluate("() => window.ToppreiseSuite?.updateConfig?.('TAVILY_ENABLED', true)")
-    btn.dispatch_event('click')
-    assert page.locator('#tp-ai-popout').count() == 0
-    assert 'Kostenlosen Tavily-Key' in page.evaluate("() => window.ToppreiseSuite?.lastToast?.() || ''")
+    # Escape closes launcher
+    page.keyboard.press('Escape')
+    launcher.wait_for(state='detached')
 
-    # Positive path: seed key into userscript internal CONFIG via updateConfig harness
+    # With Tavily key configured: Tavily button appears and opens #tp-ai-popout
     page.evaluate("() => window.ToppreiseSuite?.updateConfig?.('TAVILY_API_KEY', 'tvly-mock-test')")
-
-    # Clicking 🌐 intercepts default navigation and opens #tp-ai-popout
     btn.dispatch_event('click')
+    launcher.wait_for(state='visible')
+    tav_btn = page.locator('#tp-launcher-tavily-btn')
+    assert tav_btn.is_visible()
+    tav_btn.click()
+
     popout = page.locator('#tp-ai-popout')
     page.wait_for_selector('#tp-ai-popout', state='visible')
     assert popout.is_visible()
@@ -326,34 +331,88 @@ def test_review_ai_popover_openrouter_and_missing_key_toast(page: Page):
     btn = page.locator('#card-cheapest a.tp-review-search-btn')
     assert btn.count() == 1
 
-    # OpenRouter active without key -> shows OpenRouter tip toast
-    page.evaluate("() => window.ToppreiseSuite?.updateConfig?.('AI_SEARCH_PROVIDER', 'openrouter')")
+    # Without OpenRouter key -> launcher shows setup button that opens Settings at OpenRouter section
     btn.dispatch_event('click')
-    assert page.locator('#tp-ai-popout').count() == 0
-    assert 'OpenRouter API-Key' in page.evaluate("() => window.ToppreiseSuite?.lastToast?.() || ''")
+    launcher = page.locator('#tp-ai-launcher-popover')
+    launcher.wait_for(state='visible')
+    page.click('#tp-launcher-or-setup-btn')
+    assert page.locator('#tp-ai-launcher-popover').count() == 0
+    assert page.locator('#tp-root >> #tp-settings-dialog').is_visible()
+    page.click('#tp-root >> #tp-btn-close')
 
-    # With key + mocked OpenRouter response -> renders verdict + citations
-    page.route('https://openrouter.ai/api/v1/chat/completions', lambda route: route.fulfill(
-        status=200,
-        headers={'content-type': 'application/json', 'access-control-allow-origin': '*'},
-        body=json.dumps({
-            'choices': [{
-                'message': {
-                    'content': '**Solides Angebot** mit starker Leistung.',
-                    'annotations': [{
-                        'type': 'url_citation',
-                        'url_citation': {'url': 'https://example.com/or-review', 'title': 'OR Review'}
-                    }]
-                }
-            }]
-        })
-    ))
+    # With key + mocked OpenRouter response -> renders verdict + citations + one-time model override
+    seen_models = []
+
+    def handle_openrouter(route):
+        body = json.loads(route.request.post_data or '{}')
+        seen_models.append(body.get('model'))
+        route.fulfill(
+            status=200,
+            headers={'content-type': 'application/json', 'access-control-allow-origin': '*'},
+            body=json.dumps({
+                'choices': [{
+                    'message': {
+                        'content': '**Solides Angebot** mit starker Leistung.',
+                        'annotations': [{
+                            'type': 'url_citation',
+                            'url_citation': {'url': 'https://example.com/or-review', 'title': 'OR Review'}
+                        }]
+                    }
+                }]
+            })
+        )
+
+    page.route('https://openrouter.ai/api/v1/chat/completions', handle_openrouter)
     page.evaluate("() => window.ToppreiseSuite?.updateConfig?.('OPENROUTER_API_KEY', 'sk-or-card-test')")
     btn.dispatch_event('click')
+    launcher.wait_for(state='visible')
+    page.select_option('#tp-launcher-or-model', '__custom__')
+    page.fill('#tp-launcher-or-custom', 'openai/gpt-4.1-mini')
+    page.click('#tp-launcher-or-btn')
 
     popout = page.locator('#tp-ai-popout')
     popout.wait_for(state='visible')
+    page.wait_for_function("() => document.querySelector('#tp-ai-popout .tp-ai-body')?.textContent?.includes('Solides Angebot')")
     assert 'Solides Angebot' in (popout.text_content() or '')
     cite = popout.locator('.tp-ai-citations a')
     assert cite.count() == 1
     assert cite.get_attribute('href') == 'https://example.com/or-review'
+    assert seen_models == ['openai/gpt-4.1-mini']
+    # One-time override must NOT persist to CONFIG.OPENROUTER_MODEL
+    assert page.evaluate("() => window.ToppreiseSuite?.CONFIG?.OPENROUTER_MODEL") == 'openrouter/free'
+
+    # In-popout model switcher re-queries with selected model without persisting
+    page.select_option('#tp-ai-popout-model-select', 'openrouter/free')
+    page.wait_for_function("() => document.querySelector('#tp-ai-popout .tp-ai-body')?.textContent?.includes('Solides Angebot')")
+    assert seen_models == ['openai/gpt-4.1-mini', 'openrouter/free']
+    assert page.evaluate("() => window.ToppreiseSuite?.CONFIG?.OPENROUTER_MODEL") == 'openrouter/free'
+
+
+def test_detail_page_review_button_supports_openrouter_launcher(page: Page, userscript_content):
+    import json
+    page.route('https://www.toppreise.ch/preisvergleich/Test/Detail-p555111', lambda route: route.fulfill(
+        status=200,
+        headers={'content-type': 'text/html'},
+        body='<!doctype html><html><body><div class="Plugin_ProductDetailsInfo"><h1>Test Detail Produkt</h1></div><div class="Plugin_Price">CHF 199.00</div></body></html>'
+    ))
+    page.route('https://openrouter.ai/api/v1/chat/completions', lambda route: route.fulfill(
+        status=200,
+        headers={'content-type': 'application/json', 'access-control-allow-origin': '*'},
+        body=json.dumps({'choices': [{'message': {'content': 'Detail OK', 'annotations': []}}]})
+    ))
+    page.goto('https://www.toppreise.ch/preisvergleich/Test/Detail-p555111')
+    page.evaluate(userscript_content)
+    open_settings(page)
+    page.locator('#tp-root >> #tp-ai-openrouter-block > summary').click()
+    page.click('#tp-root >> #tp-openrouter-api-key-reveal')
+    page.fill('#tp-root >> #tp-openrouter-api-key-input', 'sk-or-detail')
+    page.click('#tp-root >> #tp-btn-save')
+    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
+    page.wait_for_selector('.tp-detail-review-btn')
+    page.click('.tp-detail-review-btn')
+    page.locator('#tp-ai-launcher-popover').wait_for(state='visible')
+    page.click('#tp-launcher-or-btn')
+    popout = page.locator('#tp-ai-popout')
+    popout.wait_for(state='visible')
+    page.wait_for_function("() => document.querySelector('#tp-ai-popout .tp-ai-body')?.textContent?.includes('Detail OK')")
+    assert 'Detail OK' in (popout.text_content() or '')

@@ -5,15 +5,15 @@ Begriffe der Suite zur Verifizierung historischer Tiefstpreise auf Toppreise.ch.
 ## Language
 
 **Web-Suche**:
-Google-Suche am Produktnamen mit frei konfigurierbarem Suchbegriff (inkl. `{preis}`-Token für den aktuellen Kartenpreis).
+Einheitliches Launcher-Popover (`🌐`) am Produktnamen (Karten & Produktdetailseiten) mit direkter Wahl zwischen Google-Suche (klassisch oder KI-Modus `&udm=50`) für Geschwindigkeit und OpenRouter (`openrouter:web_search` inkl. einmaliger Modellauswahl) für gründliche Recherche. Konfigurierbarer Suchbegriff inkl. `{preis}`-Token.
 _Avoid_: Review-Suche, Testbericht-Suche
 
 **KI-Kurzfazit**:
-Synthetisierte 1–3-Satz-Zusammenfassung aus Testberichten und Preiseinschätzung via OpenRouter (`openrouter:web_search` inkl. Quellenlinks) oder Tavily AI (🌐 auf der Karte und `{ai}` im Discord-Share). 48h persistent gecached zur Schonung des Kontingents.
+Synthetisierte 1–3-Satz-Zusammenfassung aus Testberichten und Preiseinschätzung via OpenRouter (`openrouter:web_search` inkl. Quellenlinks, Standardmodell `openrouter/free` + optionales Paid-Modell) oder Tavily AI (🌐 auf der Karte/Detailseite und `{ai}` im Discord-Share). 48h persistent gecached zur Schonung des Kontingents.
 _Avoid_: AI-Review, Test-Bot
 
 **Batch-Aktionen**:
-Aufklappbares Popover (`⚡ N ▴` / `#tp-batch-popover`) am Floating-CTA für Aktionen auf allen gelisteten Angeboten im gewählten Scope (`Ohne Gedimmte` / `Alle` / `Deals`): Kopieren (Markdown/TSV) & CSV-Export inkl. `.product-features`, KI-Vergleich, Google-AI/OpenRouter-Einzelsuche, sequenzielle Preisalarme, Händler-Laden (+ Auto-Schalter), Tabs öffnen, Discord Batch-Share und Toppreise-Vergleich (max. 4). Ab `BATCH_CONFIRM_THRESHOLD` (Standard: 10) sowie bei Preisalarmen und Discord-Share erscheint ein Bestätigungs-Dialog.
+Aufklappbares Popover (`⚡ N ▴` / `#tp-batch-popover`) am Floating-CTA für Aktionen auf allen gelisteten Angeboten im gewählten Scope (`Ohne Gedimmte` / `Alle` / `Deals`): Kopieren (Markdown/TSV) & CSV-Export inkl. `.product-features`, KI-Vergleich & Einzeln KI-Suchen über das Launcher-Popover (Google, Google AI, OpenRouter + Modellauswahl, externe Plattformen), sequenzielle Preisalarme, Händler-Laden (+ Auto-Schalter), Tabs öffnen, Discord Batch-Share und Toppreise-Vergleich (max. 4). Ab `BATCH_CONFIRM_THRESHOLD` (Standard: 10) sowie bei Preisalarmen und Discord-Share erscheint eine Bestätigung bzw. ein Limit-Hinweis.
 
 **Tiefstpreis**:
 Der niedrigste belegte historische Preis eines Produkts.

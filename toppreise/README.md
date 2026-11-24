@@ -48,7 +48,7 @@ Requires a userscript manager browser extension:
 - [Violentmonkey](https://violentmonkey.github.io/) (recommended: [Firefox](https://addons.mozilla.org/en-US/firefox/addon/violentmonkey/) · [Chrome / Brave](https://chromewebstore.google.com/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag))
 - [Tampermonkey](https://www.tampermonkey.net/)
 
-### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.565)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
+### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.566)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
 
 > [!NOTE]
 > The userscript includes embedded `@updateURL` and `@downloadURL` metadata headers. Your userscript manager will automatically check GitHub in the background and keep your installation up to date.
@@ -222,7 +222,7 @@ Click the floating **gear icon (`⚙️`)** in the bottom-right corner to open t
 1. **🖥️ Display (*Ansicht*):** Dimmer opacity for filtered cards, deal intensity / heatmap strength (20%–100%), hide ad placeholders/banners, mini trend sparklines, and Amazon Keepa chart display.
 2. **💎 Deals & Sorting (*Deals & Sortieren*):** Authentic deal scoring sort (`💎 Tiefstpreis-Sortierung`), offer/discount sorting (`Standard`, `Meiste ⬇`, `Wenigste ⬆`, `% Rabatt ⬇`), and collapsible **Berechnungsparameter & Prüfung** (weighted deal blend slider, minimum history data points, rolling median horizon, batch check discount threshold, shipping basis `inkl. Versand`).
 3. **🧹 Filtering (*Filtern*):** Per-page-type profile memory, active profile indicator, and preferred dealer price tolerance margin (%).
-4. **🌐 Web Search & AI Verdict (*Web-Suche*):** Search toggle (`🌐`), customizable single-search prompt (`[Produkt]`, `{preis}`) plus **KI-Vergleich prompt & per-product payload template** (`{anzahl}`, `{angebote}`, `{nr}`, `{titel}`, `{preis}`, `{rabatt}`, `{tief}`, `{median}`, `{haendler}`, `{offerten}`, `{specs}`, `{url}`) with live preview, AI provider selector, and collapsible sub-cards for **Google-Suche** (`&udm=50`), **OpenRouter `openrouter:web_search`**, **Tavily AI**, and **Batch-Aktionen** (AI target & confirmation threshold `1–100`).
+4. **🌐 Web Search & AI Verdict (*Web-Suche*):** Search toggle (`🌐`) on cards and product detail pages opening the **universal AI Launcher Popover** (choose between fast **Google Search** / **Google AI** or detailed **OpenRouter `openrouter:web_search`** with one-time model picker, defaulting to `openrouter/free` plus optional paid model in Settings), customizable single-search prompt (`[Produkt]`, `{preis}`), **KI-Vergleich prompt & per-product payload template** with live preview, and collapsible sub-cards for **Google-Suche**, **OpenRouter**, **Tavily AI**, and **Batch-Aktionen** (`1–100`).
 5. **🔔 Price Alarm (*Preisalarm*):** Target price percentage (5%–99%, default 60%), alarm duration (3, 6, 12, 24 months), and Auto-Submit toggle.
 6. **💬 Discord Share:** Confidential webhook channels (`GM_setValue` only) plus collapsible **Embed- & Foren-Optionen** and **Nachrichten-Layout (Baukasten)** (`{title}`, `{price}`, `{ai}`, `{comment}`, etc.).
 7. **💾 Data & Cache (*Daten & Cache*):** Collapsible **Cache, Abruf & Limits** (cache stats/purge `🗑️`, dealer background autoload, TTLs, RAM & disk limits), **Sicherung** (JSON export/import), and **Gefahrenzone** (full reset `🧨`) at the bottom.

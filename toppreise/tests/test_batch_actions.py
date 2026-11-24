@@ -79,11 +79,11 @@ def test_batch_confirm_threshold_gate_and_google_ai_fallback(page: Page):
     page.click('#tp-floating-batch-btn')
     page.click('#tp-batch-ai-single-btn')
 
-    # Above threshold (6 >= 2) -> confirmation dialog opens
-    confirm = page.locator('#tp-batch-confirm-popout')
-    assert confirm.is_visible()
-    page.fill('#tp-batch-limit-input', '2')
-    page.click('#tp-batch-confirm-go')
+    # Launcher opens with inline limit input when above threshold (6 >= 2)
+    launcher = page.locator('#tp-ai-launcher-popover')
+    assert launcher.is_visible()
+    page.fill('#tp-launcher-limit-input', '2')
+    page.click('#tp-launcher-google-ai-btn')
 
     # window.open returned null -> blocked links fallback popout appears with &udm=50 links
     ai_pop = page.locator('#tp-batch-ai-popout')
@@ -122,6 +122,8 @@ def test_batch_openrouter_comparison_renders_citations(page: Page):
 
     page.click('#tp-floating-batch-btn')
     page.click('#tp-batch-ai-compare-btn')
+    page.locator('#tp-ai-launcher-popover').wait_for(state='visible')
+    page.click('#tp-launcher-or-btn')
 
     ai_pop = page.locator('#tp-batch-ai-popout')
     ai_pop.wait_for(state='visible')
@@ -325,6 +327,8 @@ def test_batch_openrouter_individual_cancel_and_running_pill(page: Page):
 
     page.click('#tp-floating-batch-btn')
     page.click('#tp-batch-ai-single-btn')
+    page.locator('#tp-ai-launcher-popover').wait_for(state='visible')
+    page.click('#tp-launcher-or-btn')
 
     # In-flight: running pill & progress row visible
     page.wait_for_selector('#tp-floating-batch-btn.tp-batch-running')
@@ -360,9 +364,9 @@ def test_batch_openrouter_individual_cancel_and_running_pill(page: Page):
     ))
     page.evaluate("() => window.ToppreiseSuite.updateConfig('BATCH_CONFIRM_THRESHOLD', 2)")
     page.click('#tp-batch-ai-single-btn')
-    page.wait_for_selector('#tp-batch-confirm-popout', state='visible')
-    page.fill('#tp-batch-limit-input', '2')
-    page.click('#tp-batch-confirm-go')
+    page.wait_for_selector('#tp-ai-launcher-popover', state='visible')
+    page.fill('#tp-launcher-limit-input', '2')
+    page.click('#tp-launcher-or-btn')
 
     ai_pop = page.locator('#tp-batch-ai-popout')
     ai_pop.wait_for(state='visible')
@@ -378,22 +382,22 @@ def test_batch_openrouter_individual_cancel_and_running_pill(page: Page):
 
 def test_batch_missing_key_toast_empty_scope_and_settings_shortcut(page: Page):
     page.evaluate("""() => {
-        window.ToppreiseSuite.updateConfig('BATCH_AI_TARGET', 'openrouter');
-        window.ToppreiseSuite.updateConfig('AI_SEARCH_PROVIDER', 'openrouter');
         window.ToppreiseSuite.updateConfig('OPENROUTER_API_KEY', '');
     }""")
 
     page.click('#tp-floating-batch-btn')
     page.click('#tp-batch-ai-compare-btn')
-    assert 'OpenRouter API-Key fehlt' in page.evaluate("() => window.ToppreiseSuite?.lastToast?.() || ''")
-    assert page.locator('#tp-batch-confirm-popout').count() == 0
+    page.locator('#tp-ai-launcher-popover').wait_for(state='visible')
+    assert page.locator('#tp-launcher-or-setup-btn').is_visible()
     assert page.locator('#tp-batch-ai-popout').count() == 0
 
-    page.click('#tp-batch-ai-single-btn')
-    assert 'OpenRouter API-Key fehlt' in page.evaluate("() => window.ToppreiseSuite?.lastToast?.() || ''")
-    assert page.locator('#tp-batch-confirm-popout').count() == 0
+    page.click('#tp-launcher-or-setup-btn')
+    assert page.locator('#tp-ai-launcher-popover').count() == 0
+    assert page.locator('#tp-root >> #tp-settings-dialog').is_visible()
+    page.click('#tp-root >> #tp-btn-close')
 
     # Switch to deals scope (0 deals) -> actions disabled
+    page.click('#tp-floating-batch-btn')
     page.click('button.tp-bp-scope[data-scope="deals"]')
     assert page.locator('#tp-batch-copy-btn').is_disabled()
     assert page.locator('#tp-batch-csv-btn').is_disabled()
@@ -491,6 +495,8 @@ def test_batch_google_ai_comparison_compacts_query_and_uses_paste_modal_when_hug
 
     page.click('#tp-floating-batch-btn')
     page.click('#tp-batch-ai-compare-btn')
+    page.locator('#tp-ai-launcher-popover').wait_for(state='visible')
+    page.click('#tp-launcher-google-ai-btn')
     page.wait_for_function("() => window.__tpOpenedUrls.length === 1")
 
     url = page.evaluate("() => window.__tpOpenedUrls[0]")
@@ -519,6 +525,8 @@ def test_batch_google_ai_comparison_compacts_query_and_uses_paste_modal_when_hug
     }""")
 
     page.click('#tp-batch-ai-compare-btn')
+    page.locator('#tp-ai-launcher-popover').wait_for(state='visible')
+    page.click('#tp-launcher-google-ai-btn')
     ai_pop = page.locator('#tp-batch-ai-popout')
     ai_pop.wait_for(state='visible')
     assert page.evaluate("() => window.__tpOpenedUrls.length") == 1
@@ -548,6 +556,8 @@ def test_batch_google_ai_keeps_full_specs_for_six_items_and_uses_custom_prompt(p
 
     page.click('#tp-floating-batch-btn')
     page.click('#tp-batch-ai-compare-btn')
+    page.locator('#tp-ai-launcher-popover').wait_for(state='visible')
+    page.click('#tp-launcher-google-ai-btn')
     page.wait_for_function("() => window.__tpOpenedUrls.length === 1")
 
     url = page.evaluate("() => window.__tpOpenedUrls[0]")
@@ -578,11 +588,43 @@ def test_batch_openrouter_and_google_respect_custom_item_template(page: Page):
 
     page.click('#tp-floating-batch-btn')
     page.click('#tp-batch-ai-compare-btn')
+    page.locator('#tp-ai-launcher-popover').wait_for(state='visible')
+    page.click('#tp-launcher-or-btn')
     page.locator('#tp-batch-ai-popout').wait_for(state='visible')
     assert len(captured) == 1
     assert 'Link: https://' in captured[0] or 'Link: file://' in captured[0] or 'Link: ' in captured[0]
     assert 'Händler:' not in captured[0]
     assert 'Specs:' not in captured[0]
+
+
+def test_batch_openrouter_one_time_model_override_does_not_persist(page: Page):
+    seen_models = []
+
+    def handle_openrouter(route):
+        body = json.loads(route.request.post_data or '{}')
+        seen_models.append(body.get('model'))
+        route.fulfill(
+            status=200,
+            headers={'content-type': 'application/json', 'access-control-allow-origin': '*'},
+            body=json.dumps({'choices': [{'message': {'content': 'Batch OK', 'annotations': []}}]})
+        )
+
+    page.route('https://openrouter.ai/api/v1/chat/completions', handle_openrouter)
+    page.evaluate("""() => {
+        window.ToppreiseSuite.updateConfig('BATCH_CONFIRM_THRESHOLD', 50);
+        window.ToppreiseSuite.updateConfig('OPENROUTER_API_KEY', 'sk-or-batch-model');
+    }""")
+
+    page.click('#tp-floating-batch-btn')
+    page.click('#tp-batch-ai-compare-btn')
+    page.locator('#tp-ai-launcher-popover').wait_for(state='visible')
+    page.select_option('#tp-launcher-or-model', '__custom__')
+    page.fill('#tp-launcher-or-custom', 'openai/gpt-4.1-mini')
+    page.click('#tp-launcher-or-btn')
+
+    page.locator('#tp-batch-ai-popout').wait_for(state='visible')
+    assert seen_models == ['openai/gpt-4.1-mini']
+    assert page.evaluate("() => window.ToppreiseSuite?.CONFIG?.OPENROUTER_MODEL") == 'openrouter/free'
 
 
 def test_batch_price_alarm_http_fetch_login_wall_and_success(page: Page, userscript_content):

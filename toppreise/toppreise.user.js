@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.565
+// @version      2.18.566
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -21194,6 +21194,7 @@ const SHADOW_MODAL_STYLES = `
     outsideListenersBound = true;
     document.addEventListener('click', (e) => {
       if (!isOpen || !e.isTrusted || hasOpenBatchDialog()) return;
+      if (!e.target?.isConnected) return;
       const pop = document.getElementById(BATCH_POPOVER_ID);
       const btn = document.getElementById('tp-floating-batch-btn');
       if (pop?.contains(e.target) || btn?.contains(e.target)) return;
@@ -22912,7 +22913,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.565';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.566';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
