@@ -113,19 +113,18 @@ export function openAiPopover(options = {}) {
     if (Array.isArray(citations) && citations.length > 0) {
       const citeWrap = document.createElement('div');
       citeWrap.className = 'tp-ai-citations';
-      citeWrap.style.cssText = 'margin-top:10px;padding-top:8px;border-top:1px solid var(--tp-line);font-size:12px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;';
       const lbl = document.createElement('span');
+      lbl.className = 'tp-ai-citations-label';
       lbl.textContent = 'Quellen:';
-      lbl.style.opacity = '0.75';
       citeWrap.appendChild(lbl);
       for (const c of citations) {
         if (!c?.url || !/^https?:\/\//i.test(c.url)) continue;
         const a = document.createElement('a');
+        a.className = 'tp-ai-citation-link';
         a.href = c.url;
         a.target = '_blank';
         a.rel = 'noopener';
         a.textContent = c.title || c.url;
-        a.style.cssText = 'color:var(--tp-blue-soft,#2563eb);text-decoration:underline;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;';
         citeWrap.appendChild(a);
       }
       contentEl.appendChild(citeWrap);
@@ -156,17 +155,17 @@ export function openAiPopover(options = {}) {
     clearTimers();
     retryBtn.hidden = true;
     contentEl.className = 'tp-ai-body';
-    contentEl.innerHTML = '<span style="opacity:0.75;">🤖 Analysiere Testberichte & Preiseinschätzung...</span>';
+    contentEl.innerHTML = '<span class="tp-ai-status">🤖 Analysiere Testberichte & Preiseinschätzung...</span>';
 
     statusTimers.push(setTimeout(() => {
       if (backdrop.isConnected && !currentVerdict) {
-        contentEl.innerHTML = '<span style="opacity:0.85;">🤖 Websuche läuft noch (Testberichte werden analysiert)...</span>';
+        contentEl.innerHTML = '<span class="tp-ai-status tp-ai-status-delayed">🤖 Websuche läuft noch (Testberichte werden analysiert)...</span>';
       }
     }, 5000));
 
     statusTimers.push(setTimeout(() => {
       if (backdrop.isConnected && !currentVerdict) {
-        contentEl.innerHTML = '<span style="opacity:0.85;">⏳ Synthese dauert etwas länger, läuft im Hintergrund weiter...<br><span style="font-size:12px;opacity:0.75;margin-top:4px;display:inline-block;">Antwort erscheint hier automatisch sobald fertig.</span></span>';
+        contentEl.innerHTML = '<span class="tp-ai-status tp-ai-status-delayed">⏳ Synthese dauert etwas länger, läuft im Hintergrund weiter...<br><span class="tp-ai-status-sub">Antwort erscheint hier automatisch sobald fertig.</span></span>';
       }
     }, 12000));
 

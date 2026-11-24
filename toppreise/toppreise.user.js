@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.560
+// @version      2.18.561
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -2470,6 +2470,40 @@ const STYLES_OVERLAYS = `
     margin-top: 4px !important;
     font-size: 12px !important;
     opacity: 0.85 !important;
+  }
+  .tp-ai-citations {
+    margin-top: 10px !important;
+    padding-top: 8px !important;
+    border-top: 1px solid var(--tp-line) !important;
+    font-size: 12px !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+    align-items: center !important;
+  }
+  .tp-ai-citations-label {
+    opacity: 0.75 !important;
+  }
+  .tp-ai-citation-link {
+    color: var(--tp-blue-soft, #2563eb) !important;
+    text-decoration: underline !important;
+    max-width: 220px !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    display: inline-block !important;
+  }
+  .tp-ai-status {
+    opacity: 0.75 !important;
+  }
+  .tp-ai-status-delayed {
+    opacity: 0.85 !important;
+  }
+  .tp-ai-status-sub {
+    font-size: 12px !important;
+    opacity: 0.75 !important;
+    margin-top: 4px !important;
+    display: inline-block !important;
   }
   @media (max-width: 480px) {
     .tp-popout-backdrop { padding: 10px !important; }
@@ -14301,19 +14335,18 @@ const SHADOW_MODAL_STYLES = `
       if (Array.isArray(citations) && citations.length > 0) {
         const citeWrap = document.createElement('div');
         citeWrap.className = 'tp-ai-citations';
-        citeWrap.style.cssText = 'margin-top:10px;padding-top:8px;border-top:1px solid var(--tp-line);font-size:12px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;';
         const lbl = document.createElement('span');
+        lbl.className = 'tp-ai-citations-label';
         lbl.textContent = 'Quellen:';
-        lbl.style.opacity = '0.75';
         citeWrap.appendChild(lbl);
         for (const c of citations) {
           if (!c?.url || !/^https?:\/\//i.test(c.url)) continue;
           const a = document.createElement('a');
+          a.className = 'tp-ai-citation-link';
           a.href = c.url;
           a.target = '_blank';
           a.rel = 'noopener';
           a.textContent = c.title || c.url;
-          a.style.cssText = 'color:var(--tp-blue-soft,#2563eb);text-decoration:underline;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;';
           citeWrap.appendChild(a);
         }
         contentEl.appendChild(citeWrap);
@@ -14344,17 +14377,17 @@ const SHADOW_MODAL_STYLES = `
       clearTimers();
       retryBtn.hidden = true;
       contentEl.className = 'tp-ai-body';
-      contentEl.innerHTML = '<span style="opacity:0.75;">🤖 Analysiere Testberichte & Preiseinschätzung...</span>';
+      contentEl.innerHTML = '<span class="tp-ai-status">🤖 Analysiere Testberichte & Preiseinschätzung...</span>';
 
       statusTimers.push(setTimeout(() => {
         if (backdrop.isConnected && !currentVerdict) {
-          contentEl.innerHTML = '<span style="opacity:0.85;">🤖 Websuche läuft noch (Testberichte werden analysiert)...</span>';
+          contentEl.innerHTML = '<span class="tp-ai-status tp-ai-status-delayed">🤖 Websuche läuft noch (Testberichte werden analysiert)...</span>';
         }
       }, 5000));
 
       statusTimers.push(setTimeout(() => {
         if (backdrop.isConnected && !currentVerdict) {
-          contentEl.innerHTML = '<span style="opacity:0.85;">⏳ Synthese dauert etwas länger, läuft im Hintergrund weiter...<br><span style="font-size:12px;opacity:0.75;margin-top:4px;display:inline-block;">Antwort erscheint hier automatisch sobald fertig.</span></span>';
+          contentEl.innerHTML = '<span class="tp-ai-status tp-ai-status-delayed">⏳ Synthese dauert etwas länger, läuft im Hintergrund weiter...<br><span class="tp-ai-status-sub">Antwort erscheint hier automatisch sobald fertig.</span></span>';
         }
       }, 12000));
 
@@ -21875,7 +21908,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.560';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.561';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

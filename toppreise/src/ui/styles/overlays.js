@@ -628,6 +628,40 @@ export const STYLES_OVERLAYS = `
     font-size: 12px !important;
     opacity: 0.85 !important;
   }
+  .tp-ai-citations {
+    margin-top: 10px !important;
+    padding-top: 8px !important;
+    border-top: 1px solid var(--tp-line) !important;
+    font-size: 12px !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+    align-items: center !important;
+  }
+  .tp-ai-citations-label {
+    opacity: 0.75 !important;
+  }
+  .tp-ai-citation-link {
+    color: var(--tp-blue-soft, #2563eb) !important;
+    text-decoration: underline !important;
+    max-width: 220px !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    display: inline-block !important;
+  }
+  .tp-ai-status {
+    opacity: 0.75 !important;
+  }
+  .tp-ai-status-delayed {
+    opacity: 0.85 !important;
+  }
+  .tp-ai-status-sub {
+    font-size: 12px !important;
+    opacity: 0.75 !important;
+    margin-top: 4px !important;
+    display: inline-block !important;
+  }
   @media (max-width: 480px) {
     .tp-popout-backdrop { padding: 10px !important; }
     .tp-popout-panel,

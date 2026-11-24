@@ -1232,6 +1232,32 @@ def test_reorganized_section_order_and_control_placement(page: Page):
     page.click('#tp-root >> #tp-btn-close')
 
 
+def test_compare_chip_unfocused_appends_and_single_search_typo_warn(page: Page):
+    open_settings(page)
+    item_input = page.locator('#tp-root >> #tp-batch-compare-item-input')
+    initial_tpl = item_input.input_value()
+    assert '{url}' not in initial_tpl
+
+    # Clicking {url} chip before focusing textarea appends at the end with " | "
+    page.locator('#tp-root >> #tp-batch-compare-item-chips button[data-token="{url}"]').click()
+    updated_tpl = item_input.input_value()
+    assert updated_tpl == f'{initial_tpl} | {{url}}'
+    assert not updated_tpl.startswith('{url}')
+
+    # Single-search prompt typo warning highlights {price} and [Preis]
+    kw_input = page.locator('#tp-root >> #tp-review-keyword-input')
+    kw_warn = page.locator('#tp-root >> #tp-review-keyword-preview-warn')
+    assert not kw_warn.is_visible()
+    kw_input.fill('Test zu [Produkt] {price} [Preis]')
+    assert kw_warn.is_visible()
+    warn_text = kw_warn.text_content() or ''
+    assert '{price}' in warn_text and '[Preis]' in warn_text
+
+    kw_input.fill('Test zu [Produkt] {preis}')
+    assert not kw_warn.is_visible()
+    page.click('#tp-root >> #tp-btn-close')
+
+
 
 
 

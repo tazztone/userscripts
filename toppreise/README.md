@@ -48,7 +48,7 @@ Requires a userscript manager browser extension:
 - [Violentmonkey](https://violentmonkey.github.io/) (recommended: [Firefox](https://addons.mozilla.org/en-US/firefox/addon/violentmonkey/) · [Chrome / Brave](https://chromewebstore.google.com/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag))
 - [Tampermonkey](https://www.tampermonkey.net/)
 
-### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.560)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
+### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.561)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
 
 > [!NOTE]
 > The userscript includes embedded `@updateURL` and `@downloadURL` metadata headers. Your userscript manager will automatically check GitHub in the background and keep your installation up to date.
@@ -234,7 +234,7 @@ Click the floating **gear icon (`⚙️`)** in the bottom-right corner to open t
 
 * **Local-First Caching:** Price series (`tp_hist_v1_*`), merchant metadata (`tp_dealer_v1_*`), and shared-deal markers (`tp_shared_v1_*`) are stored in `localStorage` backed by an in-memory LRU cache with configurable limits (default: 500 RAM / 300 disk items) and automatically pruned by TTL (48h for valid data, 2h for unavailable charts).
 * **Two-Layer Persistence:** Preferences and negative filters use a resilient 2-layer storage architecture (`GM_setValue` / `GM_getValue` with domain `localStorage` auto-healing backup) that survives userscript reinstalls.
-* **Secrets Confidentiality:** Your `DISCORD_WEBHOOK_URL` and `TAVILY_API_KEY` are saved exclusively in private userscript manager storage (`GM_setValue`). They are **never** mirrored to page-accessible `localStorage` and are automatically stripped from JSON configuration exports.
+* **Secrets Confidentiality:** Your `DISCORD_WEBHOOK_URL`, `TAVILY_API_KEY`, and `OPENROUTER_API_KEY` are saved exclusively in private userscript manager storage (`GM_setValue`). They are **never** mirrored to page-accessible `localStorage` and are automatically stripped from JSON configuration exports.
 * **Granted Permissions:**
   * `GM_getValue` / `GM_setValue` / `GM_deleteValue`: Isolated persistent configuration storage.
   * `GM_xmlhttpRequest` (`@connect toppreise.ch`, `@connect discord.com`, `@connect api.tavily.com`, `@connect openrouter.ai`, `@connect graph.keepa.com`, `@connect keepa.com`): Used to fetch product images for Discord attachments, dispatch deal payloads to Discord webhooks, retrieve Amazon Keepa price history charts, and request OpenRouter/Tavily search summaries.
@@ -244,7 +244,7 @@ Click the floating **gear icon (`⚙️`)** in the bottom-right corner to open t
 
 ## 🛠️ Architecture & Development
 
-The source code is modularized into 45 ESM modules under `src/` (each `<25 KB`), bundled in strict load-bearing order by `tools/build.js`:
+The source code is modularized into 73 ESM modules under `src/` (each `<25 KB`), bundled in strict load-bearing order by `tools/build.js`:
 
 ```text
 src/

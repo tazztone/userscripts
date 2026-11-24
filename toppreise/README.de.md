@@ -244,7 +244,7 @@ Klick auf das **Zahnrad-Symbol (`⚙️`)** unten rechts öffnet das Einstellung
 
 ## 🛠️ Architektur & Entwicklung
 
-Der Quellcode ist modular in 45 ESM-Dateien unter `src/` gegliedert (jede `<25 KB`) und wird durch `tools/build.js` in exakter Ladereihenfolge gebündelt:
+Der Quellcode ist modular in 73 ESM-Dateien unter `src/` gegliedert (jede `<25 KB`) und wird durch `tools/build.js` in exakter Ladereihenfolge gebündelt:
 
 ```text
 src/

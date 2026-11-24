@@ -12,6 +12,7 @@ import {
   buildComparisonPrompt,
   formatComparisonItemLine,
   findUnknownPromptTokens,
+  findUnknownSingleSearchTokens,
   COMPARE_PROMPT_TOKENS,
   COMPARE_ITEM_TOKENS,
   buildCompactComparisonPrompt,
@@ -286,6 +287,51 @@ describe('batch-actions: export formatters & formula safety', () => {
     assert.deepEqual(findUnknownPromptTokens('Vergleiche {anzhal} Deals: {angebote} {preis}', COMPARE_PROMPT_TOKENS), ['{anzhal}', '{preis}']);
     assert.deepEqual(findUnknownPromptTokens('{nr}. {titel} | {pries} | {url}', COMPARE_ITEM_TOKENS), ['{pries}']);
     assert.deepEqual(findUnknownPromptTokens('{nr}. {titel} | {preis}', COMPARE_ITEM_TOKENS), []);
+
+    // specMaxLen: 0 drops {specs} cleanly instead of emitting "X…"
+    assert.equal(
+      formatComparisonItemLine(items[0], 0, '{nr}. {titel} | Specs: {specs} | {url}', { specMaxLen: 0 }),
+      '1. Board A | https://www.toppreise.ch/p1'
+    );
+
+    // Custom template drops {specs} via specMaxLen: 0 before falling back to compact mode
+    CONFIG.BATCH_COMPARE_ITEM_TEMPLATE = '{nr}. {titel} | {median} | Händler: {haendler} | Specs: {specs}';
+    try {
+      const longSpecItems = Array.from({ length: 14 }, (_, i) => ({
+        title: `Custom Board ${i + 1}`,
+        priceText: `CHF ${100 + i}.00`,
+        medianText: 'Ø CHF 120.00',
+        dealer: 'Digitec',
+        specs: 'A'.repeat(160)
+      }));
+      const fullCustom = buildComparisonPrompt(longSpecItems);
+      const selCustom = selectExternalComparisonQuery(longSpecItems, fullCustom);
+      assert.equal(selCustom.needsPaste, false);
+      assert.match(selCustom.query, /Händler: Digitec/);
+      assert.match(selCustom.query, /Ø CHF 120\.00/);
+      assert.doesNotMatch(selCustom.query, /Specs:/);
+    } finally {
+      CONFIG.BATCH_COMPARE_ITEM_TEMPLATE = prevItemTpl;
+    }
+
+    // buildCompactComparisonPrompt honors {median} & {haendler}, including minimal fallback
+    const compactMedianDealer = buildCompactComparisonPrompt(
+      [{ title: 'Deal X', priceText: 'CHF 50.00', medianText: 'Ø CHF 70.00', dealer: 'Galaxus' }],
+      { itemTemplate: '{nr}. {titel} | {preis} | {median} | {haendler}' }
+    );
+    assert.match(compactMedianDealer, /Ø CHF 70\.00/);
+    assert.match(compactMedianDealer, /Galaxus/);
+
+    const minimalNoPrice = buildCompactComparisonPrompt(
+      [{ title: 'Deal Y', priceText: 'CHF 50.00', medianText: 'Ø CHF 70.00', dealer: 'Brack' }],
+      { minimal: true, itemTemplate: '{nr}. {titel} | {haendler}' }
+    );
+    assert.match(minimalNoPrice, /\(Brack\)/);
+    assert.doesNotMatch(minimalNoPrice, /CHF 50\.00/);
+
+    // findUnknownSingleSearchTokens allows [Produkt], {produkt}, {preis} and flags typos
+    assert.deepEqual(findUnknownSingleSearchTokens('Test [Produkt] {preis}'), []);
+    assert.deepEqual(findUnknownSingleSearchTokens('Test {produkt} {price} [Preis]'), ['{price}', '[Preis]']);
   });
 });
 
