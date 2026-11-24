@@ -97,6 +97,7 @@ export function buildBundle() {
     'ui/badges/deal-verdict.js',
     'ui/badges/card-share.js',
     'ui/badges/card-ai-popover.js',
+    'ui/ai-launcher-popover.js',
     'ui/badges/card-dealer.js',
     'ui/badges/card-alarm.js',
     'ui/badges/card-chrome.js',
