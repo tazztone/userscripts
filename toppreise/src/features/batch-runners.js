@@ -227,14 +227,15 @@ export async function runBatchPriceAlarms(items, { targetPct, durationDays, onPr
   return { total, done, confirmed, failed, abortedEarly, cancelled: !!signal?.aborted };
 }
 
-export async function runBatchAiIndividual(items, { provider = 'google', onProgress, signal, openTabFn = openTabUrl, searchFn = fetchOpenRouterWebSearch } = {}) {
+export async function runBatchAiIndividual(items, { provider = 'google', model, googleAiMode = true, onProgress, signal, openTabFn = openTabUrl, searchFn = fetchOpenRouterWebSearch } = {}) {
   const total = items.length;
   if (provider !== 'openrouter') {
     let opened = 0;
     const blockedItems = [];
+    const suffix = googleAiMode ? '&udm=50' : '';
     items.forEach((it, idx) => {
       const q = formatSearchQuery(it.title, CONFIG.REVIEW_SEARCH_KEYWORD, it.priceText);
-      const url = 'https://www.google.com/search?q=' + encodeURIComponent(q) + '&udm=50';
+      const url = 'https://www.google.com/search?q=' + encodeURIComponent(q) + suffix;
       if (openTabFn(url)) opened++;
       else blockedItems.push({ title: it.title, url });
       onProgress?.(idx + 1, total, blockedItems.length);
@@ -246,6 +247,7 @@ export async function runBatchAiIndividual(items, { provider = 'google', onProgr
   let cursor = 0;
   let done = 0;
   let failed = 0;
+  const activeModel = (model && String(model).trim()) || CONFIG.OPENROUTER_MODEL;
   const concurrency = Math.min(3, Math.max(1, total));
   const worker = async () => {
     while (cursor < total) {
@@ -255,7 +257,7 @@ export async function runBatchAiIndividual(items, { provider = 'google', onProgr
       const prompt = buildTavilyQuery(it.title, CONFIG.REVIEW_SEARCH_KEYWORD, it.priceText);
       try {
         const res = await searchFn(CONFIG.OPENROUTER_API_KEY, prompt, {
-          model: CONFIG.OPENROUTER_MODEL,
+          model: activeModel,
           engine: CONFIG.OPENROUTER_SEARCH_ENGINE,
           maxResults: CONFIG.OPENROUTER_MAX_RESULTS,
           signal
@@ -275,7 +277,7 @@ export async function runBatchAiIndividual(items, { provider = 'google', onProgr
   return { mode: 'openrouter', total, done, failed, results: results.filter(Boolean), cancelled: !!signal?.aborted };
 }
 
-export async function runBatchComparisonAi(items, { target = 'google-ai', signal, openTabFn = openTabUrl, searchFn = fetchOpenRouterWebSearch } = {}) {
+export async function runBatchComparisonAi(items, { target = 'google-ai', model, signal, openTabFn = openTabUrl, searchFn = fetchOpenRouterWebSearch } = {}) {
   const prompt = buildComparisonPrompt(items);
   if (!prompt) return { mode: 'empty' };
   if (target === 'openrouter') {
@@ -283,7 +285,7 @@ export async function runBatchComparisonAi(items, { target = 'google-ai', signal
       return { mode: 'missing-key', target: 'openrouter' };
     }
     const res = await searchFn(CONFIG.OPENROUTER_API_KEY, prompt, {
-      model: CONFIG.OPENROUTER_MODEL,
+      model: (model && String(model).trim()) || CONFIG.OPENROUTER_MODEL,
       engine: CONFIG.OPENROUTER_SEARCH_ENGINE,
       maxResults: CONFIG.OPENROUTER_MAX_RESULTS,
       searchContextSize: 'high',

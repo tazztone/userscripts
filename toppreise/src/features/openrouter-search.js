@@ -5,7 +5,7 @@
  */
 
 import { lruSet } from '../scanner/cache.js';
-import { CONFIG, effectiveAiProvider } from '../state/config.js';
+import { CONFIG, DEFAULT_OPENROUTER_MODEL, effectiveAiProvider } from '../state/config.js';
 import { fetchWithTimeout, gmRequestWithTimeout } from '../state/net.js';
 import {
   buildTavilyQuery,
@@ -38,7 +38,7 @@ export function normalizeOpenRouterPrompt(prompt) {
 export function openRouterCacheKey(prompt, model, engine, maxResults, searchContextSize = 'medium') {
   const norm = normalizeOpenRouterPrompt(prompt).toLowerCase();
   if (!norm) return '';
-  return `${model || 'google/gemini-2.5-flash'}::${engine || 'auto'}::${maxResults || 5}::${searchContextSize || 'medium'}::${hashCacheStr(norm)}`;
+  return `${model || DEFAULT_OPENROUTER_MODEL}::${engine || 'auto'}::${maxResults || 5}::${searchContextSize || 'medium'}::${hashCacheStr(norm)}`;
 }
 
 export function extractOpenRouterCitations(annotations) {
@@ -180,7 +180,7 @@ export function fetchOpenRouterWebSearch(apiKey, prompt, options = {}) {
   }
 
   const timeoutMs = typeof options.timeoutMs === 'number' ? options.timeoutMs : 60000;
-  const model = String(options.model || CONFIG?.OPENROUTER_MODEL || 'google/gemini-2.5-flash').trim() || 'google/gemini-2.5-flash';
+  const model = String(options.model || CONFIG?.OPENROUTER_MODEL || DEFAULT_OPENROUTER_MODEL).trim() || DEFAULT_OPENROUTER_MODEL;
   const engine = String(options.engine || CONFIG?.OPENROUTER_SEARCH_ENGINE || 'auto').trim() || 'auto';
   const maxResults = typeof options.maxResults === 'number'
     ? options.maxResults
@@ -289,10 +289,18 @@ export function fetchOpenRouterWebSearch(apiKey, prompt, options = {}) {
   return promise;
 }
 
+export function hasOpenRouterKey(cfg = CONFIG) {
+  return !!(cfg?.OPENROUTER_API_KEY && String(cfg.OPENROUTER_API_KEY).trim());
+}
+
+export function hasTavilyKey(cfg = CONFIG) {
+  return !!(cfg?.TAVILY_API_KEY && String(cfg.TAVILY_API_KEY).trim());
+}
+
 export function isConfiguredAiActive(cfg = CONFIG) {
   const provider = effectiveAiProvider(cfg);
-  if (provider === 'openrouter') return !!(cfg?.OPENROUTER_API_KEY && String(cfg.OPENROUTER_API_KEY).trim());
-  if (provider === 'tavily') return !!(cfg?.TAVILY_API_KEY && String(cfg.TAVILY_API_KEY).trim());
+  if (provider === 'openrouter') return hasOpenRouterKey(cfg);
+  if (provider === 'tavily') return hasTavilyKey(cfg);
   return false;
 }
 
@@ -302,7 +310,7 @@ export function getCachedConfiguredAiSummary(title, keyword = '', priceText = ''
   const query = buildTavilyQuery(title, keyword, priceText);
   if (!query) return null;
   if (provider === 'openrouter') {
-    const model = opts.model || cfg?.OPENROUTER_MODEL || 'google/gemini-2.5-flash';
+    const model = opts.model || cfg?.OPENROUTER_MODEL || DEFAULT_OPENROUTER_MODEL;
     const engine = opts.engine || cfg?.OPENROUTER_SEARCH_ENGINE || 'auto';
     const maxResults = opts.maxResults || cfg?.OPENROUTER_MAX_RESULTS || 5;
     return getCachedOpenRouter(openRouterCacheKey(query, model, engine, maxResults, opts.searchContextSize || 'medium'));

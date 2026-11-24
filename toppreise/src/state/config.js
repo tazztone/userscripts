@@ -6,7 +6,7 @@
 
 import { uiShadowRoot } from '../ui/shell.js';
 import { paintCycleButton } from '../ui/mini-toggle.js';
-import { SECRET_KEYS, _getValue, _setValue, DEFAULTS, PAGE_SCOPED_KEYS, sanitizeConfigValue, weightText, horizonText, horizonUiToStored, horizonStoredToUi } from './config-store.js';
+import { SECRET_KEYS, _getValue, _setValue, DEFAULTS, DEFAULT_OPENROUTER_MODEL, PAGE_SCOPED_KEYS, sanitizeConfigValue, weightText, horizonText, horizonUiToStored, horizonStoredToUi } from './config-store.js';
 import { migrateLegacyDebug, migrateHideToDimDefaults, migrateFilterSplit, migrateDiscordChannels } from './config-migrate.js';
 import { syncUiControl } from './config-sync.js';
 import { triggerProcessListings, getPageProfileType } from '../page/adapter.js';
@@ -325,6 +325,6 @@ export function resetConfigToDefaults({ includeSecrets = false, skipRender = fal
 // Re-exports: storage/schema/migrate symbols moved to siblings — every
 // existing `from './state/config.js'` / `'../state/config.js'` path keeps working.
 import { SETTING_SCHEMA, sanitizeChannels, RESET_GROUPS, effectiveAiProvider } from './config-store.js';
-export { SECRET_KEYS, _getValue, _setValue, DEFAULTS, PAGE_SCOPED_KEYS, RESET_GROUPS, SETTING_SCHEMA, sanitizeConfigValue, sanitizeChannels, effectiveAiProvider, weightText, horizonText, horizonUiToStored, horizonStoredToUi };
+export { SECRET_KEYS, _getValue, _setValue, DEFAULTS, DEFAULT_OPENROUTER_MODEL, PAGE_SCOPED_KEYS, RESET_GROUPS, SETTING_SCHEMA, sanitizeConfigValue, sanitizeChannels, effectiveAiProvider, weightText, horizonText, horizonUiToStored, horizonStoredToUi };
 export { migrateLegacyDebug, migrateHideToDimDefaults, migrateFilterSplit, migrateDiscordChannels };
 

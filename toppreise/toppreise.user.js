@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.562
+// @version      2.18.563
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -5229,6 +5229,8 @@ const SHADOW_MODAL_STYLES = `
    * single setting schema + sanitizer.
    */
 
+  const DEFAULT_OPENROUTER_MODEL = 'openrouter/free';
+
   const DEFAULT_BATCH_COMPARE_PROMPT =
     'Vergleiche folgende {anzahl} Angebote von Toppreise.ch (Preise in CHF) und bewerte Preis-Leistung, Stärken/Schwächen sowie welches Angebot der beste Deal ist (kurz auf Deutsch):';
   const DEFAULT_BATCH_COMPARE_ITEM_TEMPLATE =
@@ -5285,7 +5287,8 @@ const SHADOW_MODAL_STYLES = `
     TAVILY_SEARCH_DEPTH: 'basic',
     TAVILY_MAX_RESULTS: 5,
     OPENROUTER_API_KEY: '',
-    OPENROUTER_MODEL: 'google/gemini-2.5-flash',
+    OPENROUTER_MODEL: DEFAULT_OPENROUTER_MODEL,
+    OPENROUTER_PAID_MODEL: '',
     OPENROUTER_SEARCH_ENGINE: 'auto',
     OPENROUTER_MAX_RESULTS: 5,
     BATCH_CONFIRM_THRESHOLD: 10,
@@ -5359,7 +5362,7 @@ const SHADOW_MODAL_STYLES = `
         'REVIEW_SEARCH_ENABLED', 'REVIEW_SEARCH_KEYWORD', 'REVIEW_SEARCH_AI_MODE',
         'BATCH_COMPARE_PROMPT', 'BATCH_COMPARE_ITEM_TEMPLATE',
         'AI_SEARCH_PROVIDER', 'TAVILY_ENABLED', 'TAVILY_SEARCH_DEPTH', 'TAVILY_MAX_RESULTS',
-        'OPENROUTER_MODEL', 'OPENROUTER_SEARCH_ENGINE', 'OPENROUTER_MAX_RESULTS'
+        'OPENROUTER_MODEL', 'OPENROUTER_PAID_MODEL', 'OPENROUTER_SEARCH_ENGINE', 'OPENROUTER_MAX_RESULTS'
       ]
     },
     batch: {
@@ -5498,7 +5501,8 @@ const SHADOW_MODAL_STYLES = `
     TAVILY_SEARCH_DEPTH: { type: 'enum', default: 'basic', allowed: ['basic', 'advanced'] },
     TAVILY_MAX_RESULTS: { type: 'int', default: 5, min: 1, max: 10 },
     OPENROUTER_API_KEY: { type: 'string', default: '' },
-    OPENROUTER_MODEL: { type: 'string', default: 'google/gemini-2.5-flash' },
+    OPENROUTER_MODEL: { type: 'string', default: DEFAULT_OPENROUTER_MODEL },
+    OPENROUTER_PAID_MODEL: { type: 'string', default: '' },
     OPENROUTER_SEARCH_ENGINE: { type: 'enum', default: 'auto', allowed: ['auto', 'native', 'exa', 'parallel', 'perplexity', 'firecrawl'] },
     OPENROUTER_MAX_RESULTS: { type: 'int', default: 5, min: 1, max: 10 },
     BATCH_CONFIRM_THRESHOLD: { type: 'int', default: 10, min: 1, max: 100 },
@@ -10976,7 +10980,7 @@ const SHADOW_MODAL_STYLES = `
   function openRouterCacheKey(prompt, model, engine, maxResults, searchContextSize = 'medium') {
     const norm = normalizeOpenRouterPrompt(prompt).toLowerCase();
     if (!norm) return '';
-    return `${model || 'google/gemini-2.5-flash'}::${engine || 'auto'}::${maxResults || 5}::${searchContextSize || 'medium'}::${hashCacheStr(norm)}`;
+    return `${model || DEFAULT_OPENROUTER_MODEL}::${engine || 'auto'}::${maxResults || 5}::${searchContextSize || 'medium'}::${hashCacheStr(norm)}`;
   }
 
   function extractOpenRouterCitations(annotations) {
@@ -11118,7 +11122,7 @@ const SHADOW_MODAL_STYLES = `
     }
 
     const timeoutMs = typeof options.timeoutMs === 'number' ? options.timeoutMs : 60000;
-    const model = String(options.model || CONFIG?.OPENROUTER_MODEL || 'google/gemini-2.5-flash').trim() || 'google/gemini-2.5-flash';
+    const model = String(options.model || CONFIG?.OPENROUTER_MODEL || DEFAULT_OPENROUTER_MODEL).trim() || DEFAULT_OPENROUTER_MODEL;
     const engine = String(options.engine || CONFIG?.OPENROUTER_SEARCH_ENGINE || 'auto').trim() || 'auto';
     const maxResults = typeof options.maxResults === 'number'
       ? options.maxResults
@@ -11227,10 +11231,18 @@ const SHADOW_MODAL_STYLES = `
     return promise;
   }
 
+  function hasOpenRouterKey(cfg = CONFIG) {
+    return !!(cfg?.OPENROUTER_API_KEY && String(cfg.OPENROUTER_API_KEY).trim());
+  }
+
+  function hasTavilyKey(cfg = CONFIG) {
+    return !!(cfg?.TAVILY_API_KEY && String(cfg.TAVILY_API_KEY).trim());
+  }
+
   function isConfiguredAiActive(cfg = CONFIG) {
     const provider = effectiveAiProvider(cfg);
-    if (provider === 'openrouter') return !!(cfg?.OPENROUTER_API_KEY && String(cfg.OPENROUTER_API_KEY).trim());
-    if (provider === 'tavily') return !!(cfg?.TAVILY_API_KEY && String(cfg.TAVILY_API_KEY).trim());
+    if (provider === 'openrouter') return hasOpenRouterKey(cfg);
+    if (provider === 'tavily') return hasTavilyKey(cfg);
     return false;
   }
 
@@ -11240,7 +11252,7 @@ const SHADOW_MODAL_STYLES = `
     const query = buildTavilyQuery(title, keyword, priceText);
     if (!query) return null;
     if (provider === 'openrouter') {
-      const model = opts.model || cfg?.OPENROUTER_MODEL || 'google/gemini-2.5-flash';
+      const model = opts.model || cfg?.OPENROUTER_MODEL || DEFAULT_OPENROUTER_MODEL;
       const engine = opts.engine || cfg?.OPENROUTER_SEARCH_ENGINE || 'auto';
       const maxResults = opts.maxResults || cfg?.OPENROUTER_MAX_RESULTS || 5;
       return getCachedOpenRouter(openRouterCacheKey(query, model, engine, maxResults, opts.searchContextSize || 'medium'));
@@ -11736,6 +11748,8 @@ const SHADOW_MODAL_STYLES = `
         return { url: needsPaste ? 'https://www.perplexity.ai/' : `https://www.perplexity.ai/search?q=${encoded}`, needsPaste };
       case 'claude':
         return { url: needsPaste ? 'https://claude.ai/new' : `https://claude.ai/new?q=${encoded}`, needsPaste };
+      case 'google':
+        return { url: needsPaste ? 'https://www.google.com/' : `https://www.google.com/search?q=${encoded}`, needsPaste };
       case 'google-ai':
       default:
         return { url: needsPaste ? 'https://www.google.com/search?udm=50' : `https://www.google.com/search?q=${encoded}&udm=50`, needsPaste };
@@ -19754,14 +19768,15 @@ const SHADOW_MODAL_STYLES = `
     return { total, done, confirmed, failed, abortedEarly, cancelled: !!signal?.aborted };
   }
 
-  async function runBatchAiIndividual(items, { provider = 'google', onProgress, signal, openTabFn = openTabUrl, searchFn = fetchOpenRouterWebSearch } = {}) {
+  async function runBatchAiIndividual(items, { provider = 'google', model, googleAiMode = true, onProgress, signal, openTabFn = openTabUrl, searchFn = fetchOpenRouterWebSearch } = {}) {
     const total = items.length;
     if (provider !== 'openrouter') {
       let opened = 0;
       const blockedItems = [];
+      const suffix = googleAiMode ? '&udm=50' : '';
       items.forEach((it, idx) => {
         const q = formatSearchQuery(it.title, CONFIG.REVIEW_SEARCH_KEYWORD, it.priceText);
-        const url = 'https://www.google.com/search?q=' + encodeURIComponent(q) + '&udm=50';
+        const url = 'https://www.google.com/search?q=' + encodeURIComponent(q) + suffix;
         if (openTabFn(url)) opened++;
         else blockedItems.push({ title: it.title, url });
         onProgress?.(idx + 1, total, blockedItems.length);
@@ -19773,6 +19788,7 @@ const SHADOW_MODAL_STYLES = `
     let cursor = 0;
     let done = 0;
     let failed = 0;
+    const activeModel = (model && String(model).trim()) || CONFIG.OPENROUTER_MODEL;
     const concurrency = Math.min(3, Math.max(1, total));
     const worker = async () => {
       while (cursor < total) {
@@ -19782,7 +19798,7 @@ const SHADOW_MODAL_STYLES = `
         const prompt = buildTavilyQuery(it.title, CONFIG.REVIEW_SEARCH_KEYWORD, it.priceText);
         try {
           const res = await searchFn(CONFIG.OPENROUTER_API_KEY, prompt, {
-            model: CONFIG.OPENROUTER_MODEL,
+            model: activeModel,
             engine: CONFIG.OPENROUTER_SEARCH_ENGINE,
             maxResults: CONFIG.OPENROUTER_MAX_RESULTS,
             signal
@@ -19802,7 +19818,7 @@ const SHADOW_MODAL_STYLES = `
     return { mode: 'openrouter', total, done, failed, results: results.filter(Boolean), cancelled: !!signal?.aborted };
   }
 
-  async function runBatchComparisonAi(items, { target = 'google-ai', signal, openTabFn = openTabUrl, searchFn = fetchOpenRouterWebSearch } = {}) {
+  async function runBatchComparisonAi(items, { target = 'google-ai', model, signal, openTabFn = openTabUrl, searchFn = fetchOpenRouterWebSearch } = {}) {
     const prompt = buildComparisonPrompt(items);
     if (!prompt) return { mode: 'empty' };
     if (target === 'openrouter') {
@@ -19810,7 +19826,7 @@ const SHADOW_MODAL_STYLES = `
         return { mode: 'missing-key', target: 'openrouter' };
       }
       const res = await searchFn(CONFIG.OPENROUTER_API_KEY, prompt, {
-        model: CONFIG.OPENROUTER_MODEL,
+        model: (model && String(model).trim()) || CONFIG.OPENROUTER_MODEL,
         engine: CONFIG.OPENROUTER_SEARCH_ENGINE,
         maxResults: CONFIG.OPENROUTER_MAX_RESULTS,
         searchContextSize: 'high',
@@ -22119,7 +22135,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.562';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.563';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

@@ -4,6 +4,8 @@
  * single setting schema + sanitizer.
  */
 
+export const DEFAULT_OPENROUTER_MODEL = 'openrouter/free';
+
 export const DEFAULT_BATCH_COMPARE_PROMPT =
   'Vergleiche folgende {anzahl} Angebote von Toppreise.ch (Preise in CHF) und bewerte Preis-Leistung, Stärken/Schwächen sowie welches Angebot der beste Deal ist (kurz auf Deutsch):';
 export const DEFAULT_BATCH_COMPARE_ITEM_TEMPLATE =
@@ -60,7 +62,8 @@ export const DEFAULTS = Object.freeze({
   TAVILY_SEARCH_DEPTH: 'basic',
   TAVILY_MAX_RESULTS: 5,
   OPENROUTER_API_KEY: '',
-  OPENROUTER_MODEL: 'google/gemini-2.5-flash',
+  OPENROUTER_MODEL: DEFAULT_OPENROUTER_MODEL,
+  OPENROUTER_PAID_MODEL: '',
   OPENROUTER_SEARCH_ENGINE: 'auto',
   OPENROUTER_MAX_RESULTS: 5,
   BATCH_CONFIRM_THRESHOLD: 10,
@@ -134,7 +137,7 @@ export const RESET_GROUPS = Object.freeze({
       'REVIEW_SEARCH_ENABLED', 'REVIEW_SEARCH_KEYWORD', 'REVIEW_SEARCH_AI_MODE',
       'BATCH_COMPARE_PROMPT', 'BATCH_COMPARE_ITEM_TEMPLATE',
       'AI_SEARCH_PROVIDER', 'TAVILY_ENABLED', 'TAVILY_SEARCH_DEPTH', 'TAVILY_MAX_RESULTS',
-      'OPENROUTER_MODEL', 'OPENROUTER_SEARCH_ENGINE', 'OPENROUTER_MAX_RESULTS'
+      'OPENROUTER_MODEL', 'OPENROUTER_PAID_MODEL', 'OPENROUTER_SEARCH_ENGINE', 'OPENROUTER_MAX_RESULTS'
     ]
   },
   batch: {
@@ -273,7 +276,8 @@ export const SETTING_SCHEMA = {
   TAVILY_SEARCH_DEPTH: { type: 'enum', default: 'basic', allowed: ['basic', 'advanced'] },
   TAVILY_MAX_RESULTS: { type: 'int', default: 5, min: 1, max: 10 },
   OPENROUTER_API_KEY: { type: 'string', default: '' },
-  OPENROUTER_MODEL: { type: 'string', default: 'google/gemini-2.5-flash' },
+  OPENROUTER_MODEL: { type: 'string', default: DEFAULT_OPENROUTER_MODEL },
+  OPENROUTER_PAID_MODEL: { type: 'string', default: '' },
   OPENROUTER_SEARCH_ENGINE: { type: 'enum', default: 'auto', allowed: ['auto', 'native', 'exa', 'parallel', 'perplexity', 'firecrawl'] },
   OPENROUTER_MAX_RESULTS: { type: 'int', default: 5, min: 1, max: 10 },
   BATCH_CONFIRM_THRESHOLD: { type: 'int', default: 10, min: 1, max: 100 },

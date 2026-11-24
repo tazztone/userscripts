@@ -455,6 +455,8 @@ export function buildExternalAiUrl(target, prompt) {
       return { url: needsPaste ? 'https://www.perplexity.ai/' : `https://www.perplexity.ai/search?q=${encoded}`, needsPaste };
     case 'claude':
       return { url: needsPaste ? 'https://claude.ai/new' : `https://claude.ai/new?q=${encoded}`, needsPaste };
+    case 'google':
+      return { url: needsPaste ? 'https://www.google.com/' : `https://www.google.com/search?q=${encoded}`, needsPaste };
     case 'google-ai':
     default:
       return { url: needsPaste ? 'https://www.google.com/search?udm=50' : `https://www.google.com/search?q=${encoded}&udm=50`, needsPaste };
