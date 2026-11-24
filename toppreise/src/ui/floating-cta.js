@@ -31,6 +31,8 @@ import { triggerProcessListings } from "../page/adapter.js";
 import { markFreshVerified, armFreshDismiss } from "./fresh-dismiss.js";
 import { getCardProductId } from "../page/cards.js";
 import { refreshFeed, isFeedRefreshing, cancelFeedRefresh, getFeedRefreshState } from "../page/feed-refresh.js";
+import { collectScopedCards } from "../features/batch-actions.js";
+import { toggleBatchPopover, closeBatchPopover, syncBatchPopover } from "./batch-popover.js";
 
 export const FLOATING_CTA_ID = 'tp-floating-check-cta';
 
@@ -107,6 +109,7 @@ export function hideFloatingCTA() {
   if (!el) return;
   el.classList.add('tp-hidden');
   el.classList.remove('tp-scanning');
+  closeBatchPopover();
 }
 
 /**
@@ -155,6 +158,7 @@ export function startBatchCheck() {
 
 function setCollapsed(collapsed) {
   collapsedForSession = !!collapsed;
+  if (collapsedForSession) closeBatchPopover();
   if (typeof document === 'undefined') return;
   syncFloatingCTA();
 }
@@ -192,12 +196,8 @@ function ensureCta() {
         </span>
         <span id="tp-floating-check-count">🔍</span>
       </button>
-      <label id="tp-floating-dealer-row" title="Günstigste Händler für Deals ab Schwelle mitladen (max. 3 parallel)">
-        <input type="checkbox" id="tp-floating-dealer-toggle">
-        <span class="tp-label-full">🏬 Händler laden</span>
-        <span class="tp-label-short">🏬 Händler</span>
-      </label>
     </div>
+    <button type="button" id="tp-floating-batch-btn" aria-expanded="false" aria-haspopup="true" title="Batch-Aktionen für gelistete Angebote">⚡ <span id="tp-floating-batch-count">0</span> ▴</button>
     <button type="button" id="tp-floating-refresh-btn" class="tp-floating-refresh-btn" title="Feed nach neuen Deals durchsuchen" aria-label="Feed aktualisieren">🔄</button>
     <input type="text" id="tp-floating-threshold-input" inputmode="numeric" size="4" title="Nur Differenzen ab Schwelle prüfen (z.B. 20%)" aria-label="Mindestrabatt in Prozent" autocomplete="off" spellcheck="false">
     <button type="button" id="tp-floating-cta-collapse" title="Minimieren">«</button>
@@ -249,13 +249,7 @@ function ensureCta() {
     threshInput.onchange = () => commitThreshold();
     threshInput.onblur = () => commitThreshold();
   }
-  // Scan-Begleiter (gleicher Schalter wie im Feintuning): Händler beim
-  // Verifizieren automatisch mitladen — updateConfig syncet das Modal mit.
-  el.querySelector('#tp-floating-dealer-toggle').onchange = e => {
-    const next = e.target.checked;
-    updateConfig('DEALER_AUTOFETCH', next);
-    showToast(next ? '🏬 Händler werden beim Prüfen automatisch geladen' : '🏬 Händler nur noch per Klick laden');
-  };
+  el.querySelector('#tp-floating-batch-btn').onclick = () => toggleBatchPopover();
 
   document.body.appendChild(el);
   return el;
@@ -336,11 +330,12 @@ function syncFloatingCTA() {
       ? `Nur Differenzen ≥ ${minDisc}% prüfen (ungeprüft ≠ Tiefstpreis)`
       : `Nur Produkte mit Differenz ≥ ${minDisc}% prüfen`;
   }
-  const dealerToggle = el.querySelector('#tp-floating-dealer-toggle');
-  if (dealerToggle && document.activeElement !== dealerToggle) {
-    dealerToggle.checked = CONFIG.DEALER_AUTOFETCH === true;
+  const batchCountEl = el.querySelector('#tp-floating-batch-count');
+  if (batchCountEl) {
+    const scopeCount = collectScopedCards(CONFIG.BATCH_SCOPE_DEFAULT || 'non-dimmed').length;
+    setTextIfChanged(batchCountEl, String(scopeCount));
   }
-  el.querySelector('#tp-floating-dealer-row')?.classList.toggle('tp-active', CONFIG.DEALER_AUTOFETCH === true);
+  syncBatchPopover();
 }
 
 /**

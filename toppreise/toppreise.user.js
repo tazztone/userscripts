@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.548
+// @version      2.18.549
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -2610,33 +2610,6 @@ const STYLES_FLOATING_CTA = `
     opacity: 0.85 !important;
     letter-spacing: -0.01em !important;
   }
-  #tp-floating-dealer-row {
-    display: inline-flex !important;
-    align-items: center !important;
-    gap: 3px !important;
-    padding: 0 5px !important;
-    height: 28px !important;
-    background: rgba(15, 23, 42, 0.05) !important;
-    border-radius: 999px !important;
-    font-size: 10px !important;
-    font-weight: 600 !important;
-    color: var(--tp-txt-dim) !important;
-    cursor: pointer !important;
-    user-select: none !important;
-    transition: background 0.15s ease, color 0.15s ease !important;
-    box-sizing: border-box !important;
-  }
-  #tp-floating-dealer-row:hover {
-    background: rgba(15, 23, 42, 0.1) !important;
-    color: var(--tp-txt) !important;
-  }
-  #tp-floating-dealer-toggle {
-    accent-color: #10b981 !important;
-    width: 15px !important;
-    height: 15px !important;
-    cursor: pointer !important;
-    margin: 0 !important;
-  }
   #tp-floating-threshold-input {
     width: 44px !important;
     height: 28px !important;
@@ -2681,7 +2654,6 @@ const STYLES_FLOATING_CTA = `
     box-sizing: border-box !important;
   }
   #tp-floating-check-btn:focus-visible,
-  #tp-floating-dealer-row:focus-within,
   #tp-floating-threshold-input:focus-visible,
   #tp-floating-refresh-btn:focus-visible,
   #tp-floating-cta-collapse:focus-visible {
@@ -2715,7 +2687,6 @@ const STYLES_FLOATING_CTA = `
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-labels,
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-main,
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-sub,
-  #tp-floating-check-cta.tp-collapsed #tp-floating-dealer-row,
   #tp-floating-check-cta.tp-collapsed #tp-floating-refresh-btn,
   #tp-floating-check-cta.tp-collapsed #tp-floating-threshold-input { display: none !important; }
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-count { display: inline !important; }
@@ -2731,7 +2702,6 @@ const STYLES_FLOATING_CTA = `
       gap: 2px !important;
     }
     #tp-floating-check-btn { padding: 2px 6px !important; }
-    #tp-floating-dealer-row { padding: 0 4px !important; }
     #tp-floating-threshold-input { width: 38px !important; padding: 0 2px !important; }
     .tp-label-full { display: none !important; }
     .tp-label-short { display: inline !important; }
@@ -2740,7 +2710,6 @@ const STYLES_FLOATING_CTA = `
     #tp-floating-check-cta { height: 40px !important; }
     #tp-floating-check-cta.tp-collapsed { height: 36px !important; }
     #tp-floating-check-btn,
-    #tp-floating-dealer-row,
     #tp-floating-threshold-input {
       height: 34px !important;
       touch-action: manipulation !important;
@@ -2766,6 +2735,249 @@ const STYLES_FLOATING_CTA = `
 `;
 
 /**
+ * Batch Popover, Trigger Button & Dialog Styles
+ */
+
+const STYLES_BATCH = `
+  /* ─── FLOATING CTA BATCH TRIGGER & UPWARD POPOVER ─── */
+  #tp-floating-batch-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 3px !important;
+    height: 28px !important;
+    padding: 0 8px !important;
+    background: rgba(15, 23, 42, 0.06) !important;
+    border: 1px solid rgba(15, 23, 42, 0.14) !important;
+    border-radius: 999px !important;
+    color: var(--tp-txt) !important;
+    font-family: inherit !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    cursor: pointer !important;
+    white-space: nowrap !important;
+    box-sizing: border-box !important;
+    transition: background 0.15s ease, border-color 0.15s ease !important;
+  }
+  #tp-floating-batch-btn:hover,
+  #tp-floating-batch-btn[aria-expanded="true"] {
+    background: rgba(139, 92, 246, 0.14) !important;
+    border-color: rgba(139, 92, 246, 0.45) !important;
+  }
+  #tp-floating-batch-btn:focus-visible {
+    outline: 2px solid var(--tp-focus) !important;
+    outline-offset: 2px !important;
+  }
+  #tp-floating-check-cta.tp-collapsed #tp-floating-batch-btn {
+    display: none !important;
+  }
+
+  #tp-batch-popover {
+    position: fixed !important;
+    left: 20px !important;
+    bottom: 62px !important;
+    z-index: 99991 !important;
+    width: 340px !important;
+    max-width: calc(100vw - 24px) !important;
+    background: var(--tp-bg-elev, #0f172a) !important;
+    color: var(--tp-txt-inv, #f8fafc) !important;
+    border: 1px solid rgba(148, 163, 184, 0.28) !important;
+    border-radius: 12px !important;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.38) !important;
+    padding: 10px 12px !important;
+    font-family: var(--tp-font) !important;
+    font-size: 12px !important;
+    display: none !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+    box-sizing: border-box !important;
+  }
+  #tp-batch-popover.tp-open {
+    display: flex !important;
+  }
+  .tp-bp-header {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 6px !important;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.18) !important;
+    padding-bottom: 8px !important;
+  }
+  .tp-bp-title {
+    font-weight: 700 !important;
+    font-size: 12.5px !important;
+    color: #f8fafc !important;
+  }
+  .tp-bp-scopes {
+    display: flex !important;
+    gap: 4px !important;
+    flex-wrap: wrap !important;
+  }
+  .tp-bp-scope {
+    flex: 1 1 auto !important;
+    padding: 4px 6px !important;
+    border-radius: 999px !important;
+    border: 1px solid rgba(148, 163, 184, 0.25) !important;
+    background: rgba(255, 255, 255, 0.05) !important;
+    color: #cbd5e1 !important;
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    cursor: pointer !important;
+    white-space: nowrap !important;
+  }
+  .tp-bp-scope.tp-active {
+    background: #7c3aed !important;
+    border-color: #8b5cf6 !important;
+    color: #ffffff !important;
+  }
+  .tp-bp-group {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 5px !important;
+  }
+  .tp-bp-group-label {
+    font-size: 10px !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.05em !important;
+    color: #94a3b8 !important;
+    font-weight: 700 !important;
+  }
+  .tp-bp-row {
+    display: flex !important;
+    gap: 6px !important;
+    align-items: center !important;
+  }
+  .tp-bp-btn,
+  .tp-bp-mini-btn {
+    padding: 6px 8px !important;
+    border-radius: 7px !important;
+    border: 1px solid rgba(148, 163, 184, 0.22) !important;
+    background: rgba(255, 255, 255, 0.07) !important;
+    color: #f1f5f9 !important;
+    font-family: inherit !important;
+    font-size: 11.5px !important;
+    font-weight: 600 !important;
+    cursor: pointer !important;
+    text-align: left !important;
+    white-space: nowrap !important;
+  }
+  .tp-bp-btn { flex: 1 1 0 !important; }
+  .tp-bp-mini-btn { flex: 0 0 auto !important; }
+  .tp-bp-btn:hover,
+  .tp-bp-mini-btn:hover {
+    background: rgba(255, 255, 255, 0.14) !important;
+  }
+  .tp-bp-btn[hidden] { display: none !important; }
+  .tp-bp-auto-label {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    padding: 5px 8px !important;
+    border-radius: 7px !important;
+    border: 1px solid rgba(148, 163, 184, 0.22) !important;
+    background: rgba(255, 255, 255, 0.05) !important;
+    color: #cbd5e1 !important;
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    cursor: pointer !important;
+    user-select: none !important;
+  }
+  .tp-bp-auto-label input {
+    accent-color: #10b981 !important;
+    margin: 0 !important;
+    cursor: pointer !important;
+  }
+  .tp-bp-progress {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 8px !important;
+    padding-top: 6px !important;
+    border-top: 1px solid rgba(148, 163, 184, 0.18) !important;
+    font-size: 11.5px !important;
+    color: #fbbf24 !important;
+  }
+  .tp-bp-progress[hidden] { display: none !important; }
+
+  /* ─── BATCH DIALOGS (#tp-batch-confirm-popout, #tp-batch-ai-popout) ─── */
+  .tp-batch-dialog-body {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+    padding: 12px 0 !important;
+    font-size: 13px !important;
+  }
+  .tp-batch-dialog-summary { margin: 0 !important; font-weight: 600 !important; }
+  .tp-batch-dialog-warn {
+    padding: 8px 10px !important;
+    border-radius: 8px !important;
+    background: rgba(245, 158, 11, 0.14) !important;
+    border: 1px solid rgba(245, 158, 11, 0.4) !important;
+    color: #fde68a !important;
+    font-size: 12px !important;
+  }
+  .tp-batch-dialog-row {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 10px !important;
+    flex-wrap: wrap !important;
+  }
+  .tp-batch-dialog-row input[type="number"],
+  .tp-batch-dialog-row select {
+    padding: 4px 8px !important;
+    border-radius: 6px !important;
+    border: 1px solid rgba(148, 163, 184, 0.3) !important;
+    background: rgba(15, 23, 42, 0.6) !important;
+    color: #f8fafc !important;
+    min-width: 90px !important;
+  }
+  .tp-batch-dur-pills { display: flex !important; gap: 4px !important; }
+  .tp-batch-pill {
+    padding: 4px 8px !important;
+    border-radius: 6px !important;
+    border: 1px solid rgba(148, 163, 184, 0.3) !important;
+    background: rgba(255, 255, 255, 0.06) !important;
+    color: #e2e8f0 !important;
+    cursor: pointer !important;
+    font-size: 12px !important;
+  }
+  .tp-batch-pill.tp-active {
+    background: #7c3aed !important;
+    border-color: #8b5cf6 !important;
+    color: #ffffff !important;
+  }
+  .tp-batch-dialog-hint { font-size: 12px !important; opacity: 0.8 !important; }
+  .tp-batch-btn-primary {
+    background: #7c3aed !important;
+    border-color: #8b5cf6 !important;
+    color: #ffffff !important;
+  }
+  .tp-batch-ai-body { max-height: 55vh !important; overflow-y: auto !important; }
+  .tp-batch-ai-item {
+    padding: 8px 0 !important;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.16) !important;
+  }
+  .tp-batch-ai-item-title { font-weight: 700 !important; margin-bottom: 4px !important; }
+  .tp-batch-citations {
+    margin-top: 6px !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+    font-size: 12px !important;
+  }
+  .tp-batch-citations a,
+  .tp-batch-blocked-list a { color: #93c5fd !important; text-decoration: underline !important; }
+  .tp-batch-blocked-list { margin: 8px 0 0 18px !important; padding: 0 !important; }
+
+  @media (max-width: 600px) {
+    #tp-batch-popover { left: 8px !important; bottom: 54px !important; width: calc(100vw - 16px) !important; }
+    #tp-floating-batch-btn { padding: 0 6px !important; }
+  }
+  @media (hover: none), (pointer: coarse) {
+    #tp-floating-batch-btn { height: 34px !important; touch-action: manipulation !important; }
+  }
+`;
+
+/**
  * Styles barrel (split into ui/styles/ parts): composes the document
  * stylesheet; app.js and shell.js imports stay untouched.
  */
@@ -2778,7 +2990,8 @@ const STYLES_FLOATING_CTA = `
 
 
 
-const STYLES = STYLES_CARDS + STYLES_BADGES + STYLES_CHROME + STYLES_CATEGORY_TREE + STYLES_OVERLAYS + STYLES_FLOATING_CTA;
+
+const STYLES = STYLES_CARDS + STYLES_BADGES + STYLES_CHROME + STYLES_CATEGORY_TREE + STYLES_OVERLAYS + STYLES_FLOATING_CTA + STYLES_BATCH;
 
 /** Shadow-modal part (split from ui/styles.js): isolated Shadow DOM dialog styles. */
 
@@ -17616,356 +17829,6 @@ const SHADOW_MODAL_STYLES = `
     if (document.getElementById('tp-bar-calc-popover')?.classList.contains('tp-show')) refreshCalcPreview();
   }
 
-  // ─── MODULE: src/ui/floating-cta.js ─────────────────────────────────────────
-  /**
-   * Floating Check-Deals CTA Component
-   * Primary one-click entry point for Tiefstpreis verification.
-   *
-   * Why this exists: the toolbar packs ~8 controls into one row (filter + view
-   * + deals groups) and the highest-value action — verifying N unchecked
-   * deals — drowns at the far right as just another small button. This
-   * floating pill (bottom-left, thumb-reachable, above page content but clear
-   * of the bottom-right settings FAB) carries that single action with live
-   * progress, threshold selection, and session collapse (minimizable, never
-   * fully closable — the primary action must stay one click away). The pill
-   * never auto-hides on empty: with 0 deals left it stays visible in dimmed
-   * form (grey instead of green) so users always find it in the same spot.
-   *
-   * Architecture: create-once + sync. The node is built and bound exactly
-   * once (listeners never re-attached); every render only updates textContent
-   * / classes when changed, so focus and in-flight scan callbacks survive
-   * re-renders. Pure label logic lives in ctaStateFor() for unit testing
-   * without a DOM.
-   */
-
-
-
-
-  const FLOATING_CTA_ID = 'tp-floating-check-cta';
-
-  let collapsedForSession = false;
-  let lastCounts = { uncheckedDeals: 0 };
-  let lastIsDealFeed = false;
-
-  /**
-   * Pure label state machine (no DOM): idle → scanning → refreshing → done (empty).
-   * The done state keeps the action name with a 0 count so the CTA never
-   * disappears — syncFloatingCTA dims it via the .tp-empty class instead.
-   * Unit-tested in tests/unit/floating-cta.test.js.
-   */
-  function ctaStateFor({
-    unchecked = 0,
-    isScanning = false,
-    isRefreshing = false,
-    completed = 0,
-    total = 0,
-    refreshStage = null,
-    refreshElapsedSec = 0,
-  } = {}) {
-    if (isScanning) {
-      const progress = total > 0 ? ` (${completed}/${total})` : '';
-      return { mode: 'scanning', mainLabel: `⏳ Prüfe${progress}`, subLabel: 'Klicken = Abbrechen' };
-    }
-    if (isRefreshing) {
-      if (refreshStage == null && refreshElapsedSec === 0) {
-        return { mode: 'refreshing', mainLabel: '⏳ Suche neue Deals...', subLabel: 'Feed wird aktualisiert' };
-      }
-      const mainLabel = refreshElapsedSec >= 1 ? `⏳ Suche… (${refreshElapsedSec}s)` : '⏳ Suche neue Deals...';
-      const stageLabel = refreshStage === 'parsing'
-        ? 'Verarbeite...'
-        : refreshStage === 'reconciling'
-          ? 'Gleiche ab...'
-          : 'Feed wird aktualisiert';
-      return { mode: 'refreshing', mainLabel, subLabel: `${stageLabel} · Klicken = Abbrechen` };
-    }
-    if (unchecked > 0) {
-      const obj = unchecked === 1 ? 'Tiefstpreis' : 'Tiefstpreise';
-      return { mode: 'idle', mainLabel: `🔍 ${unchecked} ${obj} prüfen`, subLabel: 'Echte Tiefstpreise verifizieren' };
-    }
-    return { mode: 'done', mainLabel: '🔍 0 Tiefstpreise prüfen', subLabel: 'Alle geprüft' };
-  }
-
-  /**
-   * Pure completion toast message generator (no DOM).
-   * Formats verified vs rejected counts after a batch check.
-   * Unit-tested in tests/unit/floating-cta.test.js.
-   */
-  function batchCompletionToast({ completed = 0, total = 0, fresh = 0, checked = 0, unchecked = 0, minDisc = 30 } = {}) {
-    const scanned = completed > 0 ? completed : total;
-    if (scanned > 0) {
-      const rejected = Math.max(0, scanned - fresh);
-      if (fresh > 0) {
-        if (rejected > 0) {
-          return `${fresh} verifiziert · ${rejected} verworfen`;
-        }
-        return fresh === 1 ? '1 Tiefstpreis verifiziert' : `${fresh} Tiefstpreise verifiziert`;
-      }
-      return checked > 0 ? `Keine Tiefstpreise dabei · ${scanned} verworfen` : 'Keine Prüfung möglich';
-    }
-    return unchecked > 0 ? `Keine Deals ab ≥${minDisc}% zum Prüfen` : 'Keine ungeprüften Deals vorhanden';
-  }
-
-
-  function hideFloatingCTA() {
-    if (typeof document === 'undefined') return;
-    // Stylesheet pins display:flex !important (host-site override convention),
-    // so hiding must go through the .tp-hidden class, not an inline style.
-    // The scanning marker is cleared too: hidden implies nothing to show, and
-    // syncFloatingCTA re-applies it whenever a scan is actually running.
-    const el = document.getElementById(FLOATING_CTA_ID);
-    if (!el) return;
-    el.classList.add('tp-hidden');
-    el.classList.remove('tp-scanning');
-  }
-
-  /**
-   * Entry point for starting (or cancelling) a batch check from any UI surface:
-   * the CTA main button, the empty-state notice, or tests. Clicking the dimmed
-   * empty CTA toasts instead of scanning (unchecked <= 0 guard below).
-   */
-  function startBatchCheck() {
-    const { isBatchChecking } = scanState;
-    if (isBatchChecking) {
-      cancelBatchDealCheck();
-      showToast('Batch-Prüfung abgebrochen');
-      syncFloatingCTA();
-      return;
-    }
-    if (isFeedRefreshing()) {
-      cancelFeedRefresh();
-      showToast('Feed-Aktualisierung abgebrochen');
-      syncFloatingCTA();
-      return;
-    }
-    const unchecked = lastCounts.uncheckedDeals || 0;
-    if (unchecked <= 0) {
-      refreshFeed({ onStart: syncFloatingCTA, onProgress: syncFloatingCTA, onEnd: syncFloatingCTA });
-      return;
-    }
-    const minDisc = realDealMinDiscount();
-    // Progress + cancel live in the expanded form — a check always expands.
-    setCollapsed(false);
-    runBatchDealCheck(
-      minDisc,
-      () => syncFloatingCTA(),
-      (completed, total, newlyVerified, meta) => {
-        armFreshDismiss();
-        for (const item of newlyVerified || []) markFreshVerified(item.pid);
-        // Recompute counts → CTA flips to its dimmed empty form when nothing is left.
-        triggerProcessListings();
-        if (meta?.abortedByCooldown) return;
-        const fresh = new Set(Array.from(document.querySelectorAll('.tp-deal-fresh'), el => getCardProductId(el)).filter(Boolean)).size;
-        const checked = (newlyVerified || []).length;
-        showToast(batchCompletionToast({ completed, total, fresh, checked, unchecked, minDisc }));
-      }
-    );
-    syncFloatingCTA();
-  }
-
-  function setCollapsed(collapsed) {
-    collapsedForSession = !!collapsed;
-    if (typeof document === 'undefined') return;
-    syncFloatingCTA();
-  }
-
-  function onMainClick() {
-    // The collapsed pill is an expand affordance, never a check trigger:
-    // the primary action must stay deliberate, not accidental.
-    if (collapsedForSession) {
-      setCollapsed(false);
-      return;
-    }
-    startBatchCheck();
-  }
-
-  function onCollapseToggle() {
-    setCollapsed(!collapsedForSession);
-  }
-
-  function ensureCta() {
-    let el = document.getElementById(FLOATING_CTA_ID);
-    if (el) {
-      el.classList.remove('tp-hidden');
-      return el;
-    }
-    el = document.createElement('div');
-    el.id = FLOATING_CTA_ID;
-    el.setAttribute('role', 'region');
-    el.setAttribute('aria-label', 'Tiefstpreise prüfen');
-    el.innerHTML = `
-      <div id="tp-floating-check-col">
-        <button type="button" id="tp-floating-check-btn" title="Differenzen anhand der Historie prüfen (ungeprüft ≠ Tiefstpreis)">
-          <span id="tp-floating-check-labels">
-            <span id="tp-floating-check-main">🔍 Tiefstpreise prüfen</span>
-            <span id="tp-floating-check-sub">Echte Tiefstpreise verifizieren</span>
-          </span>
-          <span id="tp-floating-check-count">🔍</span>
-        </button>
-        <label id="tp-floating-dealer-row" title="Günstigste Händler für Deals ab Schwelle mitladen (max. 3 parallel)">
-          <input type="checkbox" id="tp-floating-dealer-toggle">
-          <span class="tp-label-full">🏬 Händler laden</span>
-          <span class="tp-label-short">🏬 Händler</span>
-        </label>
-      </div>
-      <button type="button" id="tp-floating-refresh-btn" class="tp-floating-refresh-btn" title="Feed nach neuen Deals durchsuchen" aria-label="Feed aktualisieren">🔄</button>
-      <input type="text" id="tp-floating-threshold-input" inputmode="numeric" size="4" title="Nur Differenzen ab Schwelle prüfen (z.B. 20%)" aria-label="Mindestrabatt in Prozent" autocomplete="off" spellcheck="false">
-      <button type="button" id="tp-floating-cta-collapse" title="Minimieren">«</button>
-    `;
-
-    el.querySelector('#tp-floating-check-btn').onclick = onMainClick;
-    el.querySelector('#tp-floating-cta-collapse').onclick = onCollapseToggle;
-    const refreshBtnEl = el.querySelector('#tp-floating-refresh-btn');
-    if (refreshBtnEl) {
-      refreshBtnEl.onclick = () => {
-        refreshFeed({ onStart: syncFloatingCTA, onProgress: syncFloatingCTA, onEnd: syncFloatingCTA });
-      };
-    }
-
-    const threshInput = el.querySelector('#tp-floating-threshold-input');
-    if (threshInput) {
-      const commitThreshold = () => {
-        const raw = threshInput.value.trim();
-        const parsed = parseInt(raw.replace(/[^0-9]/g, ''), 10);
-        const current = realDealMinDiscount();
-        if (Number.isFinite(parsed)) {
-          const nextVal = Math.max(0, Math.min(90, parsed));
-          if (nextVal !== current) {
-            updateConfig('REAL_DEAL_MIN_DISCOUNT', nextVal);
-            showToast(`Nur Differenzen ab ${nextVal}% werden geprüft`);
-            triggerProcessListings();
-            syncFloatingCTA();
-            return;
-          }
-        }
-        threshInput.value = `≥${current}%`;
-      };
-
-      threshInput.onfocus = () => {
-        threshInput.select();
-      };
-      threshInput.onkeydown = e => {
-        e.stopPropagation();
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          threshInput.blur();
-        } else if (e.key === 'Escape') {
-          e.preventDefault();
-          threshInput.value = `≥${realDealMinDiscount()}%`;
-          threshInput.blur();
-        }
-      };
-      threshInput.onkeyup = e => e.stopPropagation();
-      threshInput.onchange = () => commitThreshold();
-      threshInput.onblur = () => commitThreshold();
-    }
-    // Scan-Begleiter (gleicher Schalter wie im Feintuning): Händler beim
-    // Verifizieren automatisch mitladen — updateConfig syncet das Modal mit.
-    el.querySelector('#tp-floating-dealer-toggle').onchange = e => {
-      const next = e.target.checked;
-      updateConfig('DEALER_AUTOFETCH', next);
-      showToast(next ? '🏬 Händler werden beim Prüfen automatisch geladen' : '🏬 Händler nur noch per Klick laden');
-    };
-
-    document.body.appendChild(el);
-    return el;
-  }
-
-  function syncFloatingCTA() {
-    if (typeof document === 'undefined') return;
-    const el = document.getElementById(FLOATING_CTA_ID);
-    if (!el) return;
-    const state = scanState;
-    const unchecked = lastCounts.uncheckedDeals || 0;
-    const refreshing = isFeedRefreshing();
-    const refreshState = refreshing ? getFeedRefreshState() : null;
-    const { mainLabel, subLabel, mode } = ctaStateFor({
-      unchecked,
-      isScanning: state.isBatchChecking,
-      isRefreshing: refreshing,
-      completed: state.progress?.completed || 0,
-      total: state.progress?.total || 0,
-      refreshStage: refreshState?.stage ?? null,
-      refreshElapsedSec: refreshState?.elapsedSec ?? 0,
-    });
-
-    const countMatch = mainLabel.match(/^🔍\s*(\d+)\s+Tiefstpreis/);
-    if (countMatch) {
-      const count = countMatch[1];
-      setHtmlIfChanged(
-        el.querySelector('#tp-floating-check-main'),
-        `<span class="tp-label-full">${mainLabel}</span><span class="tp-label-short">🔍 ${count} prüfen</span>`
-      );
-    } else {
-      setTextIfChanged(el.querySelector('#tp-floating-check-main'), mainLabel);
-    }
-    const subEl = el.querySelector('#tp-floating-check-sub');
-    setTextIfChanged(subEl, subLabel);
-    subEl.style.display = subLabel ? 'block' : 'none';
-    el.classList.toggle('tp-scanning', mode === 'scanning');
-    el.classList.toggle('tp-refreshing', mode === 'refreshing');
-    // Empty (0 deals) stays visible but dimmed via .tp-empty (grey instead of
-    // green) — the CTA must never disappear, only de-emphasize.
-    el.classList.toggle('tp-empty', mode === 'done');
-    // Collapsed form: compact count instead of labels, flipped chevron.
-    // The count keeps working as a progress signal mid-scan.
-    el.classList.toggle('tp-collapsed', collapsedForSession);
-    const completed = state.progress?.completed || 0;
-    const total = state.progress?.total || 0;
-    setTextIfChanged(
-      el.querySelector('#tp-floating-check-count'),
-      mode === 'scanning'
-        ? (total > 0 ? `⏳${completed}/${total}` : '⏳')
-        : (mode === 'refreshing'
-          ? (refreshState?.elapsedSec >= 1 ? `⏳${refreshState.elapsedSec}s` : '⏳')
-          : `🔍 ${unchecked}`)
-    );
-    const refreshBtn = el.querySelector('#tp-floating-refresh-btn');
-    if (refreshBtn) {
-      refreshBtn.classList.toggle('tp-spinning', refreshing);
-      refreshBtn.disabled = refreshing;
-    }
-    const collapseBtn = el.querySelector('#tp-floating-cta-collapse');
-    setTextIfChanged(collapseBtn, collapsedForSession ? '»' : '«');
-    collapseBtn.title = collapsedForSession ? 'Erweitern' : 'Minimieren';
-
-    const minDisc = realDealMinDiscount();
-    const threshInput = el.querySelector('#tp-floating-threshold-input');
-    if (threshInput) {
-      // Threshold is a deal-feed concept (mirrors the old toolbar behavior):
-      // on catalog pages only the check action itself is offered.
-      if (lastIsDealFeed) {
-        threshInput.style.removeProperty('display');
-      } else {
-        threshInput.style.setProperty('display', 'none', 'important');
-      }
-      if (document.activeElement !== threshInput) {
-        threshInput.value = `≥${minDisc}%`;
-      }
-      threshInput.title = lastIsDealFeed
-        ? `Nur Differenzen ≥ ${minDisc}% prüfen (ungeprüft ≠ Tiefstpreis)`
-        : `Nur Produkte mit Differenz ≥ ${minDisc}% prüfen`;
-    }
-    const dealerToggle = el.querySelector('#tp-floating-dealer-toggle');
-    if (dealerToggle && document.activeElement !== dealerToggle) {
-      dealerToggle.checked = CONFIG.DEALER_AUTOFETCH === true;
-    }
-    el.querySelector('#tp-floating-dealer-row')?.classList.toggle('tp-active', CONFIG.DEALER_AUTOFETCH === true);
-  }
-
-  /**
-   * Create-once, then sync. The pill always stays visible on listing pages —
-   * with 0 deals left it renders dimmed (see .tp-empty), never hidden.
-   * hideFloatingCTA is reserved for non-list contexts (product detail,
-   * zero cards). Collapse state is sticky within the session.
-   */
-  function renderFloatingCTA(counts = {}, isDealFeed = false) {
-    if (typeof document === 'undefined') return;
-    lastCounts = counts || { uncheckedDeals: 0 };
-    lastIsDealFeed = !!isDealFeed;
-    ensureCta();
-    syncFloatingCTA();
-  }
-
   // ─── MODULE: src/features/price-alarm.js ────────────────────────────────────
   /**
    * Price Alarm Automation Feature
@@ -18923,6 +18786,1099 @@ const SHADOW_MODAL_STYLES = `
     return { clicked, alreadyActive, activeCount, cappedAt4: activeCount >= 4 };
   }
 
+  // ─── MODULE: src/ui/batch-dialogs.js ────────────────────────────────────────
+  /**
+   * Batch Action Confirmation & AI Result Dialogs
+   * Built on createPopoutDialog (#tp-batch-confirm-popout, #tp-batch-ai-popout).
+   */
+
+
+
+
+
+
+  let activeConfirmCleanup = null;
+  let activeAiPopoutCleanup = null;
+
+  function closeBatchDialogs() {
+    if (typeof activeConfirmCleanup === 'function') {
+      const fn = activeConfirmCleanup;
+      activeConfirmCleanup = null;
+      fn();
+    } else if (typeof document !== 'undefined') {
+      document.getElementById('tp-batch-confirm-popout')?.remove();
+    }
+    if (typeof activeAiPopoutCleanup === 'function') {
+      const fn = activeAiPopoutCleanup;
+      activeAiPopoutCleanup = null;
+      fn();
+    } else if (typeof document !== 'undefined') {
+      document.getElementById('tp-batch-ai-popout')?.remove();
+    }
+  }
+
+  function openBatchConfirmDialog(opts = {}) {
+    if (typeof document === 'undefined') return null;
+    if (typeof activeConfirmCleanup === 'function') activeConfirmCleanup();
+
+    const {
+      title = 'Batch-Aktion bestätigen',
+      actionLabel = 'Ausführen',
+      count = 0,
+      isThresholdWarn = false,
+      mode = 'generic',
+      items = [],
+      qualifiedCount = count,
+      onConfirm = null
+    } = opts;
+
+    const { backdrop, panel, mount, close } = createPopoutDialog({
+      id: 'tp-batch-confirm-popout',
+      label: title,
+      title,
+      panelClass: 'tp-batch-dialog-panel',
+      onClose: () => { activeConfirmCleanup = null; }
+    });
+    activeConfirmCleanup = close;
+
+    const body = document.createElement('div');
+    body.className = 'tp-batch-dialog-body';
+
+    const summary = document.createElement('p');
+    summary.className = 'tp-batch-dialog-summary';
+    summary.textContent = `${count} ${count === 1 ? 'Angebot' : 'Angebote'} im aktuellen Scope ausgewählt.`;
+    body.appendChild(summary);
+
+    if (isThresholdWarn) {
+      const warn = document.createElement('div');
+      warn.className = 'tp-batch-dialog-warn';
+      warn.textContent = `⚠️ Hinweis: Ab ${CONFIG.BATCH_CONFIRM_THRESHOLD ?? 10} Karten fragt Batch vor mehreren Tabs oder API-Aufrufen nach.`;
+      body.appendChild(warn);
+    }
+
+    let limitInput = null;
+    if (count > 1) {
+      const limitRow = document.createElement('div');
+      limitRow.className = 'tp-batch-dialog-row';
+      const lbl = document.createElement('label');
+      lbl.htmlFor = 'tp-batch-limit-input';
+      lbl.textContent = 'Nur erste N verarbeiten:';
+      limitInput = document.createElement('input');
+      limitInput.type = 'number';
+      limitInput.id = 'tp-batch-limit-input';
+      limitInput.min = '1';
+      limitInput.max = String(count);
+      limitInput.value = String(count);
+      limitRow.append(lbl, limitInput);
+      body.appendChild(limitRow);
+    }
+
+    let pctInput = null;
+    let selectedDuration = String(CONFIG.ALARM_DURATION_DAYS || '730');
+    if (mode === 'alarms') {
+      const pctRow = document.createElement('div');
+      pctRow.className = 'tp-batch-dialog-row';
+      const pctLbl = document.createElement('label');
+      pctLbl.htmlFor = 'tp-batch-alarm-pct';
+      pctLbl.textContent = 'Zielpreis (% vom aktuellen Preis):';
+      pctInput = document.createElement('input');
+      pctInput.type = 'number';
+      pctInput.id = 'tp-batch-alarm-pct';
+      pctInput.min = '5';
+      pctInput.max = '99';
+      pctInput.value = String(Math.round((Number.isFinite(CONFIG.ALARM_TARGET_PERCENT) ? CONFIG.ALARM_TARGET_PERCENT : 0.6) * 100));
+      pctRow.append(pctLbl, pctInput);
+      body.appendChild(pctRow);
+
+      const durRow = document.createElement('div');
+      durRow.className = 'tp-batch-dialog-row';
+      const durLbl = document.createElement('span');
+      durLbl.textContent = 'Laufzeit:';
+      const pills = document.createElement('div');
+      pills.className = 'tp-batch-dur-pills';
+      const durations = [
+        ['90', '3M'],
+        ['180', '6M'],
+        ['365', '1J'],
+        ['730', '2J']
+      ];
+      for (const [val, label] of durations) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'tp-batch-pill' + (val === selectedDuration ? ' tp-active' : '');
+        btn.textContent = label;
+        btn.dataset.dur = val;
+        btn.addEventListener('click', () => {
+          selectedDuration = val;
+          pills.querySelectorAll('.tp-batch-pill').forEach(b => b.classList.toggle('tp-active', b.dataset.dur === val));
+        });
+        pills.appendChild(btn);
+      }
+      durRow.append(durLbl, pills);
+      body.appendChild(durRow);
+
+      const samplePrice = items.find(it => it.cardPrice > 0)?.cardPrice || 0;
+      if (samplePrice > 0) {
+        const sampleEl = document.createElement('div');
+        sampleEl.className = 'tp-batch-dialog-hint';
+        const updateSample = () => {
+          const p = Math.max(5, Math.min(99, parseInt(pctInput.value, 10) || 60));
+          sampleEl.textContent = `Beispiel (1. Produkt): CHF ${samplePrice.toFixed(2)} → Ziel CHF ${(samplePrice * (p / 100)).toFixed(2)}`;
+        };
+        updateSample();
+        pctInput.addEventListener('input', updateSample);
+        body.appendChild(sampleEl);
+      }
+    }
+
+    let channelSelect = null;
+    if (mode === 'discord') {
+      const channels = getDiscordChannels(CONFIG);
+      const chRow = document.createElement('div');
+      chRow.className = 'tp-batch-dialog-row';
+      const chLbl = document.createElement('label');
+      chLbl.htmlFor = 'tp-batch-discord-channel';
+      chLbl.textContent = 'Discord-Kanal:';
+      channelSelect = document.createElement('select');
+      channelSelect.id = 'tp-batch-discord-channel';
+      for (const ch of channels) {
+        const opt = document.createElement('option');
+        opt.value = ch.id;
+        opt.textContent = ch.name || ch.id;
+        channelSelect.appendChild(opt);
+      }
+      chRow.append(chLbl, channelSelect);
+      body.appendChild(chRow);
+
+      const note = document.createElement('div');
+      note.className = 'tp-batch-dialog-hint';
+      note.textContent = `${qualifiedCount} verifizierte, noch nicht geteilte Deals qualifizieren sich für Discord.`;
+      body.appendChild(note);
+    }
+
+    panel.appendChild(body);
+
+    const footer = document.createElement('div');
+    footer.className = 'tp-popout-footer';
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.className = 'tp-popout-btn';
+    cancelBtn.textContent = 'Abbrechen';
+    cancelBtn.addEventListener('click', close);
+
+    const confirmBtn = document.createElement('button');
+    confirmBtn.type = 'button';
+    confirmBtn.id = 'tp-batch-confirm-go';
+    confirmBtn.className = 'tp-popout-btn tp-batch-btn-primary';
+    confirmBtn.textContent = actionLabel;
+    confirmBtn.addEventListener('click', () => {
+      const limit = limitInput
+        ? Math.max(1, Math.min(count, parseInt(limitInput.value, 10) || count))
+        : count;
+      const targetPct = pctInput
+        ? Math.max(5, Math.min(99, parseInt(pctInput.value, 10) || 60)) / 100
+        : undefined;
+      const channels = getDiscordChannels(CONFIG);
+      const channel = channelSelect
+        ? (channels.find(c => c.id === channelSelect.value) || channels[0] || null)
+        : undefined;
+      close();
+      onConfirm?.({ limit, targetPct, durationDays: selectedDuration, channel });
+    });
+
+    footer.append(cancelBtn, confirmBtn);
+    panel.appendChild(footer);
+    mount();
+    return backdrop;
+  }
+
+  function appendCitations(container, citations) {
+    if (!Array.isArray(citations) || citations.length === 0) return;
+    const wrap = document.createElement('div');
+    wrap.className = 'tp-batch-citations';
+    const lbl = document.createElement('span');
+    lbl.textContent = 'Quellen: ';
+    wrap.appendChild(lbl);
+    for (const c of citations) {
+      if (!c?.url || !/^https?:\/\//i.test(c.url)) continue;
+      const a = document.createElement('a');
+      a.href = c.url;
+      a.target = '_blank';
+      a.rel = 'noopener';
+      a.textContent = c.title || c.url;
+      wrap.appendChild(a);
+    }
+    container.appendChild(wrap);
+  }
+
+  function openBatchAiPopout(opts = {}) {
+    if (typeof document === 'undefined') return null;
+    if (typeof activeAiPopoutCleanup === 'function') activeAiPopoutCleanup();
+
+    const {
+      title = '🤖 KI-Ergebnis',
+      mode = 'comparison',
+      answer = '',
+      citations = [],
+      results = [],
+      blockedItems = []
+    } = opts;
+
+    const { backdrop, panel, mount, close } = createPopoutDialog({
+      id: 'tp-batch-ai-popout',
+      label: title,
+      title,
+      panelClass: 'tp-ai-panel tp-batch-ai-panel',
+      onClose: () => { activeAiPopoutCleanup = null; }
+    });
+    activeAiPopoutCleanup = close;
+
+    const body = document.createElement('div');
+    body.className = 'tp-ai-body tp-batch-ai-body';
+
+    let copyText = answer || '';
+
+    if (mode === 'blocked') {
+      const warn = document.createElement('p');
+      warn.className = 'tp-batch-dialog-warn';
+      warn.textContent = `⚠️ ${blockedItems.length} Tabs wurden vom Popup-Blocker blockiert. Hier einzeln öffnen:`;
+      body.appendChild(warn);
+      const list = document.createElement('ul');
+      list.className = 'tp-batch-blocked-list';
+      for (const it of blockedItems) {
+        if (!it?.url || !/^https?:\/\//i.test(it.url)) continue;
+        const li = document.createElement('li');
+        const a = document.createElement('a');
+        a.href = it.url;
+        a.target = '_blank';
+        a.rel = 'noopener';
+        a.textContent = it.title || it.url;
+        li.appendChild(a);
+        list.appendChild(li);
+      }
+      body.appendChild(list);
+    } else if (mode === 'individual') {
+      const parts = [];
+      for (const r of results) {
+        const card = document.createElement('div');
+        card.className = 'tp-batch-ai-item';
+        const h = document.createElement('div');
+        h.className = 'tp-batch-ai-item-title';
+        h.textContent = `${r.item?.title || 'Produkt'}${r.item?.priceText ? ` (${r.item.priceText})` : ''}`;
+        card.appendChild(h);
+
+        const txt = document.createElement('div');
+        if (r.error) {
+          txt.className = 'tp-ai-error-msg';
+          txt.textContent = `⚠️ ${r.error}`;
+        } else {
+          txt.innerHTML = formatVerdictHtml(r.answer || '');
+          parts.push(`### ${r.item?.title || ''}\n${r.answer || ''}`);
+        }
+        card.appendChild(txt);
+        appendCitations(card, r.citations);
+        body.appendChild(card);
+      }
+      copyText = parts.join('\n\n');
+    } else {
+      body.innerHTML = formatVerdictHtml(answer);
+      appendCitations(body, citations);
+    }
+
+    panel.appendChild(body);
+
+    const footer = document.createElement('div');
+    footer.className = 'tp-popout-footer';
+    if (copyText) {
+      const copyBtn = document.createElement('button');
+      copyBtn.type = 'button';
+      copyBtn.className = 'tp-popout-btn';
+      copyBtn.textContent = '📋 Alle kopieren';
+      copyBtn.addEventListener('click', async () => {
+        const ok = await copyTextToClipboard(copyText);
+        showToast(ok ? '✅ KI-Antwort kopiert' : 'Kopieren fehlgeschlagen');
+      });
+      footer.appendChild(copyBtn);
+    }
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'tp-popout-btn';
+    closeBtn.textContent = 'Schliessen';
+    closeBtn.addEventListener('click', close);
+    footer.appendChild(closeBtn);
+    panel.appendChild(footer);
+
+    mount();
+    return backdrop;
+  }
+
+  // ─── MODULE: src/ui/batch-popover.js ────────────────────────────────────────
+  /**
+   * Upward Batch Actions Popover (#tp-batch-popover)
+   * Anchored to #tp-floating-check-cta.
+   */
+
+
+
+
+
+
+
+
+  const BATCH_POPOVER_ID = 'tp-batch-popover';
+
+  let isOpen = false;
+  let currentScope = null;
+  let outsideListenersBound = false;
+
+  function activeScope() {
+    return currentScope || CONFIG.BATCH_SCOPE_DEFAULT || 'non-dimmed';
+  }
+
+  function getScopedItems() {
+    return collectScopedCards(activeScope());
+  }
+
+  function withConfirmGate(opts, runner) {
+    const items = getScopedItems();
+    if (items.length === 0) {
+      showToast('Keine passenden Angebote im aktuellen Scope');
+      return;
+    }
+    const always = !!opts.alwaysConfirm;
+    const needConfirm = isBatchConfirmRequired(items.length, always);
+    if (!needConfirm) {
+      runner(items, {});
+      return;
+    }
+    const qualifiedCount = opts.mode === 'discord'
+      ? items.filter(it => it.isVerifiedDeal && it.pid && it.cardPrice > 0 && !getSharedDeal(it.pid, priceToCents(it.cardPrice))).length
+      : items.length;
+    openBatchConfirmDialog({
+      title: opts.title,
+      actionLabel: opts.actionLabel,
+      count: items.length,
+      isThresholdWarn: items.length >= (CONFIG.BATCH_CONFIRM_THRESHOLD ?? 10),
+      mode: opts.mode || 'generic',
+      items,
+      qualifiedCount,
+      onConfirm: (cfg) => {
+        const sliced = cfg.limit && cfg.limit < items.length ? items.slice(0, cfg.limit) : items;
+        runner(sliced, cfg);
+      }
+    });
+  }
+
+  function bindOutsideHandlers() {
+    if (outsideListenersBound || typeof document === 'undefined') return;
+    outsideListenersBound = true;
+    document.addEventListener('click', (e) => {
+      if (!isOpen || !e.isTrusted) return;
+      const pop = document.getElementById(BATCH_POPOVER_ID);
+      const btn = document.getElementById('tp-floating-batch-btn');
+      if (pop?.contains(e.target) || btn?.contains(e.target)) return;
+      closeBatchPopover();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (isOpen && e.key === 'Escape') {
+        closeBatchPopover();
+      }
+    });
+  }
+
+  function ensureBatchPopover() {
+    if (typeof document === 'undefined') return null;
+    let el = document.getElementById(BATCH_POPOVER_ID);
+    if (el) return el;
+
+    el = document.createElement('div');
+    el.id = BATCH_POPOVER_ID;
+    el.setAttribute('role', 'dialog');
+    el.setAttribute('aria-label', 'Batch-Aktionen');
+    el.innerHTML = `
+      <div class="tp-bp-header">
+        <span class="tp-bp-title">⚡ Batch-Aktionen</span>
+        <div class="tp-bp-scopes" role="tablist" aria-label="Ziel-Scope">
+          <button type="button" class="tp-bp-scope" data-scope="non-dimmed">Ohne Gedimmte (<span id="tp-batch-scope-non-dimmed">0</span>)</button>
+          <button type="button" class="tp-bp-scope" data-scope="visible">Alle (<span id="tp-batch-scope-visible">0</span>)</button>
+          <button type="button" class="tp-bp-scope" data-scope="deals">Deals (<span id="tp-batch-scope-deals">0</span>)</button>
+        </div>
+      </div>
+
+      <div class="tp-bp-group">
+        <div class="tp-bp-group-label">Export & KI</div>
+        <div class="tp-bp-row">
+          <button type="button" id="tp-batch-copy-btn" class="tp-bp-btn">📋 Kopieren</button>
+          <button type="button" id="tp-batch-copy-fmt-btn" class="tp-bp-mini-btn" title="Format umschalten (Markdown / TSV)">MD</button>
+          <button type="button" id="tp-batch-csv-btn" class="tp-bp-mini-btn" title="Als CSV herunterladen">⬇️ CSV</button>
+        </div>
+        <div class="tp-bp-row">
+          <button type="button" id="tp-batch-ai-compare-btn" class="tp-bp-btn">🤖 KI-Vergleich</button>
+          <button type="button" id="tp-batch-ai-single-btn" class="tp-bp-btn">🔍 Einzeln KI-Suchen</button>
+        </div>
+      </div>
+
+      <div class="tp-bp-group">
+        <div class="tp-bp-group-label">Aktionen</div>
+        <div class="tp-bp-row">
+          <button type="button" id="tp-batch-alarms-btn" class="tp-bp-btn">🔔 Preisalarme…</button>
+          <button type="button" id="tp-batch-tabs-btn" class="tp-bp-btn">↗ Tabs öffnen</button>
+        </div>
+        <div class="tp-bp-row">
+          <button type="button" id="tp-batch-dealers-btn" class="tp-bp-btn">🏬 Händler laden</button>
+          <label class="tp-bp-auto-label" title="Günstigste Händler beim Tiefstpreis-Prüfen automatisch mitladen">
+            <input type="checkbox" id="tp-batch-dealer-autofetch">
+            <span>Auto</span>
+          </label>
+        </div>
+        <div class="tp-bp-row" id="tp-batch-extra-row">
+          <button type="button" id="tp-batch-discord-btn" class="tp-bp-btn">📤 Discord-Share…</button>
+          <button type="button" id="tp-batch-compare-btn" class="tp-bp-btn">⭐ Vergleich (max. 4)</button>
+        </div>
+      </div>
+
+      <div id="tp-batch-progress-row" class="tp-bp-progress" hidden>
+        <span id="tp-batch-progress-text">⏳ 0/0</span>
+        <button type="button" id="tp-batch-cancel-btn" class="tp-bp-mini-btn">Abbrechen</button>
+      </div>
+    `;
+
+    el.querySelectorAll('.tp-bp-scope').forEach(btn => {
+      btn.addEventListener('click', () => {
+        currentScope = btn.dataset.scope;
+        updateConfig('BATCH_SCOPE_DEFAULT', currentScope);
+        syncBatchPopover();
+      });
+    });
+
+    el.querySelector('#tp-batch-copy-fmt-btn').addEventListener('click', () => {
+      const next = CONFIG.BATCH_COPY_FORMAT === 'tsv' ? 'markdown' : 'tsv';
+      updateConfig('BATCH_COPY_FORMAT', next);
+      syncBatchPopover();
+    });
+
+    el.querySelector('#tp-batch-copy-btn').addEventListener('click', async () => {
+      const items = getScopedItems();
+      if (!items.length) return showToast('Keine passenden Angebote im aktuellen Scope');
+      const isTsv = CONFIG.BATCH_COPY_FORMAT === 'tsv';
+      const txt = isTsv ? formatBatchTsv(items) : formatBatchMarkdown(items);
+      const ok = await copyTextToClipboard(txt);
+      showToast(ok ? `✅ ${items.length} Angebote als ${isTsv ? 'TSV' : 'Markdown'} kopiert` : 'Kopieren fehlgeschlagen');
+    });
+
+    el.querySelector('#tp-batch-csv-btn').addEventListener('click', () => {
+      const items = getScopedItems();
+      if (!items.length) return showToast('Keine passenden Angebote im aktuellen Scope');
+      const csv = formatBatchCsv(items);
+      downloadCsvFile(`toppreise-batch-${new Date().toISOString().slice(0, 10)}.csv`, csv);
+      showToast(`✅ ${items.length} Angebote als CSV exportiert`);
+    });
+
+    el.querySelector('#tp-batch-ai-compare-btn').addEventListener('click', () => {
+      const target = CONFIG.BATCH_AI_TARGET || 'google-ai';
+      const isOr = target === 'openrouter';
+      withConfirmGate({
+        title: '🤖 KI-Vergleich starten',
+        actionLabel: 'Vergleich starten'
+      }, async (items) => {
+        const job = startBatchJob('KI-Vergleich', items.length);
+        syncBatchPopover();
+        try {
+          const res = await runBatchComparisonAi(items, { target, signal: job.signal });
+          if (res.mode === 'openrouter') {
+            openBatchAiPopout({
+              title: `🤖 KI-Vergleich (${items.length} Angebote)`,
+              mode: 'comparison',
+              answer: res.answer,
+              citations: res.citations
+            });
+          } else if (res.mode === 'external') {
+            if (!res.opened) {
+              openBatchAiPopout({
+                title: '🤖 KI-Vergleich öffnen',
+                mode: 'blocked',
+                blockedItems: [{ title: `Vergleich (${res.target})`, url: res.url }]
+              });
+            } else if (res.needsPaste) {
+              showToast('📋 Prompt kopiert (zu lang für URL) — im Tab einfügen (Strg+V)');
+            } else {
+              showToast(`🤖 KI-Vergleich geöffnet (${res.target})`);
+            }
+          }
+        } catch (err) {
+          if (!err?.cancelled) showToast(`⚠️ ${err?.message || 'KI-Vergleich fehlgeschlagen'}`);
+        } finally {
+          job.finish();
+          syncBatchPopover();
+        }
+      });
+    });
+
+    el.querySelector('#tp-batch-ai-single-btn').addEventListener('click', () => {
+      const provider = CONFIG.AI_SEARCH_PROVIDER === 'openrouter' ? 'openrouter' : 'google';
+      withConfirmGate({
+        title: provider === 'openrouter' ? '🔍 OpenRouter Einzelsuche' : '🔍 Google AI Einzelsuche',
+        actionLabel: `${provider === 'openrouter' ? 'Abfragen' : 'Tabs öffnen'}`
+      }, async (items) => {
+        const job = startBatchJob('Einzeln KI-Suchen', items.length);
+        syncBatchPopover();
+        try {
+          const res = await runBatchAiIndividual(items, {
+            provider,
+            signal: job.signal,
+            onProgress: (done, total, failed) => {
+              job.updateProgress(done, failed);
+              syncBatchPopover();
+            }
+          });
+          if (res.mode === 'google') {
+            if (res.blockedItems.length > 0) {
+              openBatchAiPopout({ title: '🔍 Blockierte Google AI Tabs', mode: 'blocked', blockedItems: res.blockedItems });
+            } else {
+              showToast(`🔍 ${res.opened} Google AI Tabs geöffnet`);
+            }
+          } else if (!res.cancelled) {
+            openBatchAiPopout({
+              title: `🔍 OpenRouter Einzelsuche (${res.results.length})`,
+              mode: 'individual',
+              results: res.results
+            });
+          }
+        } finally {
+          job.finish();
+          syncBatchPopover();
+        }
+      });
+    });
+
+    el.querySelector('#tp-batch-alarms-btn').addEventListener('click', () => {
+      withConfirmGate({
+        title: '🔔 Batch-Preisalarme setzen',
+        actionLabel: 'Alarme setzen',
+        mode: 'alarms',
+        alwaysConfirm: true
+      }, async (items, cfg) => {
+        const job = startBatchJob('Preisalarme', items.length);
+        syncBatchPopover();
+        try {
+          const res = await runBatchPriceAlarms(items, {
+            targetPct: cfg.targetPct,
+            durationDays: cfg.durationDays,
+            signal: job.signal,
+            onProgress: (done, total, failed) => {
+              job.updateProgress(done, failed);
+              syncBatchPopover();
+            }
+          });
+          if (res.abortedEarly) {
+            showToast(`⚠️ Preisalarme nach 3 Fehlern gestoppt (${res.confirmed} gesetzt — eingeloggt?)`);
+          } else if (res.cancelled) {
+            showToast(`Preisalarme abgebrochen (${res.confirmed} gesetzt)`);
+          } else {
+            showToast(`🔔 ${res.confirmed} Preisalarme gesetzt${res.failed ? ` · ${res.failed} fehlgeschlagen` : ''}`);
+          }
+        } finally {
+          job.finish();
+          syncBatchPopover();
+        }
+      });
+    });
+
+    el.querySelector('#tp-batch-dealers-btn').addEventListener('click', () => {
+      withConfirmGate({
+        title: '🏬 Händler für Scope laden',
+        actionLabel: 'Händler laden'
+      }, async (items) => {
+        const job = startBatchJob('Händler laden', items.length);
+        syncBatchPopover();
+        try {
+          const res = await runBatchDealerFetch(items, {
+            signal: job.signal,
+            onProgress: (done, total, failed) => {
+              job.updateProgress(done, failed);
+              syncBatchPopover();
+            }
+          });
+          triggerProcessListings();
+          if (res.stoppedByCooldown) showToast(`⏳ Cooldown erreicht (${res.loaded} Händler geladen)`);
+          else if (res.total === 0) showToast('🏬 Alle Händler bereits geladen');
+          else showToast(`🏬 ${res.loaded} Händler geladen`);
+        } finally {
+          job.finish();
+          syncBatchPopover();
+        }
+      });
+    });
+
+    el.querySelector('#tp-batch-dealer-autofetch').addEventListener('change', (e) => {
+      const next = e.target.checked;
+      updateConfig('DEALER_AUTOFETCH', next);
+      showToast(next ? '🏬 Händler werden beim Prüfen automatisch geladen' : '🏬 Händler nur noch per Klick laden');
+    });
+
+    el.querySelector('#tp-batch-tabs-btn').addEventListener('click', () => {
+      withConfirmGate({
+        title: '↗ Tabs öffnen',
+        actionLabel: 'Tabs öffnen'
+      }, (items) => {
+        const res = runBatchOpenTabs(items);
+        if (res.blockedItems.length > 0) {
+          openBatchAiPopout({ title: '↗ Blockierte Produkt-Tabs', mode: 'blocked', blockedItems: res.blockedItems });
+        } else {
+          showToast(`↗ ${res.opened} Tabs geöffnet`);
+        }
+      });
+    });
+
+    el.querySelector('#tp-batch-discord-btn').addEventListener('click', () => {
+      withConfirmGate({
+        title: '📤 Discord Batch-Share',
+        actionLabel: 'Deals teilen',
+        mode: 'discord',
+        alwaysConfirm: true
+      }, async (items, cfg) => {
+        const job = startBatchJob('Discord-Share', items.length);
+        syncBatchPopover();
+        try {
+          const res = await runBatchDiscordShare(items, cfg.channel, {
+            signal: job.signal,
+            onProgress: (done, total, failed) => {
+              job.updateProgress(done, failed);
+              syncBatchPopover();
+            }
+          });
+          triggerProcessListings();
+          showToast(`📤 ${res.shared} geteilt${res.skippedDuplicates ? ` · ${res.skippedDuplicates} übersprungen` : ''}${res.failed ? ` · ${res.failed} Fehler` : ''}`);
+        } finally {
+          job.finish();
+          syncBatchPopover();
+        }
+      });
+    });
+
+    el.querySelector('#tp-batch-compare-btn').addEventListener('click', () => {
+      const items = getScopedItems();
+      if (!items.length) return showToast('Keine passenden Angebote im aktuellen Scope');
+      const res = runBatchNativeCompare(items);
+      if (res.clicked > 0) {
+        showToast(`⭐ ${res.clicked} zum Toppreise-Vergleich hinzugefügt (${res.activeCount}/4)`);
+      } else if (res.alreadyActive >= 4) {
+        showToast('⭐ Toppreise-Vergleich bereits voll (4/4)');
+      } else {
+        showToast('⭐ Keine weiteren Vergleichs-Buttons im Scope');
+      }
+    });
+
+    el.querySelector('#tp-batch-cancel-btn').addEventListener('click', () => {
+      if (cancelActiveBatchJob()) {
+        showToast('Batch-Aktion abgebrochen');
+        syncBatchPopover();
+      }
+    });
+
+    document.body.appendChild(el);
+    bindOutsideHandlers();
+    return el;
+  }
+
+  function syncBatchPopover() {
+    if (typeof document === 'undefined') return;
+    const pop = document.getElementById(BATCH_POPOVER_ID);
+    const btn = document.getElementById('tp-floating-batch-btn');
+    if (btn) btn.setAttribute('aria-expanded', String(isOpen));
+    if (!pop) return;
+
+    pop.classList.toggle('tp-open', isOpen);
+    const scope = activeScope();
+    pop.querySelectorAll('.tp-bp-scope').forEach(b => b.classList.toggle('tp-active', b.dataset.scope === scope));
+
+    const counts = getBatchScopeCounts();
+    const cNonDim = pop.querySelector('#tp-batch-scope-non-dimmed');
+    const cVis = pop.querySelector('#tp-batch-scope-visible');
+    const cDeals = pop.querySelector('#tp-batch-scope-deals');
+    if (cNonDim) cNonDim.textContent = String(counts['non-dimmed']);
+    if (cVis) cVis.textContent = String(counts.visible);
+    if (cDeals) cDeals.textContent = String(counts.deals);
+
+    const fmtBtn = pop.querySelector('#tp-batch-copy-fmt-btn');
+    if (fmtBtn) fmtBtn.textContent = CONFIG.BATCH_COPY_FORMAT === 'tsv' ? 'TSV' : 'MD';
+
+    const autoToggle = pop.querySelector('#tp-batch-dealer-autofetch');
+    if (autoToggle && document.activeElement !== autoToggle) {
+      autoToggle.checked = CONFIG.DEALER_AUTOFETCH === true;
+    }
+
+    const discordBtn = pop.querySelector('#tp-batch-discord-btn');
+    if (discordBtn) discordBtn.hidden = getDiscordChannels(CONFIG).length === 0;
+
+    const compareBtn = pop.querySelector('#tp-batch-compare-btn');
+    if (compareBtn) compareBtn.hidden = !document.querySelector('.Plugin_AddToProductComparisonButton');
+
+    const job = getActiveBatchJob();
+    const progRow = pop.querySelector('#tp-batch-progress-row');
+    const progTxt = pop.querySelector('#tp-batch-progress-text');
+    if (progRow && progTxt) {
+      progRow.hidden = !job;
+      if (job) progTxt.textContent = `⏳ ${job.label}: ${job.done}/${job.total}`;
+    }
+  }
+
+  function toggleBatchPopover() {
+    ensureBatchPopover();
+    isOpen = !isOpen;
+    syncBatchPopover();
+  }
+
+  function closeBatchPopover() {
+    if (!isOpen) return;
+    isOpen = false;
+    syncBatchPopover();
+  }
+
+  // ─── MODULE: src/ui/floating-cta.js ─────────────────────────────────────────
+  /**
+   * Floating Check-Deals CTA Component
+   * Primary one-click entry point for Tiefstpreis verification.
+   *
+   * Why this exists: the toolbar packs ~8 controls into one row (filter + view
+   * + deals groups) and the highest-value action — verifying N unchecked
+   * deals — drowns at the far right as just another small button. This
+   * floating pill (bottom-left, thumb-reachable, above page content but clear
+   * of the bottom-right settings FAB) carries that single action with live
+   * progress, threshold selection, and session collapse (minimizable, never
+   * fully closable — the primary action must stay one click away). The pill
+   * never auto-hides on empty: with 0 deals left it stays visible in dimmed
+   * form (grey instead of green) so users always find it in the same spot.
+   *
+   * Architecture: create-once + sync. The node is built and bound exactly
+   * once (listeners never re-attached); every render only updates textContent
+   * / classes when changed, so focus and in-flight scan callbacks survive
+   * re-renders. Pure label logic lives in ctaStateFor() for unit testing
+   * without a DOM.
+   */
+
+
+
+
+  const FLOATING_CTA_ID = 'tp-floating-check-cta';
+
+  let collapsedForSession = false;
+  let lastCounts = { uncheckedDeals: 0 };
+  let lastIsDealFeed = false;
+
+  /**
+   * Pure label state machine (no DOM): idle → scanning → refreshing → done (empty).
+   * The done state keeps the action name with a 0 count so the CTA never
+   * disappears — syncFloatingCTA dims it via the .tp-empty class instead.
+   * Unit-tested in tests/unit/floating-cta.test.js.
+   */
+  function ctaStateFor({
+    unchecked = 0,
+    isScanning = false,
+    isRefreshing = false,
+    completed = 0,
+    total = 0,
+    refreshStage = null,
+    refreshElapsedSec = 0,
+  } = {}) {
+    if (isScanning) {
+      const progress = total > 0 ? ` (${completed}/${total})` : '';
+      return { mode: 'scanning', mainLabel: `⏳ Prüfe${progress}`, subLabel: 'Klicken = Abbrechen' };
+    }
+    if (isRefreshing) {
+      if (refreshStage == null && refreshElapsedSec === 0) {
+        return { mode: 'refreshing', mainLabel: '⏳ Suche neue Deals...', subLabel: 'Feed wird aktualisiert' };
+      }
+      const mainLabel = refreshElapsedSec >= 1 ? `⏳ Suche… (${refreshElapsedSec}s)` : '⏳ Suche neue Deals...';
+      const stageLabel = refreshStage === 'parsing'
+        ? 'Verarbeite...'
+        : refreshStage === 'reconciling'
+          ? 'Gleiche ab...'
+          : 'Feed wird aktualisiert';
+      return { mode: 'refreshing', mainLabel, subLabel: `${stageLabel} · Klicken = Abbrechen` };
+    }
+    if (unchecked > 0) {
+      const obj = unchecked === 1 ? 'Tiefstpreis' : 'Tiefstpreise';
+      return { mode: 'idle', mainLabel: `🔍 ${unchecked} ${obj} prüfen`, subLabel: 'Echte Tiefstpreise verifizieren' };
+    }
+    return { mode: 'done', mainLabel: '🔍 0 Tiefstpreise prüfen', subLabel: 'Alle geprüft' };
+  }
+
+  /**
+   * Pure completion toast message generator (no DOM).
+   * Formats verified vs rejected counts after a batch check.
+   * Unit-tested in tests/unit/floating-cta.test.js.
+   */
+  function batchCompletionToast({ completed = 0, total = 0, fresh = 0, checked = 0, unchecked = 0, minDisc = 30 } = {}) {
+    const scanned = completed > 0 ? completed : total;
+    if (scanned > 0) {
+      const rejected = Math.max(0, scanned - fresh);
+      if (fresh > 0) {
+        if (rejected > 0) {
+          return `${fresh} verifiziert · ${rejected} verworfen`;
+        }
+        return fresh === 1 ? '1 Tiefstpreis verifiziert' : `${fresh} Tiefstpreise verifiziert`;
+      }
+      return checked > 0 ? `Keine Tiefstpreise dabei · ${scanned} verworfen` : 'Keine Prüfung möglich';
+    }
+    return unchecked > 0 ? `Keine Deals ab ≥${minDisc}% zum Prüfen` : 'Keine ungeprüften Deals vorhanden';
+  }
+
+
+  function hideFloatingCTA() {
+    if (typeof document === 'undefined') return;
+    // Stylesheet pins display:flex !important (host-site override convention),
+    // so hiding must go through the .tp-hidden class, not an inline style.
+    // The scanning marker is cleared too: hidden implies nothing to show, and
+    // syncFloatingCTA re-applies it whenever a scan is actually running.
+    const el = document.getElementById(FLOATING_CTA_ID);
+    if (!el) return;
+    el.classList.add('tp-hidden');
+    el.classList.remove('tp-scanning');
+    closeBatchPopover();
+  }
+
+  /**
+   * Entry point for starting (or cancelling) a batch check from any UI surface:
+   * the CTA main button, the empty-state notice, or tests. Clicking the dimmed
+   * empty CTA toasts instead of scanning (unchecked <= 0 guard below).
+   */
+  function startBatchCheck() {
+    const { isBatchChecking } = scanState;
+    if (isBatchChecking) {
+      cancelBatchDealCheck();
+      showToast('Batch-Prüfung abgebrochen');
+      syncFloatingCTA();
+      return;
+    }
+    if (isFeedRefreshing()) {
+      cancelFeedRefresh();
+      showToast('Feed-Aktualisierung abgebrochen');
+      syncFloatingCTA();
+      return;
+    }
+    const unchecked = lastCounts.uncheckedDeals || 0;
+    if (unchecked <= 0) {
+      refreshFeed({ onStart: syncFloatingCTA, onProgress: syncFloatingCTA, onEnd: syncFloatingCTA });
+      return;
+    }
+    const minDisc = realDealMinDiscount();
+    // Progress + cancel live in the expanded form — a check always expands.
+    setCollapsed(false);
+    runBatchDealCheck(
+      minDisc,
+      () => syncFloatingCTA(),
+      (completed, total, newlyVerified, meta) => {
+        armFreshDismiss();
+        for (const item of newlyVerified || []) markFreshVerified(item.pid);
+        // Recompute counts → CTA flips to its dimmed empty form when nothing is left.
+        triggerProcessListings();
+        if (meta?.abortedByCooldown) return;
+        const fresh = new Set(Array.from(document.querySelectorAll('.tp-deal-fresh'), el => getCardProductId(el)).filter(Boolean)).size;
+        const checked = (newlyVerified || []).length;
+        showToast(batchCompletionToast({ completed, total, fresh, checked, unchecked, minDisc }));
+      }
+    );
+    syncFloatingCTA();
+  }
+
+  function setCollapsed(collapsed) {
+    collapsedForSession = !!collapsed;
+    if (collapsedForSession) closeBatchPopover();
+    if (typeof document === 'undefined') return;
+    syncFloatingCTA();
+  }
+
+  function onMainClick() {
+    // The collapsed pill is an expand affordance, never a check trigger:
+    // the primary action must stay deliberate, not accidental.
+    if (collapsedForSession) {
+      setCollapsed(false);
+      return;
+    }
+    startBatchCheck();
+  }
+
+  function onCollapseToggle() {
+    setCollapsed(!collapsedForSession);
+  }
+
+  function ensureCta() {
+    let el = document.getElementById(FLOATING_CTA_ID);
+    if (el) {
+      el.classList.remove('tp-hidden');
+      return el;
+    }
+    el = document.createElement('div');
+    el.id = FLOATING_CTA_ID;
+    el.setAttribute('role', 'region');
+    el.setAttribute('aria-label', 'Tiefstpreise prüfen');
+    el.innerHTML = `
+      <div id="tp-floating-check-col">
+        <button type="button" id="tp-floating-check-btn" title="Differenzen anhand der Historie prüfen (ungeprüft ≠ Tiefstpreis)">
+          <span id="tp-floating-check-labels">
+            <span id="tp-floating-check-main">🔍 Tiefstpreise prüfen</span>
+            <span id="tp-floating-check-sub">Echte Tiefstpreise verifizieren</span>
+          </span>
+          <span id="tp-floating-check-count">🔍</span>
+        </button>
+      </div>
+      <button type="button" id="tp-floating-batch-btn" aria-expanded="false" aria-haspopup="true" title="Batch-Aktionen für gelistete Angebote">⚡ <span id="tp-floating-batch-count">0</span> ▴</button>
+      <button type="button" id="tp-floating-refresh-btn" class="tp-floating-refresh-btn" title="Feed nach neuen Deals durchsuchen" aria-label="Feed aktualisieren">🔄</button>
+      <input type="text" id="tp-floating-threshold-input" inputmode="numeric" size="4" title="Nur Differenzen ab Schwelle prüfen (z.B. 20%)" aria-label="Mindestrabatt in Prozent" autocomplete="off" spellcheck="false">
+      <button type="button" id="tp-floating-cta-collapse" title="Minimieren">«</button>
+    `;
+
+    el.querySelector('#tp-floating-check-btn').onclick = onMainClick;
+    el.querySelector('#tp-floating-cta-collapse').onclick = onCollapseToggle;
+    const refreshBtnEl = el.querySelector('#tp-floating-refresh-btn');
+    if (refreshBtnEl) {
+      refreshBtnEl.onclick = () => {
+        refreshFeed({ onStart: syncFloatingCTA, onProgress: syncFloatingCTA, onEnd: syncFloatingCTA });
+      };
+    }
+
+    const threshInput = el.querySelector('#tp-floating-threshold-input');
+    if (threshInput) {
+      const commitThreshold = () => {
+        const raw = threshInput.value.trim();
+        const parsed = parseInt(raw.replace(/[^0-9]/g, ''), 10);
+        const current = realDealMinDiscount();
+        if (Number.isFinite(parsed)) {
+          const nextVal = Math.max(0, Math.min(90, parsed));
+          if (nextVal !== current) {
+            updateConfig('REAL_DEAL_MIN_DISCOUNT', nextVal);
+            showToast(`Nur Differenzen ab ${nextVal}% werden geprüft`);
+            triggerProcessListings();
+            syncFloatingCTA();
+            return;
+          }
+        }
+        threshInput.value = `≥${current}%`;
+      };
+
+      threshInput.onfocus = () => {
+        threshInput.select();
+      };
+      threshInput.onkeydown = e => {
+        e.stopPropagation();
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          threshInput.blur();
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          threshInput.value = `≥${realDealMinDiscount()}%`;
+          threshInput.blur();
+        }
+      };
+      threshInput.onkeyup = e => e.stopPropagation();
+      threshInput.onchange = () => commitThreshold();
+      threshInput.onblur = () => commitThreshold();
+    }
+    el.querySelector('#tp-floating-batch-btn').onclick = () => toggleBatchPopover();
+
+    document.body.appendChild(el);
+    return el;
+  }
+
+  function syncFloatingCTA() {
+    if (typeof document === 'undefined') return;
+    const el = document.getElementById(FLOATING_CTA_ID);
+    if (!el) return;
+    const state = scanState;
+    const unchecked = lastCounts.uncheckedDeals || 0;
+    const refreshing = isFeedRefreshing();
+    const refreshState = refreshing ? getFeedRefreshState() : null;
+    const { mainLabel, subLabel, mode } = ctaStateFor({
+      unchecked,
+      isScanning: state.isBatchChecking,
+      isRefreshing: refreshing,
+      completed: state.progress?.completed || 0,
+      total: state.progress?.total || 0,
+      refreshStage: refreshState?.stage ?? null,
+      refreshElapsedSec: refreshState?.elapsedSec ?? 0,
+    });
+
+    const countMatch = mainLabel.match(/^🔍\s*(\d+)\s+Tiefstpreis/);
+    if (countMatch) {
+      const count = countMatch[1];
+      setHtmlIfChanged(
+        el.querySelector('#tp-floating-check-main'),
+        `<span class="tp-label-full">${mainLabel}</span><span class="tp-label-short">🔍 ${count} prüfen</span>`
+      );
+    } else {
+      setTextIfChanged(el.querySelector('#tp-floating-check-main'), mainLabel);
+    }
+    const subEl = el.querySelector('#tp-floating-check-sub');
+    setTextIfChanged(subEl, subLabel);
+    subEl.style.display = subLabel ? 'block' : 'none';
+    el.classList.toggle('tp-scanning', mode === 'scanning');
+    el.classList.toggle('tp-refreshing', mode === 'refreshing');
+    // Empty (0 deals) stays visible but dimmed via .tp-empty (grey instead of
+    // green) — the CTA must never disappear, only de-emphasize.
+    el.classList.toggle('tp-empty', mode === 'done');
+    // Collapsed form: compact count instead of labels, flipped chevron.
+    // The count keeps working as a progress signal mid-scan.
+    el.classList.toggle('tp-collapsed', collapsedForSession);
+    const completed = state.progress?.completed || 0;
+    const total = state.progress?.total || 0;
+    setTextIfChanged(
+      el.querySelector('#tp-floating-check-count'),
+      mode === 'scanning'
+        ? (total > 0 ? `⏳${completed}/${total}` : '⏳')
+        : (mode === 'refreshing'
+          ? (refreshState?.elapsedSec >= 1 ? `⏳${refreshState.elapsedSec}s` : '⏳')
+          : `🔍 ${unchecked}`)
+    );
+    const refreshBtn = el.querySelector('#tp-floating-refresh-btn');
+    if (refreshBtn) {
+      refreshBtn.classList.toggle('tp-spinning', refreshing);
+      refreshBtn.disabled = refreshing;
+    }
+    const collapseBtn = el.querySelector('#tp-floating-cta-collapse');
+    setTextIfChanged(collapseBtn, collapsedForSession ? '»' : '«');
+    collapseBtn.title = collapsedForSession ? 'Erweitern' : 'Minimieren';
+
+    const minDisc = realDealMinDiscount();
+    const threshInput = el.querySelector('#tp-floating-threshold-input');
+    if (threshInput) {
+      // Threshold is a deal-feed concept (mirrors the old toolbar behavior):
+      // on catalog pages only the check action itself is offered.
+      if (lastIsDealFeed) {
+        threshInput.style.removeProperty('display');
+      } else {
+        threshInput.style.setProperty('display', 'none', 'important');
+      }
+      if (document.activeElement !== threshInput) {
+        threshInput.value = `≥${minDisc}%`;
+      }
+      threshInput.title = lastIsDealFeed
+        ? `Nur Differenzen ≥ ${minDisc}% prüfen (ungeprüft ≠ Tiefstpreis)`
+        : `Nur Produkte mit Differenz ≥ ${minDisc}% prüfen`;
+    }
+    const batchCountEl = el.querySelector('#tp-floating-batch-count');
+    if (batchCountEl) {
+      const scopeCount = collectScopedCards(CONFIG.BATCH_SCOPE_DEFAULT || 'non-dimmed').length;
+      setTextIfChanged(batchCountEl, String(scopeCount));
+    }
+    syncBatchPopover();
+  }
+
+  /**
+   * Create-once, then sync. The pill always stays visible on listing pages —
+   * with 0 deals left it renders dimmed (see .tp-empty), never hidden.
+   * hideFloatingCTA is reserved for non-list contexts (product detail,
+   * zero cards). Collapse state is sticky within the session.
+   */
+  function renderFloatingCTA(counts = {}, isDealFeed = false) {
+    if (typeof document === 'undefined') return;
+    lastCounts = counts || { uncheckedDeals: 0 };
+    lastIsDealFeed = !!isDealFeed;
+    ensureCta();
+    syncFloatingCTA();
+  }
+
   // ─── MODULE: src/features/product-detail.js ─────────────────────────────────
   /**
    * Product Detail Page Feature
@@ -19569,7 +20525,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   let debounceTimer = null;
   let lastKnownHref = typeof location !== 'undefined' ? location.href : '';
   const OBSERVE_OPTS = { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'href', 'data-entity-id', 'data-tp-product-id', 'data-current_url', 'data-current-url'] };
-  const TP_OWNED_SEL = '#tp-root,#tp-suite-filter-bar,#tp-floating-check-cta,#tp-sparkline-popout,#tp-empty-state-notice,.tp-injected-badge,.tp-card-subline-row,.tp-card-dealer-row,.tp-sparkline-container,.tp-card-historical-price,.tp-share-btn,.tp-dealer-name,.tp-review-search-btn,#tp-detail-subline,.tp-detail-subline,#tp-detail-share-btn,#tp-detail-sparkline,.tp-detail-share-btn,.tp-detail-review-btn,.tp-alarm-cog,.tp-card-alarm-group,.tp-card-alarm-btn,.tp-alarm-status,[data-tp-alarm-state]';
+  const TP_OWNED_SEL = '#tp-root,#tp-suite-filter-bar,#tp-floating-check-cta,#tp-batch-popover,#tp-batch-confirm-popout,#tp-batch-ai-popout,#tp-sparkline-popout,#tp-empty-state-notice,.tp-injected-badge,.tp-card-subline-row,.tp-card-dealer-row,.tp-sparkline-container,.tp-card-historical-price,.tp-share-btn,.tp-dealer-name,.tp-review-search-btn,#tp-detail-subline,.tp-detail-subline,#tp-detail-share-btn,#tp-detail-sparkline,.tp-detail-share-btn,.tp-detail-review-btn,.tp-alarm-cog,.tp-card-alarm-group,.tp-card-alarm-btn,.tp-alarm-status,[data-tp-alarm-state]';
   const TP_CARD_SEL = '.Plugin_Product,.mixedBrowsingListProduct';
   const isOwnedNode = n => n?.nodeType === 1 && !!n.closest?.(TP_OWNED_SEL);
   const cardOf = n => {
@@ -19664,6 +20620,9 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
     if (cur === lastPriceBasis) return;
     lastPriceBasis = cur;
     cancelBatchDealCheck();
+    cancelActiveBatchJob();
+    closeBatchPopover();
+    closeBatchDialogs();
     document.querySelectorAll(SELECTORS.cards.standard).forEach(clearCardCache);
     triggerProcessListings();
   }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
@@ -19718,8 +20677,11 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
     closeAiPopover();
     closeSharePreviewModal();
     closeFetchedAlarmDialogs();
+    closeBatchPopover();
+    closeBatchDialogs();
     if (!isNeueToppreisePage()) disconnectCategoryObservers();
     cancelBatchDealCheck();
+    cancelActiveBatchJob();
     cancelFeedRefresh();
     logActivity('info', 'app', 'Route transition');
     clearDealerAutoTried();
@@ -19746,7 +20708,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.548';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.549';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

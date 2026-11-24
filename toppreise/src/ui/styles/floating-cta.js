@@ -106,33 +106,6 @@ export const STYLES_FLOATING_CTA = `
     opacity: 0.85 !important;
     letter-spacing: -0.01em !important;
   }
-  #tp-floating-dealer-row {
-    display: inline-flex !important;
-    align-items: center !important;
-    gap: 3px !important;
-    padding: 0 5px !important;
-    height: 28px !important;
-    background: rgba(15, 23, 42, 0.05) !important;
-    border-radius: 999px !important;
-    font-size: 10px !important;
-    font-weight: 600 !important;
-    color: var(--tp-txt-dim) !important;
-    cursor: pointer !important;
-    user-select: none !important;
-    transition: background 0.15s ease, color 0.15s ease !important;
-    box-sizing: border-box !important;
-  }
-  #tp-floating-dealer-row:hover {
-    background: rgba(15, 23, 42, 0.1) !important;
-    color: var(--tp-txt) !important;
-  }
-  #tp-floating-dealer-toggle {
-    accent-color: #10b981 !important;
-    width: 15px !important;
-    height: 15px !important;
-    cursor: pointer !important;
-    margin: 0 !important;
-  }
   #tp-floating-threshold-input {
     width: 44px !important;
     height: 28px !important;
@@ -177,7 +150,6 @@ export const STYLES_FLOATING_CTA = `
     box-sizing: border-box !important;
   }
   #tp-floating-check-btn:focus-visible,
-  #tp-floating-dealer-row:focus-within,
   #tp-floating-threshold-input:focus-visible,
   #tp-floating-refresh-btn:focus-visible,
   #tp-floating-cta-collapse:focus-visible {
@@ -211,7 +183,6 @@ export const STYLES_FLOATING_CTA = `
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-labels,
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-main,
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-sub,
-  #tp-floating-check-cta.tp-collapsed #tp-floating-dealer-row,
   #tp-floating-check-cta.tp-collapsed #tp-floating-refresh-btn,
   #tp-floating-check-cta.tp-collapsed #tp-floating-threshold-input { display: none !important; }
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-count { display: inline !important; }
@@ -227,7 +198,6 @@ export const STYLES_FLOATING_CTA = `
       gap: 2px !important;
     }
     #tp-floating-check-btn { padding: 2px 6px !important; }
-    #tp-floating-dealer-row { padding: 0 4px !important; }
     #tp-floating-threshold-input { width: 38px !important; padding: 0 2px !important; }
     .tp-label-full { display: none !important; }
     .tp-label-short { display: inline !important; }
@@ -236,7 +206,6 @@ export const STYLES_FLOATING_CTA = `
     #tp-floating-check-cta { height: 40px !important; }
     #tp-floating-check-cta.tp-collapsed { height: 36px !important; }
     #tp-floating-check-btn,
-    #tp-floating-dealer-row,
     #tp-floating-threshold-input {
       height: 34px !important;
       touch-action: manipulation !important;

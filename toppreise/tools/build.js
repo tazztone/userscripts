@@ -53,6 +53,7 @@ export function buildBundle() {
     'ui/styles/category-tree.js',
     'ui/styles/overlays.js',
     'ui/styles/floating-cta.js',
+    'ui/styles/batch.js',
     'ui/styles.js',
     'ui/styles/shadow-modal.js'
   ];
@@ -114,9 +115,11 @@ export function buildBundle() {
     'ui/toolbar-calc.js',
     'ui/toolbar-filter.js',
     'ui/toolbar.js',
-    'ui/floating-cta.js',
     'features/price-alarm.js',
     'features/batch-runners.js',
+    'ui/batch-dialogs.js',
+    'ui/batch-popover.js',
+    'ui/floating-cta.js',
     'features/product-detail.js',
   ];
   const banner = r => `// ─── MODULE: src/${r} `.padEnd(79, '─');
