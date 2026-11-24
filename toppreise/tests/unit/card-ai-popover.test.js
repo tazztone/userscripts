@@ -37,6 +37,15 @@ describe('card-ai-popover: formatVerdictHtml', () => {
     const formatted = formatVerdictHtml(input);
     assert.equal(formatted, '<strong>Fazit:</strong>\n• Top Preis\n• Schneller Versand');
   });
+
+  it('formats #, ##, ### markdown headings as strong.tp-ai-h with escaped HTML', () => {
+    const input = '# Titel\n## Bewertung\n### <script>alert(1)</script> Fazit';
+    const formatted = formatVerdictHtml(input);
+    assert.equal(
+      formatted,
+      '<strong class="tp-ai-h">Titel</strong>\n<strong class="tp-ai-h">Bewertung</strong>\n<strong class="tp-ai-h">&lt;script&gt;alert(1)&lt;/script&gt; Fazit</strong>'
+    );
+  });
 });
 
 describe('card-ai-popover: renderAiError', () => {

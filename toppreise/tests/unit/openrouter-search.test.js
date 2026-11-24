@@ -7,6 +7,7 @@ import {
   extractOpenRouterCitations,
   getCachedOpenRouter,
   setCachedOpenRouter,
+  pruneOpenRouterCache,
   clearOpenRouterCache,
   fetchOpenRouterWebSearch,
   isConfiguredAiActive,
@@ -172,5 +173,80 @@ describe('openrouter-search: cache & fetch', () => {
     ac.abort();
     await assert.rejects(() => p, err => err?.cancelled === true);
     assert.equal(aborted, true);
+  });
+
+  it('deduplicates simultaneous identical fetchOpenRouterWebSearch calls via orInFlight', async () => {
+    let fetchCount = 0;
+    let resolveFetch;
+    globalThis.fetch = () => {
+      fetchCount++;
+      return new Promise(r => { resolveFetch = r; });
+    };
+    const p1 = fetchOpenRouterWebSearch('sk-or-dedup', 'Same Prompt');
+    const p2 = fetchOpenRouterWebSearch('sk-or-dedup', 'Same Prompt');
+    resolveFetch({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ choices: [{ message: { content: 'Deduplicated!', annotations: [] } }] })
+    });
+    const [r1, r2] = await Promise.all([p1, p2]);
+    assert.equal(fetchCount, 1);
+    assert.equal(r1.answer, 'Deduplicated!');
+    assert.equal(r2.answer, 'Deduplicated!');
+  });
+
+  it('concatenates array message.content parts cleanly', async () => {
+    globalThis.fetch = async () => ({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({
+        choices: [{
+          message: {
+            content: [{ type: 'text', text: 'Part 1 ' }, { text: 'Part 2' }],
+            annotations: []
+          }
+        }]
+      })
+    });
+    const res = await fetchOpenRouterWebSearch('sk-or-arr', 'Array content test');
+    assert.equal(res.answer, 'Part 1 Part 2');
+  });
+
+  it('pruneOpenRouterCache removes expired entries and evicts oldest valid entries past maxEntries', () => {
+    const store = makeStorage();
+    const now = Date.now();
+    store.setItem(OPENROUTER_CACHE_KEY_PREFIX + 'expired', JSON.stringify({ answer: 'old', timestamp: now - (49 * 3600 * 1000) }));
+    store.setItem(OPENROUTER_CACHE_KEY_PREFIX + 'v1', JSON.stringify({ answer: 'v1', timestamp: now - 3000 }));
+    store.setItem(OPENROUTER_CACHE_KEY_PREFIX + 'v2', JSON.stringify({ answer: 'v2', timestamp: now - 2000 }));
+    store.setItem(OPENROUTER_CACHE_KEY_PREFIX + 'v3', JSON.stringify({ answer: 'v3', timestamp: now - 1000 }));
+
+    const removed = pruneOpenRouterCache(2, store);
+    assert.equal(removed, 2);
+    assert.equal(store.getItem(OPENROUTER_CACHE_KEY_PREFIX + 'expired'), null);
+    assert.equal(store.getItem(OPENROUTER_CACHE_KEY_PREFIX + 'v1'), null);
+    assert.ok(store.getItem(OPENROUTER_CACHE_KEY_PREFIX + 'v2'));
+    assert.ok(store.getItem(OPENROUTER_CACHE_KEY_PREFIX + 'v3'));
+  });
+
+  it('fetchConfiguredAiSummary rejects when provider is google and forwards searchContextSize', async () => {
+    CONFIG.AI_SEARCH_PROVIDER = 'google';
+    CONFIG.OPENROUTER_API_KEY = '';
+    CONFIG.TAVILY_API_KEY = '';
+    await assert.rejects(() => fetchConfiguredAiSummary('Prod', 'Test', 'CHF 50'), /Kein KI-Anbieter/);
+
+    CONFIG.AI_SEARCH_PROVIDER = 'openrouter';
+    CONFIG.OPENROUTER_API_KEY = 'sk-or-ctx';
+    let sentBody = null;
+    globalThis.fetch = async (_url, init) => {
+      sentBody = JSON.parse(init.body);
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ choices: [{ message: { content: 'High ctx', annotations: [] } }] })
+      };
+    };
+    const res = await fetchConfiguredAiSummary('Prod', 'Test', 'CHF 50', { searchContextSize: 'high' });
+    assert.equal(res.answer, 'High ctx');
+    assert.equal(sentBody.tools[0].parameters.search_context_size, 'high');
   });
 });

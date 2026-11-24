@@ -275,4 +275,60 @@ describe('Price alarm fallback URL hardening', () => {
       if (prevDoc === undefined) delete globalThis.document; else globalThis.document = prevDoc;
     }
   });
+
+  it('processPriceAlarmModal failBatch cleans _tpBatchAlarmOpts and calls onResult on no-price, missing-controls, and fill-failed', async () => {
+    const { processPriceAlarmModal } = await import('../../src/features/price-alarm.js');
+    const prevDoc = globalThis.document;
+    const prevLoc = globalThis.location;
+    const prevShipping = CONFIG.USE_SHIPPING_PRICE;
+    CONFIG.USE_SHIPPING_PRICE = false;
+    globalThis.location = { href: 'https://www.toppreise.ch/neue-toppreise' };
+    try {
+      const cases = [
+        {
+          reason: 'no-price',
+          query: () => null
+        },
+        {
+          reason: 'missing-controls',
+          query: sel => (sel === '.productPrice .Plugin_Price' ? { textContent: 'CHF 100.00' } : null)
+        },
+        {
+          reason: 'fill-failed',
+          query: sel => {
+            if (sel === '.productPrice .Plugin_Price') return { textContent: 'CHF 100.00' };
+            if (sel === 'input#f_NewInfoMailForm_priceFrom') return {
+              _v: '',
+              get value() { return this._v; },
+              set value(_) { this._v = 'bad'; },
+              dispatchEvent() {}
+            };
+            if (sel === 'input[name="im_nimf_du"]') return { value: '', dispatchEvent() {} };
+            return null;
+          }
+        }
+      ];
+
+      for (const tc of cases) {
+        let result = null;
+        const modal = {
+          dataset: {},
+          _tpBatchAlarmOpts: { targetPct: 0.6, durationDays: '730', onResult: r => { result = r; } },
+          querySelector: tc.query
+        };
+        globalThis.document = {
+          activeElement: null,
+          querySelector: sel => (sel === SELECTORS.alarm.form ? modal : null),
+          querySelectorAll: () => []
+        };
+        processPriceAlarmModal();
+        assert.deepEqual(result, { status: 'error', reason: tc.reason });
+        assert.equal('_tpBatchAlarmOpts' in modal, false);
+      }
+    } finally {
+      CONFIG.USE_SHIPPING_PRICE = prevShipping;
+      if (prevDoc === undefined) delete globalThis.document; else globalThis.document = prevDoc;
+      if (prevLoc === undefined) delete globalThis.location; else globalThis.location = prevLoc;
+    }
+  });
 });

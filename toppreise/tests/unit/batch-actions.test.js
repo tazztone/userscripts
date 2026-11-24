@@ -3,13 +3,17 @@ import assert from 'node:assert/strict';
 import {
   extractCardSpecs,
   isComparisonButtonActive,
+  collectScopedCards,
+  getBatchScopeCounts,
   neutralizeFormulaCell,
   formatBatchMarkdown,
   formatBatchTsv,
   formatBatchCsv,
   buildComparisonPrompt,
-  buildExternalAiUrl
+  buildExternalAiUrl,
+  isBatchConfirmRequired
 } from '../../src/features/batch-actions.js';
+import { CONFIG } from '../../src/state/config.js';
 
 describe('batch-actions: extractCardSpecs', () => {
   it('extracts .product-features directly on card', () => {
@@ -131,5 +135,131 @@ describe('batch-actions: export formatters & formula safety', () => {
     const longG = buildExternalAiUrl('google-ai', longPrompt);
     assert.equal(longG.needsPaste, true);
     assert.equal(longG.url, 'https://www.google.com/search?udm=50');
+
+    const shortP = buildExternalAiUrl('perplexity', 'short prompt');
+    assert.equal(shortP.needsPaste, false);
+    assert.match(shortP.url, /^https:\/\/www\.perplexity\.ai\/search\?q=/);
+
+    const longP = buildExternalAiUrl('perplexity', longPrompt);
+    assert.equal(longP.needsPaste, true);
+    assert.equal(longP.url, 'https://www.perplexity.ai/');
+
+    const shortCl = buildExternalAiUrl('claude', 'short prompt');
+    assert.equal(shortCl.needsPaste, false);
+    assert.match(shortCl.url, /^https:\/\/claude\.ai\/new\?q=/);
+
+    const longCl = buildExternalAiUrl('claude', longPrompt);
+    assert.equal(longCl.needsPaste, true);
+    assert.equal(longCl.url, 'https://claude.ai/new');
+  });
+});
+
+describe('batch-actions: collectScopedCards & getBatchScopeCounts', () => {
+  const mkCard = ({ pid, title, price, classes = [], isDeal = false }) => {
+    const classSet = new Set(classes);
+    const linkEl = {
+      tagName: 'a',
+      getAttribute: k => (k === 'href' ? `/preisvergleich/Prod/${title.replace(/\s+/g, '-')}-p${pid}` : null),
+      href: `https://www.toppreise.ch/preisvergleich/Prod/${title.replace(/\s+/g, '-')}-p${pid}`,
+      textContent: title,
+      closest: () => null
+    };
+    const priceEl = { textContent: price };
+    const card = {
+      dataset: {
+        entityId: pid,
+        tpOfferCount: '2',
+        ...(isDeal ? { tpDealBadge: '1' } : {})
+      },
+      classList: {
+        contains: c => classSet.has(c)
+      },
+      hidden: false,
+      textContent: `${title} ${price} 2 Angebote`,
+      closest: () => null,
+      querySelector: sel => {
+        if (sel.includes('Plugin_Price') || sel.includes('price')) return priceEl;
+        if (sel.includes('product-name') || sel.includes('bold') || sel.includes('Heading')) return linkEl;
+        if (sel.includes('a[href]')) return linkEl;
+        if (sel.includes('tp-deal') && isDeal) return { dataset: { tpKind: 'new-low' } };
+        return null;
+      },
+      querySelectorAll: sel => {
+        if (sel === 'a[href]') return [linkEl];
+        return [];
+      }
+    };
+    if (isDeal) {
+      card._tpDealScore = { weightedDiff: 25 };
+      card.dataset.tpDealScore = '25';
+    }
+    return card;
+  };
+
+  it('excludes filtered cards in all scopes and .tp-dimmed only in non-dimmed', () => {
+    const cNormal = mkCard({ pid: '101', title: 'Normal Prod', price: 'CHF 100.00' });
+    const cDimmed = mkCard({ pid: '102', title: 'Dimmed Prod', price: 'CHF 200.00', classes: ['tp-dimmed'] });
+    const cFiltered = mkCard({ pid: '103', title: 'Filtered Prod', price: 'CHF 50.00', classes: ['tp-negative-filtered'] });
+    const cDeal = mkCard({ pid: '104', title: 'Deal Prod', price: 'CHF 80.00', isDeal: true });
+    cDeal.querySelector = sel => {
+      if (sel.includes('Plugin_Price') || sel.includes('price')) return { textContent: 'CHF 80.00' };
+      if (sel.includes('a[href]')) return {
+        tagName: 'a',
+        getAttribute: () => '/preisvergleich/Prod/Deal-Prod-p104',
+        href: 'https://www.toppreise.ch/preisvergleich/Prod/Deal-Prod-p104',
+        textContent: 'Deal Prod',
+        closest: () => null
+      };
+      return null;
+    };
+
+    const allCards = [cNormal, cDimmed, cFiltered, cDeal];
+    const root = {
+      querySelectorAll: sel => (sel.includes('Plugin_Product') ? allCards : []),
+      querySelector: () => null
+    };
+
+    const prevFilters = CONFIG.FILTERS_ENABLED;
+    const prevMinOffers = CONFIG.MIN_OFFERS;
+    const prevNeg = CONFIG.NEGATIVE_TERMS;
+    const prevNegMode = CONFIG.FILTER_NEG_MODE;
+    CONFIG.FILTERS_ENABLED = true;
+    CONFIG.MIN_OFFERS = 1;
+    CONFIG.NEGATIVE_TERMS = '';
+    CONFIG.FILTER_NEG_MODE = 'hide';
+    try {
+      const counts = getBatchScopeCounts(root);
+      assert.equal(counts.visible, 3);
+      assert.equal(counts['non-dimmed'], 2);
+
+      const nonDimmed = collectScopedCards('non-dimmed', root);
+      assert.deepEqual(nonDimmed.map(i => i.pid), ['101', '104']);
+
+      const visible = collectScopedCards('visible', root);
+      assert.deepEqual(visible.map(i => i.pid), ['101', '102', '104']);
+
+      const deals = collectScopedCards('deals', root);
+      assert.equal(deals.length, counts.deals);
+      assert.equal(deals.some(i => i.pid === '103'), false);
+    } finally {
+      CONFIG.FILTERS_ENABLED = prevFilters;
+      CONFIG.MIN_OFFERS = prevMinOffers;
+      CONFIG.NEGATIVE_TERMS = prevNeg;
+      CONFIG.FILTER_NEG_MODE = prevNegMode;
+    }
+  });
+});
+
+describe('batch-actions: isBatchConfirmRequired', () => {
+  it('respects threshold boundaries and alwaysConfirm flag', () => {
+    const prevThreshold = CONFIG.BATCH_CONFIRM_THRESHOLD;
+    CONFIG.BATCH_CONFIRM_THRESHOLD = 10;
+    try {
+      assert.equal(isBatchConfirmRequired(9, false), false);
+      assert.equal(isBatchConfirmRequired(10, false), true);
+      assert.equal(isBatchConfirmRequired(1, true), true);
+    } finally {
+      CONFIG.BATCH_CONFIRM_THRESHOLD = prevThreshold;
+    }
   });
 });
