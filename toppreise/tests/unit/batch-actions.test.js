@@ -76,19 +76,31 @@ describe('batch-actions: export formatters & formula safety', () => {
     }
   ];
 
-  it('neutralizes spreadsheet formula prefixes while keeping negative percentages', () => {
+  it('neutralizes spreadsheet formula prefixes while keeping pure negative numbers', () => {
     assert.equal(neutralizeFormulaCell('-35%'), '-35%');
+    assert.equal(neutralizeFormulaCell('-12.50'), '-12.50');
+    assert.equal(neutralizeFormulaCell("-1+cmd|'/C calc'!A0"), "'-1+cmd|'/C calc'!A0");
     assert.equal(neutralizeFormulaCell('=HYPERLINK("x")'), '\'=HYPERLINK("x")');
     assert.equal(neutralizeFormulaCell('@SUM(A1)'), '\'@SUM(A1)');
     assert.equal(neutralizeFormulaCell('+cmd'), '\'+cmd');
   });
 
-  it('formats Markdown table including Specs column when present', () => {
-    const md = formatBatchMarkdown(items);
+  it('formats Markdown table including Specs column and escapes URL parentheses', () => {
+    const md = formatBatchMarkdown([
+      ...items,
+      {
+        title: 'Monitor 27',
+        priceText: 'CHF 399.00',
+        dealer: 'Digitec',
+        offerCount: 1,
+        url: 'https://www.toppreise.ch/preisvergleich/Monitor-(27)-p123'
+      }
+    ]);
     assert.match(md, /\| # \| Produkt \| Preis \| Rabatt \/ Historie \| Händler \| Specs \| Link \|/);
     assert.match(md, /Sony WH-1000XM5/);
     assert.match(md, /ANC · 30h Akku/);
     assert.match(md, /Digitec \(\+11\)/);
+    assert.match(md, /\[Toppreise\]\(https:\/\/www\.toppreise\.ch\/preisvergleich\/Monitor-%2827%29-p123\)/);
   });
 
   it('formats TSV and RFC-4180 CSV with formula neutralization', () => {
@@ -115,5 +127,9 @@ describe('batch-actions: export formatters & formula safety', () => {
     const longC = buildExternalAiUrl('chatgpt', longPrompt);
     assert.equal(longC.needsPaste, true);
     assert.equal(longC.url, 'https://chatgpt.com/');
+
+    const longG = buildExternalAiUrl('google-ai', longPrompt);
+    assert.equal(longG.needsPaste, true);
+    assert.equal(longG.url, 'https://www.google.com/search?udm=50');
   });
 });

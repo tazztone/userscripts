@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   OPENROUTER_API_ENDPOINT,
   OPENROUTER_CACHE_KEY_PREFIX,
+  openRouterCacheKey,
   extractOpenRouterCitations,
   getCachedOpenRouter,
   setCachedOpenRouter,
@@ -11,6 +12,7 @@ import {
   isConfiguredAiActive,
   fetchConfiguredAiSummary
 } from '../../src/features/openrouter-search.js';
+import { gmRequestWithTimeout } from '../../src/state/net.js';
 import { CONFIG } from '../../src/state/config.js';
 
 function makeStorage() {
@@ -146,5 +148,29 @@ describe('openrouter-search: cache & fetch', () => {
     assert.equal(mem?.answer, 'ok');
     clearOpenRouterCache();
     assert.equal(getCachedOpenRouter('k1'), null);
+  });
+
+  it('produces compact hashed cache keys that vary by searchContextSize', () => {
+    const longPrompt = 'Vergleiche ' + 'Produkt '.repeat(600);
+    const kMed = openRouterCacheKey(longPrompt, 'google/gemini-2.5-flash', 'auto', 5, 'medium');
+    const kHigh = openRouterCacheKey(longPrompt, 'google/gemini-2.5-flash', 'auto', 5, 'high');
+    assert.ok(kMed.length < 90, `expected short key, got ${kMed.length}`);
+    assert.notEqual(kMed, kHigh);
+  });
+
+  it('gmRequestWithTimeout aborts handle and rejects cancelled:true via AbortController', async () => {
+    let aborted = false;
+    globalThis.GM_xmlhttpRequest = () => ({
+      abort: () => { aborted = true; }
+    });
+    const ac = new AbortController();
+    const p = gmRequestWithTimeout({ url: 'https://openrouter.ai/api/v1/chat/completions' }, {
+      timeoutMs: 5000,
+      signal: ac.signal,
+      source: 'openrouter'
+    });
+    ac.abort();
+    await assert.rejects(() => p, err => err?.cancelled === true);
+    assert.equal(aborted, true);
   });
 });

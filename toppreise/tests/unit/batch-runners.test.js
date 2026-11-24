@@ -7,10 +7,12 @@ import {
   runBatchDealerFetch,
   runBatchPriceAlarms,
   runBatchAiIndividual,
+  runBatchComparisonAi,
   runBatchOpenTabs,
   runBatchDiscordShare,
   runBatchNativeCompare
 } from '../../src/features/batch-runners.js';
+import { CONFIG } from '../../src/state/config.js';
 import { setSharedDeal } from '../../src/scanner/cache.js';
 
 describe('batch-runners: single-flight job controller', () => {
@@ -23,8 +25,22 @@ describe('batch-runners: single-flight job controller', () => {
     assert.equal(j1.signal.aborted, true);
     assert.equal(j2.signal.aborted, false);
     assert.equal(getActiveBatchJob().label, 'second');
+    j2.updateProgress(1, 0, 2);
+    assert.equal(getActiveBatchJob().total, 2);
     j2.finish();
     assert.equal(getActiveBatchJob(), null);
+  });
+
+  it('runBatchComparisonAi returns missing-key when openrouter key is unset', async () => {
+    const prevKey = CONFIG.OPENROUTER_API_KEY;
+    CONFIG.OPENROUTER_API_KEY = '';
+    try {
+      const res = await runBatchComparisonAi([{ title: 'A', priceText: 'CHF 10' }], { target: 'openrouter' });
+      assert.equal(res.mode, 'missing-key');
+      assert.equal(res.target, 'openrouter');
+    } finally {
+      CONFIG.OPENROUTER_API_KEY = prevKey;
+    }
   });
 });
 
@@ -149,6 +165,15 @@ describe('batch-runners: Discord share duplicate skip', () => {
     ];
     const res = await runBatchDiscordShare(items, { url: 'https://discord.com/api/webhooks/1/a' });
     assert.equal(res.skippedDuplicates, 1);
+    assert.equal(res.total, 0);
+    assert.equal(res.shared, 0);
+  });
+
+  it('rejects invalid webhook URL', async () => {
+    const res = await runBatchDiscordShare(
+      [{ pid: '333', cardPrice: 50, isVerifiedDeal: true }],
+      { url: 'http://invalid.example.com/hook' }
+    );
     assert.equal(res.total, 0);
     assert.equal(res.shared, 0);
   });

@@ -228,3 +228,71 @@ def test_batch_discord_share_skips_duplicates_and_posts(page: Page):
     assert isinstance(content, str) and len(content) > 0
     assert 'CHF' in content
     assert 'Apple' in content or 'Sony' in content or 'Samsung' in content or '## ' in content
+
+
+def test_batch_popover_single_line_light_glass_and_dialog_guards(page: Page):
+    page.evaluate("""() => {
+        window.ToppreiseSuite.updateConfig('DISCORD_WEBHOOK_URL', 'https://discord.com/api/webhooks/123/abc');
+        window.ToppreiseSuite.updateConfig('DISCORD_CHANNELS', [{ id: 'ch1', name: 'Deals', url: 'https://discord.com/api/webhooks/123/abc' }]);
+        window.ToppreiseSuite.updateConfig('BATCH_CONFIRM_THRESHOLD', 2);
+    }""")
+    page.click('#tp-floating-batch-btn')
+    pop = page.locator('#tp-batch-popover')
+    assert pop.is_visible()
+
+    # 1-action-per-line: every visible .tp-bp-item has strictly increasing Y and no horizontal overflow
+    layout = page.evaluate("""() => {
+        const pop = document.getElementById('tp-batch-popover');
+        const items = Array.from(pop.querySelectorAll('.tp-bp-item')).filter(el => el.offsetParent !== null);
+        const ys = items.map(el => Math.round(el.getBoundingClientRect().y));
+        const cs = getComputedStyle(pop);
+        const box = pop.getBoundingClientRect();
+        return {
+            ys,
+            bg: cs.backgroundColor,
+            color: cs.color,
+            overflowX: pop.scrollWidth > pop.clientWidth,
+            inViewport: box.left >= 0 && box.right <= window.innerWidth && box.top >= 0 && box.bottom <= window.innerHeight
+        };
+    }""")
+    assert len(layout['ys']) >= 7
+    assert all(layout['ys'][i] < layout['ys'][i + 1] for i in range(len(layout['ys']) - 1)), f"Expected strictly increasing Y rows: {layout['ys']}"
+    assert layout['overflowX'] is False
+    assert layout['inViewport'] is True
+
+    # Light frosted-glass background & dark text
+    import re
+    bg_nums = [int(x) for x in re.findall(r'\d+', layout['bg'])[:3]]
+    txt_nums = [int(x) for x in re.findall(r'\d+', layout['color'])[:3]]
+    assert all(c >= 230 for c in bg_nums), f"Expected light background, got {layout['bg']}"
+    assert all(c <= 60 for c in txt_nums), f"Expected dark text, got {layout['color']}"
+
+    # Clicking inside confirm dialog does not dismiss popover; Escape closes confirm dialog first
+    page.click('#tp-batch-tabs-btn')
+    confirm = page.locator('#tp-batch-confirm-popout')
+    assert confirm.is_visible()
+    assert pop.is_visible()
+    page.fill('#tp-batch-limit-input', '2')
+    assert '(2)' in page.locator('#tp-batch-confirm-go').text_content()
+    page.click('#tp-batch-limit-input')
+    assert pop.is_visible()
+    page.keyboard.press('Escape')
+    assert not confirm.is_visible()
+    assert pop.is_visible()
+
+    # Discord confirm button is disabled when 0 qualified deals exist
+    page.click('#tp-batch-discord-btn')
+    assert confirm.is_visible()
+    assert page.locator('#tp-batch-confirm-go').is_disabled()
+    page.keyboard.press('Escape')
+
+
+def test_openrouter_api_key_cleared_on_modal_close(page: Page):
+    from conftest import open_settings
+    open_settings(page)
+    page.click('#tp-root >> #tp-openrouter-api-key-reveal')
+    key_input = page.locator('#tp-root >> #tp-openrouter-api-key-input')
+    key_input.fill('sk-or-v1-secret-test-key')
+    page.keyboard.press('Escape')
+    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
+    assert key_input.input_value() == ''
