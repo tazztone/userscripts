@@ -406,8 +406,6 @@ export const STYLES_BATCH = `
     font-weight: 700 !important;
     color: var(--tp-txt, #0f172a) !important;
   }
-  .tp-ai-provider-block { transition: opacity 0.15s ease !important; }
-  .tp-ai-provider-block.tp-provider-dimmed { opacity: 0.55 !important; }
   .tp-batch-ai-item {
     padding: 8px 0 !important;
     border-bottom: 1px solid rgba(148, 163, 184, 0.16) !important;

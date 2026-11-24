@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.553
+// @version      2.18.554
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -3142,8 +3142,6 @@ const STYLES_BATCH = `
     font-weight: 700 !important;
     color: var(--tp-txt, #0f172a) !important;
   }
-  .tp-ai-provider-block { transition: opacity 0.15s ease !important; }
-  .tp-ai-provider-block.tp-provider-dimmed { opacity: 0.55 !important; }
   .tp-batch-ai-item {
     padding: 8px 0 !important;
     border-bottom: 1px solid rgba(148, 163, 184, 0.16) !important;
@@ -3795,6 +3793,8 @@ const SHADOW_MODAL_STYLES = `
   .tp-btn:focus-visible, .tp-field-dark:focus-visible,
   .tp-switch input:focus-visible + .tp-slider,
   .tp-segmented-control input:focus-visible + label { outline: 2px solid var(--tp-focus) !important; outline-offset: 2px !important; }
+  .tp-ai-provider-block { transition: opacity 0.15s ease; }
+  .tp-ai-provider-block.tp-provider-dimmed { opacity: 0.55; }
   @media (prefers-reduced-motion: reduce) {
     #tp-settings-fab, .tp-switch .tp-slider, .tp-switch .tp-slider:before, .tp-segmented-control label, .tp-toast { transition: none !important; }
   }
@@ -19901,17 +19901,26 @@ const SHADOW_MODAL_STYLES = `
     if (typeof document === 'undefined') return;
     const pop = document.getElementById(BATCH_POPOVER_ID);
     const btn = document.getElementById('tp-floating-batch-btn');
-    if (btn) btn.setAttribute('aria-expanded', String(isOpen));
+    const job = getActiveBatchJob();
+    const scope = activeScope();
+    const wasRunning = !!btn?.classList.contains('tp-batch-running');
+    if (btn) {
+      btn.setAttribute('aria-expanded', String(isOpen));
+      btn.classList.toggle('tp-batch-running', !!job);
+    }
+    const counts = precomputedCounts || ((isOpen || job || wasRunning) ? getBatchScopeCounts() : null);
+    const scopeCount = counts ? (counts[scope] ?? 0) : 0;
+    const pillCountEl = document.getElementById('tp-floating-batch-count');
+    if (pillCountEl && (job || wasRunning || counts)) {
+      pillCountEl.textContent = job ? `⏳ ${job.done}/${job.total}` : String(scopeCount);
+    }
     if (!pop) return;
 
     pop.classList.toggle('tp-open', isOpen);
-    const job = getActiveBatchJob();
     if (!isOpen && !job) return;
 
-    const scope = activeScope();
     pop.querySelectorAll('.tp-bp-scope').forEach(b => b.classList.toggle('tp-active', b.dataset.scope === scope));
 
-    const counts = precomputedCounts || getBatchScopeCounts();
     const cNonDim = pop.querySelector('#tp-batch-scope-non-dimmed');
     const cVis = pop.querySelector('#tp-batch-scope-visible');
     const cDeals = pop.querySelector('#tp-batch-scope-deals');
@@ -19919,7 +19928,6 @@ const SHADOW_MODAL_STYLES = `
     if (cVis) cVis.textContent = String(counts.visible);
     if (cDeals) cDeals.textContent = String(counts.deals);
 
-    const scopeCount = counts[scope] ?? 0;
     const disableActions = scopeCount === 0 || !!job;
     pop.querySelectorAll('.tp-bp-item, #tp-batch-copy-fmt-btn').forEach(b => { b.disabled = disableActions; });
 
@@ -19953,9 +19961,14 @@ const SHADOW_MODAL_STYLES = `
     const discordBtn = pop.querySelector('#tp-batch-discord-btn');
     if (discordRow) discordRow.hidden = !hasValidWebhook;
     if (discordBtn) discordBtn.hidden = !hasValidWebhook;
-    if (hasValidWebhook) {
+    if (isOpen && hasValidWebhook) {
       const discordMeta = pop.querySelector('#tp-batch-discord-meta');
-      if (discordMeta) discordMeta.textContent = `${counts.deals} neu ›`;
+      if (discordMeta) {
+        const unsharedCount = collectScopedCards(scope).filter(
+          it => it.isVerifiedDeal && it.pid && it.cardPrice > 0 && !getSharedDeal(it.pid, priceToCents(it.cardPrice))
+        ).length;
+        discordMeta.textContent = `${unsharedCount} neu ›`;
+      }
     }
 
     const compBtns = Array.from(document.querySelectorAll('.Plugin_AddToProductComparisonButton'));
@@ -21181,7 +21194,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.553';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.554';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

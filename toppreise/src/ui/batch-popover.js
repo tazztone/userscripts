@@ -487,17 +487,26 @@ export function syncBatchPopover(precomputedCounts = null) {
   if (typeof document === 'undefined') return;
   const pop = document.getElementById(BATCH_POPOVER_ID);
   const btn = document.getElementById('tp-floating-batch-btn');
-  if (btn) btn.setAttribute('aria-expanded', String(isOpen));
+  const job = getActiveBatchJob();
+  const scope = activeScope();
+  const wasRunning = !!btn?.classList.contains('tp-batch-running');
+  if (btn) {
+    btn.setAttribute('aria-expanded', String(isOpen));
+    btn.classList.toggle('tp-batch-running', !!job);
+  }
+  const counts = precomputedCounts || ((isOpen || job || wasRunning) ? getBatchScopeCounts() : null);
+  const scopeCount = counts ? (counts[scope] ?? 0) : 0;
+  const pillCountEl = document.getElementById('tp-floating-batch-count');
+  if (pillCountEl && (job || wasRunning || counts)) {
+    pillCountEl.textContent = job ? `⏳ ${job.done}/${job.total}` : String(scopeCount);
+  }
   if (!pop) return;
 
   pop.classList.toggle('tp-open', isOpen);
-  const job = getActiveBatchJob();
   if (!isOpen && !job) return;
 
-  const scope = activeScope();
   pop.querySelectorAll('.tp-bp-scope').forEach(b => b.classList.toggle('tp-active', b.dataset.scope === scope));
 
-  const counts = precomputedCounts || getBatchScopeCounts();
   const cNonDim = pop.querySelector('#tp-batch-scope-non-dimmed');
   const cVis = pop.querySelector('#tp-batch-scope-visible');
   const cDeals = pop.querySelector('#tp-batch-scope-deals');
@@ -505,7 +514,6 @@ export function syncBatchPopover(precomputedCounts = null) {
   if (cVis) cVis.textContent = String(counts.visible);
   if (cDeals) cDeals.textContent = String(counts.deals);
 
-  const scopeCount = counts[scope] ?? 0;
   const disableActions = scopeCount === 0 || !!job;
   pop.querySelectorAll('.tp-bp-item, #tp-batch-copy-fmt-btn').forEach(b => { b.disabled = disableActions; });
 
@@ -539,9 +547,14 @@ export function syncBatchPopover(precomputedCounts = null) {
   const discordBtn = pop.querySelector('#tp-batch-discord-btn');
   if (discordRow) discordRow.hidden = !hasValidWebhook;
   if (discordBtn) discordBtn.hidden = !hasValidWebhook;
-  if (hasValidWebhook) {
+  if (isOpen && hasValidWebhook) {
     const discordMeta = pop.querySelector('#tp-batch-discord-meta');
-    if (discordMeta) discordMeta.textContent = `${counts.deals} neu ›`;
+    if (discordMeta) {
+      const unsharedCount = collectScopedCards(scope).filter(
+        it => it.isVerifiedDeal && it.pid && it.cardPrice > 0 && !getSharedDeal(it.pid, priceToCents(it.cardPrice))
+      ).length;
+      discordMeta.textContent = `${unsharedCount} neu ›`;
+    }
   }
 
   const compBtns = Array.from(document.querySelectorAll('.Plugin_AddToProductComparisonButton'));

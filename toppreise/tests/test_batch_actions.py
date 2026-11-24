@@ -290,6 +290,12 @@ def test_batch_popover_single_line_light_glass_and_dialog_guards(page: Page):
 def test_openrouter_api_key_cleared_on_modal_close(page: Page):
     from conftest import open_settings
     open_settings(page)
+    or_opacity = page.evaluate("""() => {
+        const sr = document.querySelector('#tp-root')?.shadowRoot;
+        const blk = sr?.getElementById('tp-ai-openrouter-block');
+        return blk && blk.classList.contains('tp-provider-dimmed') ? parseFloat(getComputedStyle(blk).opacity) : 1;
+    }""")
+    assert or_opacity < 0.8
     page.click('#tp-root >> #tp-openrouter-api-key-reveal')
     key_input = page.locator('#tp-root >> #tp-openrouter-api-key-input')
     key_input.fill('sk-or-v1-secret-test-key')

@@ -609,6 +609,8 @@ export const SHADOW_MODAL_STYLES = `
   .tp-btn:focus-visible, .tp-field-dark:focus-visible,
   .tp-switch input:focus-visible + .tp-slider,
   .tp-segmented-control input:focus-visible + label { outline: 2px solid var(--tp-focus) !important; outline-offset: 2px !important; }
+  .tp-ai-provider-block { transition: opacity 0.15s ease; }
+  .tp-ai-provider-block.tp-provider-dimmed { opacity: 0.55; }
   @media (prefers-reduced-motion: reduce) {
     #tp-settings-fab, .tp-switch .tp-slider, .tp-switch .tp-slider:before, .tp-segmented-control label, .tp-toast { transition: none !important; }
   }
