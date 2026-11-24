@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { _getValue, _setValue, weightText, horizonUiToStored, horizonStoredToUi, DEFAULTS, CONFIG, SECRET_KEYS, RESET_GROUPS, effectiveAiProvider, migrateLegacyDebug, migrateHideToDimDefaults, migrateDiscordChannels, getDiscordChannels, sanitizeChannels, realDealMinDiscount, sanitizeConfigValue, FILTER_CYCLE, cycleStateOf, syncUiControl, initPageProfiles, saveConfigKey, resetConfigToDefaults } from '../../src/state/config.js';
+import { _getValue, _setValue, weightText, horizonUiToStored, horizonStoredToUi, DEFAULTS, CONFIG, SECRET_KEYS, RESET_GROUPS, effectiveAiProvider, migrateLegacyDebug, migrateHideToDimDefaults, migrateDiscordChannels, getDiscordChannels, sanitizeChannels, realDealMinDiscount, sanitizeConfigValue, sanitizeReviewKeyword, FILTER_CYCLE, cycleStateOf, syncUiControl, initPageProfiles, saveConfigKey, resetConfigToDefaults } from '../../src/state/config.js';
 import { SETTING_SCHEMA } from '../../src/state/config-store.js';
 
 describe('Config dual-layer storage', () => {
@@ -526,6 +526,10 @@ describe('FILTER_CYCLE deal discount mapping', () => {
       assert.equal(sanitizeConfigValue('BATCH_SCOPE_DEFAULT', 'bogus'), 'non-dimmed');
       assert.equal(sanitizeConfigValue('OPENROUTER_SEARCH_ENGINE', 'exa'), 'exa');
       assert.equal(sanitizeConfigValue('OPENROUTER_SEARCH_ENGINE', 'nope'), 'auto');
+      assert.equal(sanitizeConfigValue('BATCH_COMPARE_PROMPT', 'Custom {anzahl} Deals:'), 'Custom {anzahl} Deals:');
+      assert.ok(RESET_GROUPS.review.keys.includes('BATCH_COMPARE_PROMPT'));
+      assert.equal(sanitizeReviewKeyword('x'.repeat(300)).length, 300);
+      assert.equal(sanitizeReviewKeyword('x'.repeat(600)).length, 500);
     });
 
     it('resolves effectiveAiProvider with Tavily backward compatibility', () => {

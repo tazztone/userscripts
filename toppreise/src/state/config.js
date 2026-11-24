@@ -114,7 +114,7 @@ export const CONFIG = Object.fromEntries(
     return [k, sanitizeConfigValue(k, val)];
   })
 );
-export const sanitizeReviewKeyword = raw => String(raw ?? '').replace(/\s+/g, ' ').trim().slice(0, 150) || DEFAULTS.REVIEW_SEARCH_KEYWORD;
+export const sanitizeReviewKeyword = raw => String(raw ?? '').replace(/\s+/g, ' ').trim().slice(0, 500) || DEFAULTS.REVIEW_SEARCH_KEYWORD;
 // 0% is a legitimate threshold (check everything): only non-numeric storage
 // falls back to 30 — `|| 30` would silently discard an explicit 0.
 export const realDealMinDiscount = () => (Number.isFinite(CONFIG.REAL_DEAL_MIN_DISCOUNT) ? CONFIG.REAL_DEAL_MIN_DISCOUNT : 30);

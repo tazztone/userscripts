@@ -3,7 +3,7 @@
  * Extracted to keep modal-template.js, modal-bindings.js & modal-actions.js < 25 KB.
  */
 
-import { CONFIG, effectiveAiProvider } from '../state/config.js';
+import { CONFIG, DEFAULTS, effectiveAiProvider } from '../state/config.js';
 
 export function renderAiProviderTopMarkup() {
   return `
@@ -110,12 +110,12 @@ export function renderReviewSection() {
           </label>
         </div>
         <div class="tp-settings-group">
-          <label title="Dieser Begriff wird für die Google- und KI-Suche verwendet.">Suchbegriff / Prompt</label>
-          <div style="display:flex;gap:8px;align-items:center;">
-            <input type="text" id="tp-review-keyword-input" class="tp-field-dark" value="Testberichte zu: [Produkt]. Ist der Preis von {preis} ein guter Deal? Bewerte Preis-Leistung, Stärken und Schwächen kurz auf Deutsch." maxlength="150" placeholder="Suchbegriff eingeben…" spellcheck="false" autocomplete="off" style="flex:1;margin-top:0;">
+          <label for="tp-review-keyword-input" title="Dieser Prompt wird für Karte 🌐 und Batch Einzelsuche verwendet.">Einzel-Suche Prompt (🌐 Karte &amp; Batch-Einzelsuche)</label>
+          <div style="display:flex;gap:8px;align-items:flex-start;">
+            <textarea id="tp-review-keyword-input" class="tp-field-dark" rows="2" maxlength="500" placeholder="Suchbegriff eingeben…" spellcheck="false" autocomplete="off" style="flex:1;margin-top:0;font-family:inherit;resize:vertical;">Testberichte zu: [Produkt]. Ist der Preis von {preis} ein guter Deal? Bewerte Preis-Leistung, Stärken und Schwächen kurz auf Deutsch.</textarea>
             <button type="button" id="tp-review-keyword-reset" class="tp-btn tp-btn-secondary" style="padding:6px 10px;font-size:var(--tp-fs-sm);height:32px;white-space:nowrap;" title="Auf Standard-Suchbegriff zurücksetzen">↺ Standard</button>
           </div>
-          <span class="tp-switch-desc tp-field-hint">Wird für Web- und KI-Suche verwendet. Platzhalter: <code>[Produkt]</code> (wird sonst vorangestellt) und <code>{preis}</code> (ohne Preisdaten automatisch entfernt).</span>
+          <span class="tp-switch-desc tp-field-hint">Platzhalter: <code>[Produkt]</code> (wird sonst vorangestellt) und <code>{preis}</code> (ohne Preisdaten automatisch entfernt).</span>
           <div class="tp-search-preview-box">
             <div class="tp-search-preview-title">Live-Vorschau (Beispiel: Sony WH-1000XM5)</div>
             <div class="tp-search-preview-row">
@@ -127,6 +127,14 @@ export function renderReviewSection() {
               <span id="tp-review-keyword-preview-noprice" class="tp-search-preview-text tp-muted"></span>
             </div>
           </div>
+        </div>
+        <div class="tp-settings-group">
+          <label for="tp-batch-compare-prompt-input" title="Dieser Prompt wird für 🤖 KI-Vergleich im Batch-Menü verwendet.">KI-Vergleich Prompt (🤖 Batch)</label>
+          <div style="display:flex;gap:8px;align-items:flex-start;">
+            <textarea id="tp-batch-compare-prompt-input" class="tp-field-dark" rows="2" maxlength="500" placeholder="Vergleichs-Prompt eingeben…" spellcheck="false" autocomplete="off" style="flex:1;margin-top:0;font-family:inherit;resize:vertical;"></textarea>
+            <button type="button" id="tp-batch-compare-prompt-reset" class="tp-btn tp-btn-secondary" style="padding:6px 10px;font-size:var(--tp-fs-sm);height:32px;white-space:nowrap;" title="Auf Standard-Prompt zurücksetzen">↺ Standard</button>
+          </div>
+          <span class="tp-switch-desc tp-field-hint">Platzhalter: <code>{anzahl}</code> und optional <code>{angebote}</code> (sonst automatisch angehängt). OpenRouter erhält alle Daten ungekürzt; URL-Ziele passen Specs adaptiv ans URL-Limit (~1850 Zeichen) an.</span>
         </div>
         <details class="tp-subsection" data-sub="review-google">
           <summary class="tp-subsection-header">🔍 Google-Suche</summary>
@@ -196,6 +204,8 @@ ${renderAiBatchSettingsMarkup()}
 
 export function collectAiSectionElements(shadow) {
   return {
+    batchComparePromptInput: shadow.getElementById('tp-batch-compare-prompt-input'),
+    batchComparePromptReset: shadow.getElementById('tp-batch-compare-prompt-reset'),
     aiProviderSelect: shadow.getElementById('tp-ai-provider-select'),
     openrouterBlock: shadow.getElementById('tp-ai-openrouter-block'),
     tavilyBlock: shadow.getElementById('tp-ai-tavily-block'),
@@ -224,6 +234,7 @@ function revealSelectedProviderBlock(els, prov) {
 
 export function syncAiSectionFromConfig(els) {
   const prov = effectiveAiProvider(CONFIG);
+  if (els.batchComparePromptInput) els.batchComparePromptInput.value = CONFIG.BATCH_COMPARE_PROMPT || DEFAULTS.BATCH_COMPARE_PROMPT;
   if (els.aiProviderSelect) els.aiProviderSelect.value = prov;
   if (els.openrouterApiKeyInput) els.openrouterApiKeyInput.value = '';
   if (els.openrouterApiKeyEditor) els.openrouterApiKeyEditor.style.display = 'none';
@@ -246,6 +257,13 @@ export function syncAiSectionFromConfig(els) {
 }
 
 export function bindAiSectionEvents(els) {
+  els.batchComparePromptReset?.addEventListener('click', () => {
+    if (els.batchComparePromptInput) {
+      els.batchComparePromptInput.value = DEFAULTS.BATCH_COMPARE_PROMPT;
+      els.batchComparePromptInput.focus();
+    }
+  });
+
   els.openrouterApiKeyReveal?.addEventListener('click', e => {
     if (e && !e.isTrusted) return;
     if (!els.openrouterApiKeyEditor || !els.openrouterApiKeyInput) return;
@@ -278,6 +296,10 @@ export function bindAiSectionEvents(els) {
 }
 
 export function collectAiSectionUpdates(els, updates) {
+  if (els.batchComparePromptInput) {
+    const raw = String(els.batchComparePromptInput.value || '').trim();
+    updates.BATCH_COMPARE_PROMPT = raw || DEFAULTS.BATCH_COMPARE_PROMPT;
+  }
   if (els.aiProviderSelect) {
     const prov = els.aiProviderSelect.value;
     updates.AI_SEARCH_PROVIDER = (prov === 'openrouter' || prov === 'tavily') ? prov : 'google';

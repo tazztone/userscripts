@@ -525,3 +525,32 @@ def test_batch_google_ai_comparison_compacts_query_and_uses_paste_modal_when_hug
     assert ai_pop.locator('.tp-batch-paste-preview').is_visible()
     ext_btn = ai_pop.locator('a:has-text("Google AI öffnen")')
     assert ext_btn.get_attribute('href') == 'https://www.google.com/search?udm=50'
+
+
+def test_batch_google_ai_keeps_full_specs_for_six_items_and_uses_custom_prompt(page: Page):
+    page.evaluate("""() => {
+        window.__tpOpenedUrls = [];
+        window.open = (url) => { window.__tpOpenedUrls.push(url); return {}; };
+        window.ToppreiseSuite.updateConfig('BATCH_CONFIRM_THRESHOLD', 50);
+        window.ToppreiseSuite.updateConfig('BATCH_AI_TARGET', 'google-ai');
+        window.ToppreiseSuite.updateConfig('BATCH_SCOPE_DEFAULT', 'visible');
+        window.ToppreiseSuite.updateConfig('BATCH_COMPARE_PROMPT', 'Fokus AM5 vs AM4 ({anzahl} Angebote):');
+        document.querySelectorAll('.Plugin_Product').forEach((c) => {
+            if (!c.querySelector('.product-features')) {
+                const f = document.createElement('div');
+                f.className = 'product-features';
+                f.textContent = 'AMD Sockel AM5, micro ATX · Dual Channel DDR5 (5200 MHz), PCIe 5.0';
+                c.appendChild(f);
+            }
+        });
+        window.ToppreiseSuite.processListings();
+    }""")
+
+    page.click('#tp-floating-batch-btn')
+    page.click('#tp-batch-ai-compare-btn')
+    page.wait_for_function("() => window.__tpOpenedUrls.length === 1")
+
+    url = page.evaluate("() => window.__tpOpenedUrls[0]")
+    assert 'AM5' in url
+    assert 'PCIe%205.0' in url
+    assert len(url) < 2000

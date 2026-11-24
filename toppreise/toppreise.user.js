@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.556
+// @version      2.18.557
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -5127,6 +5127,9 @@ const SHADOW_MODAL_STYLES = `
    * single setting schema + sanitizer.
    */
 
+  const DEFAULT_BATCH_COMPARE_PROMPT =
+    'Vergleiche folgende {anzahl} Angebote von Toppreise.ch (Preise in CHF) und bewerte Preis-Leistung, Stärken/Schwächen sowie welches Angebot der beste Deal ist (kurz auf Deutsch):';
+
   const DEFAULTS = Object.freeze({
     FILTER_NEG_ENABLED: false,
     FILTER_MIN_ENABLED: false,
@@ -5185,6 +5188,7 @@ const SHADOW_MODAL_STYLES = `
     BATCH_SCOPE_DEFAULT: 'non-dimmed',
     BATCH_COPY_FORMAT: 'markdown',
     BATCH_AI_TARGET: 'google-ai',
+    BATCH_COMPARE_PROMPT: DEFAULT_BATCH_COMPARE_PROMPT,
     DEALER_AUTOFETCH: false,
     NEGATIVE_TERMS: '',
     DISCORD_WEBHOOK_URL: '',
@@ -5248,6 +5252,7 @@ const SHADOW_MODAL_STYLES = `
       label: 'Web-Suche',
       keys: [
         'REVIEW_SEARCH_ENABLED', 'REVIEW_SEARCH_KEYWORD', 'REVIEW_SEARCH_AI_MODE',
+        'BATCH_COMPARE_PROMPT',
         'AI_SEARCH_PROVIDER', 'TAVILY_ENABLED', 'TAVILY_SEARCH_DEPTH', 'TAVILY_MAX_RESULTS',
         'OPENROUTER_MODEL', 'OPENROUTER_SEARCH_ENGINE', 'OPENROUTER_MAX_RESULTS'
       ]
@@ -5395,6 +5400,7 @@ const SHADOW_MODAL_STYLES = `
     BATCH_SCOPE_DEFAULT: { type: 'enum', default: 'non-dimmed', allowed: ['non-dimmed', 'visible', 'deals'] },
     BATCH_COPY_FORMAT: { type: 'enum', default: 'markdown', allowed: ['markdown', 'tsv'] },
     BATCH_AI_TARGET: { type: 'enum', default: 'google-ai', allowed: ['openrouter', 'google-ai', 'chatgpt', 'perplexity', 'claude'] },
+    BATCH_COMPARE_PROMPT: { type: 'string', default: DEFAULT_BATCH_COMPARE_PROMPT },
     DEALER_AUTOFETCH: { type: 'bool', default: false },
     NEGATIVE_TERMS: { type: 'string', default: '' },
     DISCORD_WEBHOOK_URL: { type: 'string', default: '' },
@@ -5695,7 +5701,7 @@ const SHADOW_MODAL_STYLES = `
       return [k, sanitizeConfigValue(k, val)];
     })
   );
-  const sanitizeReviewKeyword = raw => String(raw ?? '').replace(/\s+/g, ' ').trim().slice(0, 150) || DEFAULTS.REVIEW_SEARCH_KEYWORD;
+  const sanitizeReviewKeyword = raw => String(raw ?? '').replace(/\s+/g, ' ').trim().slice(0, 500) || DEFAULTS.REVIEW_SEARCH_KEYWORD;
   // 0% is a legitimate threshold (check everything): only non-numeric storage
   // falls back to 30 — `|| 30` would silently discard an explicit 0.
   const realDealMinDiscount = () => (Number.isFinite(CONFIG.REAL_DEAL_MIN_DISCOUNT) ? CONFIG.REAL_DEAL_MIN_DISCOUNT : 30);
@@ -6067,6 +6073,11 @@ const SHADOW_MODAL_STYLES = `
           case 'REVIEW_SEARCH_KEYWORD': {
             const input = shadow.getElementById('tp-review-keyword-input');
             if (input) input.value = val;
+            break;
+          }
+          case 'BATCH_COMPARE_PROMPT': {
+            const input = shadow.getElementById('tp-batch-compare-prompt-input');
+            if (input) input.value = val || DEFAULTS.BATCH_COMPARE_PROMPT;
             break;
           }
           case 'REVIEW_SEARCH_AI_MODE': {
@@ -11210,12 +11221,29 @@ const SHADOW_MODAL_STYLES = `
       .join('\r\n');
   }
 
-  function buildComparisonPrompt(items) {
+  const FALLBACK_COMPARE_PROMPT =
+    'Vergleiche folgende {anzahl} Angebote von Toppreise.ch (Preise in CHF) und bewerte Preis-Leistung, Stärken/Schwächen sowie welches Angebot der beste Deal ist (kurz auf Deutsch):';
+
+  function resolveCompareTemplate(promptTemplate) {
+    const custom = String(promptTemplate ?? CONFIG?.BATCH_COMPARE_PROMPT ?? '').trim();
+    const def = String(DEFAULTS?.BATCH_COMPARE_PROMPT || FALLBACK_COMPARE_PROMPT).trim();
+    return custom || def;
+  }
+
+  function formatComparisonPromptText(items, itemLines, { promptTemplate, shortHeader = false } = {}) {
+    const tpl = shortHeader
+      ? `Vergleiche ${items.length} Toppreise-Deals (CHF, bester Deal?):`
+      : resolveCompareTemplate(promptTemplate).replace(/\{anzahl\}/gi, () => String(items.length));
+    const body = itemLines.join('\n');
+    if (/\{angebote\}/i.test(tpl)) {
+      return tpl.replace(/\{angebote\}/gi, () => body).trim();
+    }
+    return `${tpl}\n\n${body}`;
+  }
+
+  function buildComparisonPrompt(items, opts = {}) {
     if (!Array.isArray(items) || items.length === 0) return '';
-    const lines = [
-      `Vergleiche folgende ${items.length} Angebote von Toppreise.ch (Preise in CHF) und bewerte Preis-Leistung, Stärken/Schwächen sowie welches Angebot der beste Deal ist (kurz auf Deutsch):`,
-      ''
-    ];
+    const itemLines = [];
     items.forEach((it, idx) => {
       const parts = [`${idx + 1}. ${it.title}`];
       if (it.priceText) parts.push(`Preis: ${it.priceText}`);
@@ -11224,50 +11252,69 @@ const SHADOW_MODAL_STYLES = `
       if (it.medianText) parts.push(it.medianText);
       if (it.dealer) parts.push(`Händler: ${it.dealer}`);
       if (it.specs) parts.push(`Specs: ${it.specs}`);
-      lines.push(parts.join(' | '));
+      itemLines.push(parts.join(' | '));
     });
-    return lines.join('\n');
+    return formatComparisonPromptText(items, itemLines, opts);
   }
 
   const MAX_AI_URL_QUERY_ENCODED = 1850;
 
   function trimCompact(str, maxLen) {
     const s = String(str || '').replace(/\s+/g, ' ').trim();
-    if (s.length <= maxLen) return s;
+    if (!Number.isFinite(maxLen) || s.length <= maxLen) return s;
     return `${s.slice(0, Math.max(1, maxLen - 1)).trimEnd()}…`;
   }
 
-  function buildCompactComparisonPrompt(items, { minimal = false } = {}) {
+  function buildCompactComparisonPrompt(items, {
+    minimal = false,
+    titleMaxLen = 96,
+    specMaxLen = Infinity,
+    shortHeader = false,
+    promptTemplate
+  } = {}) {
     if (!Array.isArray(items) || items.length === 0) return '';
-    const header = minimal
-      ? `Vergleiche ${items.length} Toppreise-Deals (CHF, bester Deal?):`
-      : `Vergleiche ${items.length} Toppreise-Angebote (CHF, kurz auf Deutsch, bester Deal?):`;
-    const lines = [header];
+    const itemLines = [];
     items.forEach((it, idx) => {
-      const title = minimal ? trimCompact(it.title, 48) : trimCompact(it.title, 72);
+      const tMax = minimal ? Math.min(titleMaxLen, 60) : titleMaxLen;
+      const title = trimCompact(it.title, tMax);
       const meta = [it.priceText, it.discountText].filter(Boolean);
       if (!minimal && it.lowText) meta.push(`Tief ${it.lowText}`);
       const priceBit = meta.length ? `(${meta.join(', ')})` : '';
-      const specBit = (!minimal && it.specs) ? ` | ${trimCompact(it.specs, 52)}` : '';
-      lines.push(`${idx + 1}. ${title}${priceBit ? ` ${priceBit}` : ''}${specBit}`);
+      const specBit = (!minimal && it.specs) ? ` | ${trimCompact(it.specs, specMaxLen)}` : '';
+      itemLines.push(`${idx + 1}. ${title}${priceBit ? ` ${priceBit}` : ''}${specBit}`);
     });
-    return lines.join('\n');
+    return formatComparisonPromptText(items, itemLines, { promptTemplate, shortHeader });
   }
 
-  function selectExternalComparisonQuery(items, fullPrompt = buildComparisonPrompt(items)) {
+  function selectExternalComparisonQuery(items, fullPrompt = buildComparisonPrompt(items), opts = {}) {
     const full = String(fullPrompt || '').trim();
     if (!full) return { query: '', needsPaste: false };
     if (encodeURIComponent(full).length <= MAX_AI_URL_QUERY_ENCODED) {
       return { query: full, needsPaste: false };
     }
     if (Array.isArray(items) && items.length > 0) {
-      const compact = buildCompactComparisonPrompt(items, { minimal: false });
-      if (compact && encodeURIComponent(compact).length <= MAX_AI_URL_QUERY_ENCODED) {
-        return { query: compact, needsPaste: false };
+      const tpl = resolveCompareTemplate(opts.promptTemplate);
+      const def = String(DEFAULTS?.BATCH_COMPARE_PROMPT || FALLBACK_COMPARE_PROMPT).trim();
+      const isCustom = tpl !== def;
+
+      const tryFit = (cfg) => {
+        const candidate = buildCompactComparisonPrompt(items, { ...cfg, promptTemplate: opts.promptTemplate });
+        return candidate && encodeURIComponent(candidate).length <= MAX_AI_URL_QUERY_ENCODED ? candidate : '';
+      };
+
+      for (const specMaxLen of [Infinity, 140, 90, 52]) {
+        const hit = tryFit({ titleMaxLen: 96, specMaxLen, shortHeader: false });
+        if (hit) return { query: hit, needsPaste: false };
       }
-      const minimal = buildCompactComparisonPrompt(items, { minimal: true });
-      if (minimal && encodeURIComponent(minimal).length <= MAX_AI_URL_QUERY_ENCODED) {
-        return { query: minimal, needsPaste: false };
+      if (!isCustom) {
+        for (const specMaxLen of [Infinity, 120, 72, 48]) {
+          const hit = tryFit({ titleMaxLen: 88, specMaxLen, shortHeader: true });
+          if (hit) return { query: hit, needsPaste: false };
+        }
+      }
+      for (const titleMaxLen of [64, 44]) {
+        const hit = tryFit({ minimal: true, titleMaxLen, shortHeader: !isCustom });
+        if (hit) return { query: hit, needsPaste: false };
       }
     }
     return { query: '', needsPaste: true };
@@ -15358,12 +15405,12 @@ const SHADOW_MODAL_STYLES = `
             </label>
           </div>
           <div class="tp-settings-group">
-            <label title="Dieser Begriff wird für die Google- und KI-Suche verwendet.">Suchbegriff / Prompt</label>
-            <div style="display:flex;gap:8px;align-items:center;">
-              <input type="text" id="tp-review-keyword-input" class="tp-field-dark" value="Testberichte zu: [Produkt]. Ist der Preis von {preis} ein guter Deal? Bewerte Preis-Leistung, Stärken und Schwächen kurz auf Deutsch." maxlength="150" placeholder="Suchbegriff eingeben…" spellcheck="false" autocomplete="off" style="flex:1;margin-top:0;">
+            <label for="tp-review-keyword-input" title="Dieser Prompt wird für Karte 🌐 und Batch Einzelsuche verwendet.">Einzel-Suche Prompt (🌐 Karte &amp; Batch-Einzelsuche)</label>
+            <div style="display:flex;gap:8px;align-items:flex-start;">
+              <textarea id="tp-review-keyword-input" class="tp-field-dark" rows="2" maxlength="500" placeholder="Suchbegriff eingeben…" spellcheck="false" autocomplete="off" style="flex:1;margin-top:0;font-family:inherit;resize:vertical;">Testberichte zu: [Produkt]. Ist der Preis von {preis} ein guter Deal? Bewerte Preis-Leistung, Stärken und Schwächen kurz auf Deutsch.</textarea>
               <button type="button" id="tp-review-keyword-reset" class="tp-btn tp-btn-secondary" style="padding:6px 10px;font-size:var(--tp-fs-sm);height:32px;white-space:nowrap;" title="Auf Standard-Suchbegriff zurücksetzen">↺ Standard</button>
             </div>
-            <span class="tp-switch-desc tp-field-hint">Wird für Web- und KI-Suche verwendet. Platzhalter: <code>[Produkt]</code> (wird sonst vorangestellt) und <code>{preis}</code> (ohne Preisdaten automatisch entfernt).</span>
+            <span class="tp-switch-desc tp-field-hint">Platzhalter: <code>[Produkt]</code> (wird sonst vorangestellt) und <code>{preis}</code> (ohne Preisdaten automatisch entfernt).</span>
             <div class="tp-search-preview-box">
               <div class="tp-search-preview-title">Live-Vorschau (Beispiel: Sony WH-1000XM5)</div>
               <div class="tp-search-preview-row">
@@ -15375,6 +15422,14 @@ const SHADOW_MODAL_STYLES = `
                 <span id="tp-review-keyword-preview-noprice" class="tp-search-preview-text tp-muted"></span>
               </div>
             </div>
+          </div>
+          <div class="tp-settings-group">
+            <label for="tp-batch-compare-prompt-input" title="Dieser Prompt wird für 🤖 KI-Vergleich im Batch-Menü verwendet.">KI-Vergleich Prompt (🤖 Batch)</label>
+            <div style="display:flex;gap:8px;align-items:flex-start;">
+              <textarea id="tp-batch-compare-prompt-input" class="tp-field-dark" rows="2" maxlength="500" placeholder="Vergleichs-Prompt eingeben…" spellcheck="false" autocomplete="off" style="flex:1;margin-top:0;font-family:inherit;resize:vertical;"></textarea>
+              <button type="button" id="tp-batch-compare-prompt-reset" class="tp-btn tp-btn-secondary" style="padding:6px 10px;font-size:var(--tp-fs-sm);height:32px;white-space:nowrap;" title="Auf Standard-Prompt zurücksetzen">↺ Standard</button>
+            </div>
+            <span class="tp-switch-desc tp-field-hint">Platzhalter: <code>{anzahl}</code> und optional <code>{angebote}</code> (sonst automatisch angehängt). OpenRouter erhält alle Daten ungekürzt; URL-Ziele passen Specs adaptiv ans URL-Limit (~1850 Zeichen) an.</span>
           </div>
           <details class="tp-subsection" data-sub="review-google">
             <summary class="tp-subsection-header">🔍 Google-Suche</summary>
@@ -15444,6 +15499,8 @@ const SHADOW_MODAL_STYLES = `
 
   function collectAiSectionElements(shadow) {
     return {
+      batchComparePromptInput: shadow.getElementById('tp-batch-compare-prompt-input'),
+      batchComparePromptReset: shadow.getElementById('tp-batch-compare-prompt-reset'),
       aiProviderSelect: shadow.getElementById('tp-ai-provider-select'),
       openrouterBlock: shadow.getElementById('tp-ai-openrouter-block'),
       tavilyBlock: shadow.getElementById('tp-ai-tavily-block'),
@@ -15472,6 +15529,7 @@ const SHADOW_MODAL_STYLES = `
 
   function syncAiSectionFromConfig(els) {
     const prov = effectiveAiProvider(CONFIG);
+    if (els.batchComparePromptInput) els.batchComparePromptInput.value = CONFIG.BATCH_COMPARE_PROMPT || DEFAULTS.BATCH_COMPARE_PROMPT;
     if (els.aiProviderSelect) els.aiProviderSelect.value = prov;
     if (els.openrouterApiKeyInput) els.openrouterApiKeyInput.value = '';
     if (els.openrouterApiKeyEditor) els.openrouterApiKeyEditor.style.display = 'none';
@@ -15494,6 +15552,13 @@ const SHADOW_MODAL_STYLES = `
   }
 
   function bindAiSectionEvents(els) {
+    els.batchComparePromptReset?.addEventListener('click', () => {
+      if (els.batchComparePromptInput) {
+        els.batchComparePromptInput.value = DEFAULTS.BATCH_COMPARE_PROMPT;
+        els.batchComparePromptInput.focus();
+      }
+    });
+
     els.openrouterApiKeyReveal?.addEventListener('click', e => {
       if (e && !e.isTrusted) return;
       if (!els.openrouterApiKeyEditor || !els.openrouterApiKeyInput) return;
@@ -15526,6 +15591,10 @@ const SHADOW_MODAL_STYLES = `
   }
 
   function collectAiSectionUpdates(els, updates) {
+    if (els.batchComparePromptInput) {
+      const raw = String(els.batchComparePromptInput.value || '').trim();
+      updates.BATCH_COMPARE_PROMPT = raw || DEFAULTS.BATCH_COMPARE_PROMPT;
+    }
     if (els.aiProviderSelect) {
       const prov = els.aiProviderSelect.value;
       updates.AI_SEARCH_PROVIDER = (prov === 'openrouter' || prov === 'tavily') ? prov : 'google';
@@ -21479,7 +21548,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.556';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.557';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

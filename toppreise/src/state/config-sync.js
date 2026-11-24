@@ -5,7 +5,7 @@
 
 import { uiShadowRoot } from '../ui/shell.js';
 import { syncMiniToggle, paintCycleButton } from '../ui/mini-toggle.js';
-import { weightText, horizonText, horizonStoredToUi } from './config-store.js';
+import { weightText, horizonText, horizonStoredToUi, DEFAULTS } from './config-store.js';
 import { CONFIG, FILTER_CYCLE, paintMinPoints, notifyAlarmConfig, paintCycleButtons } from './config.js';
 import { getPageProfileType, getPageProfileLabel } from '../page/adapter.js';
 
@@ -160,6 +160,11 @@ export function syncUiControl(key, val, opts = {}, shadowRoot = null) {
         case 'REVIEW_SEARCH_KEYWORD': {
           const input = shadow.getElementById('tp-review-keyword-input');
           if (input) input.value = val;
+          break;
+        }
+        case 'BATCH_COMPARE_PROMPT': {
+          const input = shadow.getElementById('tp-batch-compare-prompt-input');
+          if (input) input.value = val || DEFAULTS.BATCH_COMPARE_PROMPT;
           break;
         }
         case 'REVIEW_SEARCH_AI_MODE': {

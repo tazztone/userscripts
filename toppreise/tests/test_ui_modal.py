@@ -1078,6 +1078,44 @@ def test_ai_provider_save_roundtrip_and_batch_reset_group(page: Page):
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
 
 
+def test_ai_prompts_edit_save_long_limit_and_reset(page: Page):
+    open_settings(page)
+
+    single_ta = page.locator('#tp-root >> #tp-review-keyword-input')
+    cmp_ta = page.locator('#tp-root >> #tp-batch-compare-prompt-input')
+    assert single_ta.is_visible()
+    assert cmp_ta.is_visible()
+
+    long_single = 'Bitte bewerte [Produkt] zum Preis {preis} detailliert: ' + ('Preis-Leistung, Garantie, Konkurrenzvergleich, ') * 4 + 'Fazit.'
+    custom_cmp = 'Vergleiche diese {anzahl} Boards im Fokus AM5 vs AM4 & P/L:\n{angebote}'
+    assert len(long_single) > 150
+
+    single_ta.fill(long_single)
+    cmp_ta.fill(custom_cmp)
+    page.click('#tp-root >> #tp-btn-save')
+    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
+
+    open_settings(page)
+    assert single_ta.input_value() == long_single
+    assert cmp_ta.input_value() == custom_cmp
+
+    # Inline standard reset button restores compare prompt
+    page.click('#tp-root >> #tp-batch-compare-prompt-reset')
+    assert '{anzahl}' in cmp_ta.input_value()
+    assert 'AM5 vs AM4' not in cmp_ta.input_value()
+
+    # Section reset group 'review' restores both prompts cleanly
+    cmp_ta.fill(custom_cmp)
+    page.once("dialog", lambda d: d.accept())
+    page.click('#tp-root >> [data-reset-group="review"]')
+    assert '{anzahl}' in cmp_ta.input_value()
+    assert 'AM5 vs AM4' not in cmp_ta.input_value()
+    assert 'Testberichte zu:' in single_ta.input_value()
+
+    page.click('#tp-root >> #tp-btn-close')
+    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
+
+
 def test_about_section_metadata_links_and_diag_button(page: Page):
     open_settings(page)
     about = page.locator('#tp-root >> #tp-section-about')

@@ -167,6 +167,36 @@ describe('batch-actions: export formatters & formula safety', () => {
     assert.equal(selectExternalComparisonQuery(hugeItems).needsPaste, true);
     assert.ok(buildCompactComparisonPrompt(tenItems, { minimal: true }).length < buildCompactComparisonPrompt(tenItems).length);
 
+    // Adaptive spec budget: 6 cards with ~100-char specs retain full specs (not clipped at 52 chars)
+    const sixBoards = Array.from({ length: 6 }, (_, i) => ({
+      title: `ASUS Prime B840M-${i + 1}`,
+      priceText: `CHF ${80 + i}.00`,
+      discountText: '-12%',
+      lowText: 'CHF 88.90',
+      medianText: 'Ø-Preis (1J): CHF 99.00',
+      dealer: 'Digitec',
+      specs: 'AMD Sockel AM5, micro ATX · Dual Channel DDR5 (5200 MHz), PCIe 5.0'
+    }));
+    const fullSix = buildComparisonPrompt(sixBoards);
+    const selSix = selectExternalComparisonQuery(sixBoards, fullSix);
+    assert.equal(selSix.needsPaste, false);
+    assert.ok(encodeURIComponent(selSix.query).length <= 1850);
+    assert.match(selSix.query, /Dual Channel DDR5 \(5200 MHz\), PCIe 5\.0/);
+
+    // Custom BATCH_COMPARE_PROMPT with {anzahl} and {angebote} applies cleanly
+    const prevPrompt = CONFIG.BATCH_COMPARE_PROMPT;
+    CONFIG.BATCH_COMPARE_PROMPT = 'Fokus AM5 ({anzahl} Boards):\n{angebote}\nEnde als Tabelle.';
+    try {
+      const customFull = buildComparisonPrompt(sixBoards);
+      assert.match(customFull, /^Fokus AM5 \(6 Boards\):/);
+      assert.match(customFull, /Ende als Tabelle\.$/);
+      const customSel = selectExternalComparisonQuery(sixBoards, customFull);
+      assert.match(customSel.query, /^Fokus AM5 \(6 Boards\):/);
+      assert.match(customSel.query, /PCIe 5\.0/);
+    } finally {
+      CONFIG.BATCH_COMPARE_PROMPT = prevPrompt;
+    }
+
     const shortP = buildExternalAiUrl('perplexity', 'short prompt');
     assert.equal(shortP.needsPaste, false);
     assert.match(shortP.url, /^https:\/\/www\.perplexity\.ai\/search\?q=/);

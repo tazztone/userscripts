@@ -3,7 +3,7 @@
  * Pure / DOM-light module (Node unit-testable).
  */
 
-import { CONFIG } from '../state/config.js';
+import { CONFIG, DEFAULTS } from '../state/config.js';
 import { getProductCards, extractCardData, isCardFilteredOut } from '../page/cards.js';
 import { extractShareData, extractDealer, extractDealerUrl } from '../page/product-offers.js';
 import { isShippingPriceActive } from '../page/adapter.js';
@@ -225,12 +225,29 @@ export function formatBatchCsv(items) {
     .join('\r\n');
 }
 
-export function buildComparisonPrompt(items) {
+const FALLBACK_COMPARE_PROMPT =
+  'Vergleiche folgende {anzahl} Angebote von Toppreise.ch (Preise in CHF) und bewerte Preis-Leistung, Stärken/Schwächen sowie welches Angebot der beste Deal ist (kurz auf Deutsch):';
+
+function resolveCompareTemplate(promptTemplate) {
+  const custom = String(promptTemplate ?? CONFIG?.BATCH_COMPARE_PROMPT ?? '').trim();
+  const def = String(DEFAULTS?.BATCH_COMPARE_PROMPT || FALLBACK_COMPARE_PROMPT).trim();
+  return custom || def;
+}
+
+function formatComparisonPromptText(items, itemLines, { promptTemplate, shortHeader = false } = {}) {
+  const tpl = shortHeader
+    ? `Vergleiche ${items.length} Toppreise-Deals (CHF, bester Deal?):`
+    : resolveCompareTemplate(promptTemplate).replace(/\{anzahl\}/gi, () => String(items.length));
+  const body = itemLines.join('\n');
+  if (/\{angebote\}/i.test(tpl)) {
+    return tpl.replace(/\{angebote\}/gi, () => body).trim();
+  }
+  return `${tpl}\n\n${body}`;
+}
+
+export function buildComparisonPrompt(items, opts = {}) {
   if (!Array.isArray(items) || items.length === 0) return '';
-  const lines = [
-    `Vergleiche folgende ${items.length} Angebote von Toppreise.ch (Preise in CHF) und bewerte Preis-Leistung, Stärken/Schwächen sowie welches Angebot der beste Deal ist (kurz auf Deutsch):`,
-    ''
-  ];
+  const itemLines = [];
   items.forEach((it, idx) => {
     const parts = [`${idx + 1}. ${it.title}`];
     if (it.priceText) parts.push(`Preis: ${it.priceText}`);
@@ -239,50 +256,69 @@ export function buildComparisonPrompt(items) {
     if (it.medianText) parts.push(it.medianText);
     if (it.dealer) parts.push(`Händler: ${it.dealer}`);
     if (it.specs) parts.push(`Specs: ${it.specs}`);
-    lines.push(parts.join(' | '));
+    itemLines.push(parts.join(' | '));
   });
-  return lines.join('\n');
+  return formatComparisonPromptText(items, itemLines, opts);
 }
 
 const MAX_AI_URL_QUERY_ENCODED = 1850;
 
 function trimCompact(str, maxLen) {
   const s = String(str || '').replace(/\s+/g, ' ').trim();
-  if (s.length <= maxLen) return s;
+  if (!Number.isFinite(maxLen) || s.length <= maxLen) return s;
   return `${s.slice(0, Math.max(1, maxLen - 1)).trimEnd()}…`;
 }
 
-export function buildCompactComparisonPrompt(items, { minimal = false } = {}) {
+export function buildCompactComparisonPrompt(items, {
+  minimal = false,
+  titleMaxLen = 96,
+  specMaxLen = Infinity,
+  shortHeader = false,
+  promptTemplate
+} = {}) {
   if (!Array.isArray(items) || items.length === 0) return '';
-  const header = minimal
-    ? `Vergleiche ${items.length} Toppreise-Deals (CHF, bester Deal?):`
-    : `Vergleiche ${items.length} Toppreise-Angebote (CHF, kurz auf Deutsch, bester Deal?):`;
-  const lines = [header];
+  const itemLines = [];
   items.forEach((it, idx) => {
-    const title = minimal ? trimCompact(it.title, 48) : trimCompact(it.title, 72);
+    const tMax = minimal ? Math.min(titleMaxLen, 60) : titleMaxLen;
+    const title = trimCompact(it.title, tMax);
     const meta = [it.priceText, it.discountText].filter(Boolean);
     if (!minimal && it.lowText) meta.push(`Tief ${it.lowText}`);
     const priceBit = meta.length ? `(${meta.join(', ')})` : '';
-    const specBit = (!minimal && it.specs) ? ` | ${trimCompact(it.specs, 52)}` : '';
-    lines.push(`${idx + 1}. ${title}${priceBit ? ` ${priceBit}` : ''}${specBit}`);
+    const specBit = (!minimal && it.specs) ? ` | ${trimCompact(it.specs, specMaxLen)}` : '';
+    itemLines.push(`${idx + 1}. ${title}${priceBit ? ` ${priceBit}` : ''}${specBit}`);
   });
-  return lines.join('\n');
+  return formatComparisonPromptText(items, itemLines, { promptTemplate, shortHeader });
 }
 
-export function selectExternalComparisonQuery(items, fullPrompt = buildComparisonPrompt(items)) {
+export function selectExternalComparisonQuery(items, fullPrompt = buildComparisonPrompt(items), opts = {}) {
   const full = String(fullPrompt || '').trim();
   if (!full) return { query: '', needsPaste: false };
   if (encodeURIComponent(full).length <= MAX_AI_URL_QUERY_ENCODED) {
     return { query: full, needsPaste: false };
   }
   if (Array.isArray(items) && items.length > 0) {
-    const compact = buildCompactComparisonPrompt(items, { minimal: false });
-    if (compact && encodeURIComponent(compact).length <= MAX_AI_URL_QUERY_ENCODED) {
-      return { query: compact, needsPaste: false };
+    const tpl = resolveCompareTemplate(opts.promptTemplate);
+    const def = String(DEFAULTS?.BATCH_COMPARE_PROMPT || FALLBACK_COMPARE_PROMPT).trim();
+    const isCustom = tpl !== def;
+
+    const tryFit = (cfg) => {
+      const candidate = buildCompactComparisonPrompt(items, { ...cfg, promptTemplate: opts.promptTemplate });
+      return candidate && encodeURIComponent(candidate).length <= MAX_AI_URL_QUERY_ENCODED ? candidate : '';
+    };
+
+    for (const specMaxLen of [Infinity, 140, 90, 52]) {
+      const hit = tryFit({ titleMaxLen: 96, specMaxLen, shortHeader: false });
+      if (hit) return { query: hit, needsPaste: false };
     }
-    const minimal = buildCompactComparisonPrompt(items, { minimal: true });
-    if (minimal && encodeURIComponent(minimal).length <= MAX_AI_URL_QUERY_ENCODED) {
-      return { query: minimal, needsPaste: false };
+    if (!isCustom) {
+      for (const specMaxLen of [Infinity, 120, 72, 48]) {
+        const hit = tryFit({ titleMaxLen: 88, specMaxLen, shortHeader: true });
+        if (hit) return { query: hit, needsPaste: false };
+      }
+    }
+    for (const titleMaxLen of [64, 44]) {
+      const hit = tryFit({ minimal: true, titleMaxLen, shortHeader: !isCustom });
+      if (hit) return { query: hit, needsPaste: false };
     }
   }
   return { query: '', needsPaste: true };
