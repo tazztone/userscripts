@@ -16,6 +16,25 @@ import { showToast } from './toast.js';
 export const AI_LAUNCHER_POPOVER_ID = 'tp-ai-launcher-popover';
 export const CUSTOM_MODEL_SENTINEL = '__custom__';
 
+export function openSearchTab(url, { active = true } = {}) {
+  if (!url || !/^https?:\/\//i.test(url)) return false;
+  if (typeof GM_openInTab === 'function') {
+    try {
+      GM_openInTab(url, { active: !!active, insert: true });
+      return true;
+    } catch { /* fallback below */ }
+  }
+  if (typeof window !== 'undefined' && typeof window.open === 'function') {
+    try {
+      const w = window.open(url, '_blank', 'noopener');
+      return !!w;
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
+
 let activeCleanup = null;
 
 export function buildLauncherModelOptions(cfg = CONFIG) {

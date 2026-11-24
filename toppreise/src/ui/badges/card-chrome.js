@@ -21,6 +21,7 @@ import { renderHeat, renderFilterVerdict } from './deal-badge.js';
 import { renderBadgeVerdict } from './deal-verdict.js';
 import { renderShareButton } from './card-share.js';
 import { openAiPopover } from './card-ai-popover.js';
+import { openAiLauncherPopover, openSearchTab } from '../ai-launcher-popover.js';
 import { expandKeywordWithPrice, formatSearchQuery, formatReviewTooltip } from '../../features/tavily-search.js';
 import { isConfiguredAiActive } from '../../features/openrouter-search.js';
 import { ensureDealerInfo, renderDealerName } from './card-dealer.js';
@@ -174,29 +175,39 @@ export function renderReviewButton(ctx) {
       reviewBtn.rel = 'noopener';
       reviewBtn.addEventListener('click', e => {
         e.stopPropagation();
-        const prov = effectiveAiProvider(CONFIG);
-        if (prov === 'openrouter' || prov === 'tavily') {
-          if (isConfiguredAiActive(CONFIG)) {
-            e.preventDefault();
-            const aiCtx = reviewBtn._tpAiCtx || {};
-            openAiPopover({
-              title: aiCtx.title || reviewName,
-              priceText: aiCtx.priceText || '',
-              googleUrl: reviewBtn.href,
-              card: aiCtx.card || card,
-              pid: aiCtx.pid || ctx.pid
-            });
-          } else if (prov === 'openrouter') {
-            showToast('💡 Tipp: OpenRouter API-Key in den Einstellungen (⚙️) hinterlegen für Direkt-Fazit auf der Karte');
-          } else {
-            showToast('💡 Tipp: Kostenlosen Tavily-Key in den Einstellungen (⚙️) hinterlegen für Direkt-Fazit auf der Karte');
+        if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button !== 0) return;
+        e.preventDefault();
+        const aiCtx = reviewBtn._tpAiCtx || {};
+        const q = aiCtx.fullQuery || fullQuery;
+        const baseGoogle = 'https://www.google.com/search?q=' + encodeURIComponent(q);
+        openAiLauncherPopover({
+          mode: 'single',
+          anchorEl: reviewBtn,
+          title: aiCtx.title || reviewName,
+          priceText: aiCtx.priceText || '',
+          onLaunch: ({ engine, model }) => {
+            if (engine === 'google') {
+              openSearchTab(baseGoogle);
+            } else if (engine === 'google-ai') {
+              openSearchTab(`${baseGoogle}&udm=50`);
+            } else if (engine === 'openrouter' || engine === 'tavily') {
+              openAiPopover({
+                title: aiCtx.title || reviewName,
+                priceText: aiCtx.priceText || '',
+                googleUrl: reviewBtn.href,
+                card: aiCtx.card || card,
+                pid: aiCtx.pid || ctx.pid,
+                provider: engine,
+                model
+              });
+            }
           }
-        }
+        });
       });
     }
-    reviewBtn._tpAiCtx = { title: reviewName, priceText, card, pid: ctx.pid };
+    reviewBtn._tpAiCtx = { title: reviewName, priceText, fullQuery, card, pid: ctx.pid };
     reviewBtn.href = 'https://www.google.com/search?q=' + encodeURIComponent(fullQuery) + (aiMode ? '&udm=50' : '');
-    const { title: tipTitle, ariaLabel } = formatReviewTooltip(fullQuery, { hasTavily: hasAiSummary || activeProvider !== 'google', aiMode });
+    const { title: tipTitle, ariaLabel } = formatReviewTooltip(fullQuery, { hasTavily: true, aiMode });
     setTitleIfChanged(reviewBtn, tipTitle);
     reviewBtn.setAttribute('aria-label', ariaLabel);
     const titleEl = findCardTitleElement(card);

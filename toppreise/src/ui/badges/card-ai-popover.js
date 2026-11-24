@@ -4,9 +4,10 @@
  * Tavily test report verdict and quick-action buttons (Google, Copy, Discord).
  */
 
-import { CONFIG, effectiveAiProvider } from '../../state/config.js';
+import { CONFIG, DEFAULT_OPENROUTER_MODEL, effectiveAiProvider } from '../../state/config.js';
 import { buildTavilyQuery } from '../../features/tavily-search.js';
 import { getCachedConfiguredAiSummary, fetchConfiguredAiSummary } from '../../features/openrouter-search.js';
+import { buildLauncherModelOptions, CUSTOM_MODEL_SENTINEL } from '../ai-launcher-popover.js';
 import { createPopoutDialog } from '../popout-dialog.js';
 import { showToast } from '../toast.js';
 
@@ -57,16 +58,29 @@ export function openAiPopover(options = {}) {
   if (typeof document === 'undefined') return null;
   closeAiPopover();
 
-  const { title = '', priceText = '', googleUrl = '', card = null } = options;
+  const { title = '', priceText = '', googleUrl = '', card = null, provider = null, model = '' } = options;
 
-  const activeProv = effectiveAiProvider(CONFIG) === 'openrouter' ? 'openrouter' : 'tavily';
+  const activeProv = (provider === 'openrouter' || provider === 'tavily')
+    ? provider
+    : (effectiveAiProvider(CONFIG) === 'openrouter' ? 'openrouter' : 'tavily');
+  let activeModel = (model && String(model).trim()) || CONFIG.OPENROUTER_MODEL || DEFAULT_OPENROUTER_MODEL;
   const query = buildTavilyQuery(title, CONFIG.REVIEW_SEARCH_KEYWORD, priceText);
-  const cached = getCachedConfiguredAiSummary(title, CONFIG.REVIEW_SEARCH_KEYWORD, priceText, { provider: activeProv });
+  const initialCached = getCachedConfiguredAiSummary(title, CONFIG.REVIEW_SEARCH_KEYWORD, priceText, {
+    provider: activeProv,
+    model: activeModel
+  });
 
   let statusTimers = [];
+  let activeAbort = null;
   const clearTimers = () => {
     statusTimers.forEach(t => clearTimeout(t));
     statusTimers = [];
+  };
+  const abortFetch = () => {
+    if (activeAbort) {
+      try { activeAbort.abort(); } catch {}
+      activeAbort = null;
+    }
   };
 
   const { backdrop, panel, mount, close } = createPopoutDialog({
@@ -76,6 +90,7 @@ export function openAiPopover(options = {}) {
     panelClass: 'tp-ai-panel',
     onClose: () => {
       clearTimers();
+      abortFetch();
       activeAiPopoverCleanup = null;
     }
   });
@@ -98,6 +113,48 @@ export function openAiPopover(options = {}) {
     subheader.appendChild(priceBadge);
   }
   panel.appendChild(subheader);
+
+  let modelBarSelect = null;
+  let modelBarCustom = null;
+  if (activeProv === 'openrouter') {
+    const modelBar = document.createElement('div');
+    modelBar.className = 'tp-ai-model-bar';
+    const lbl = document.createElement('label');
+    lbl.htmlFor = 'tp-ai-popout-model-select';
+    lbl.textContent = 'Modell:';
+
+    modelBarSelect = document.createElement('select');
+    modelBarSelect.id = 'tp-ai-popout-model-select';
+    const { options: mOpts } = buildLauncherModelOptions(CONFIG);
+    const hasActive = mOpts.some(o => o.value === activeModel);
+    if (!hasActive && activeModel) {
+      const customActive = document.createElement('option');
+      customActive.value = activeModel;
+      customActive.textContent = `${activeModel} (Einmalig)`;
+      modelBarSelect.appendChild(customActive);
+    }
+    for (const o of mOpts) {
+      const opt = document.createElement('option');
+      opt.value = o.value;
+      opt.textContent = o.label;
+      modelBarSelect.appendChild(opt);
+    }
+    const custOpt = document.createElement('option');
+    custOpt.value = CUSTOM_MODEL_SENTINEL;
+    custOpt.textContent = '✏️ Einmaliges Modell…';
+    modelBarSelect.appendChild(custOpt);
+    modelBarSelect.value = activeModel;
+
+    modelBarCustom = document.createElement('input');
+    modelBarCustom.type = 'text';
+    modelBarCustom.id = 'tp-ai-popout-model-custom';
+    modelBarCustom.placeholder = 'provider/model-id + Enter';
+    modelBarCustom.spellcheck = false;
+    modelBarCustom.hidden = true;
+
+    modelBar.append(lbl, modelBarSelect, modelBarCustom);
+    panel.appendChild(modelBar);
+  }
 
   // Body content: loading / result / error
   const contentEl = document.createElement('div');
@@ -153,6 +210,9 @@ export function openAiPopover(options = {}) {
 
   const fetchSummary = () => {
     clearTimers();
+    abortFetch();
+    currentVerdict = '';
+    copyBtn.disabled = true;
     retryBtn.hidden = true;
     contentEl.className = 'tp-ai-body';
     contentEl.innerHTML = '<span class="tp-ai-status">🤖 Analysiere Testberichte & Preiseinschätzung...</span>';
@@ -169,21 +229,64 @@ export function openAiPopover(options = {}) {
       }
     }, 12000));
 
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    activeAbort = controller;
+
     fetchConfiguredAiSummary(title, CONFIG.REVIEW_SEARCH_KEYWORD, priceText, {
       timeoutMs: 60000,
-      provider: activeProv
+      provider: activeProv,
+      model: activeModel,
+      signal: controller?.signal
     })
       .then(result => {
+        if (activeAbort === controller) activeAbort = null;
         if (backdrop.isConnected) {
           renderVerdict(result?.answer || '', result?.citations || []);
         }
       })
       .catch(err => {
+        if (activeAbort === controller) activeAbort = null;
+        if (err?.cancelled) return;
         if (backdrop.isConnected) {
           renderError(err?.message || 'Fehler beim Laden des Fazits');
         }
       });
   };
+
+  const switchModel = (nextModel) => {
+    const clean = String(nextModel || '').trim();
+    if (!clean) return;
+    activeModel = clean;
+    const hit = getCachedConfiguredAiSummary(title, CONFIG.REVIEW_SEARCH_KEYWORD, priceText, {
+      provider: 'openrouter',
+      model: activeModel
+    });
+    if (hit?.answer) {
+      abortFetch();
+      renderVerdict(hit.answer, hit.citations || []);
+    } else {
+      fetchSummary();
+    }
+  };
+
+  if (modelBarSelect) {
+    modelBarSelect.addEventListener('change', () => {
+      if (modelBarSelect.value === CUSTOM_MODEL_SENTINEL) {
+        modelBarCustom.hidden = false;
+        modelBarCustom.focus();
+      } else {
+        modelBarCustom.hidden = true;
+        switchModel(modelBarSelect.value);
+      }
+    });
+    modelBarCustom.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const val = String(modelBarCustom.value || '').trim();
+        if (val) switchModel(val);
+      }
+    });
+  }
 
   retryBtn.addEventListener('click', fetchSummary);
 
@@ -198,7 +301,7 @@ export function openAiPopover(options = {}) {
   copyBtn.type = 'button';
   copyBtn.className = 'tp-popout-btn';
   copyBtn.textContent = '📋 Fazit kopieren';
-  copyBtn.disabled = !cached?.answer;
+  copyBtn.disabled = !initialCached?.answer;
 
   copyBtn.addEventListener('click', () => {
     if (!currentVerdict) return;
@@ -227,8 +330,8 @@ export function openAiPopover(options = {}) {
     }
   });
 
-  if (cached?.answer) {
-    renderVerdict(cached.answer, cached.citations || []);
+  if (initialCached?.answer) {
+    renderVerdict(initialCached.answer, initialCached.citations || []);
   } else {
     contentEl.innerHTML = '<span style="opacity:0.75;">🤖 Analysiere Testberichte & Preiseinschätzung...</span>';
   }
@@ -243,7 +346,7 @@ export function openAiPopover(options = {}) {
   mount();
 
   // If not cached, trigger fetch now
-  if (!cached?.answer) {
+  if (!initialCached?.answer) {
     fetchSummary();
   }
 

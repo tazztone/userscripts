@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.564
+// @version      2.18.565
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -6465,7 +6465,12 @@ const SHADOW_MODAL_STYLES = `
           }
           case 'OPENROUTER_MODEL': {
             const input = shadow.getElementById('tp-openrouter-model-input');
-            if (input) input.value = val || 'google/gemini-2.5-flash';
+            if (input) input.value = val || 'openrouter/free';
+            break;
+          }
+          case 'OPENROUTER_PAID_MODEL': {
+            const input = shadow.getElementById('tp-openrouter-paid-model-input');
+            if (input) input.value = val || '';
             break;
           }
           case 'OPENROUTER_SEARCH_ENGINE': {
@@ -14600,6 +14605,7 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   function formatVerdictHtml(text) {
     if (!text) return '';
     const escaped = String(text)
@@ -14647,16 +14653,29 @@ const SHADOW_MODAL_STYLES = `
     if (typeof document === 'undefined') return null;
     closeAiPopover();
 
-    const { title = '', priceText = '', googleUrl = '', card = null } = options;
+    const { title = '', priceText = '', googleUrl = '', card = null, provider = null, model = '' } = options;
 
-    const activeProv = effectiveAiProvider(CONFIG) === 'openrouter' ? 'openrouter' : 'tavily';
+    const activeProv = (provider === 'openrouter' || provider === 'tavily')
+      ? provider
+      : (effectiveAiProvider(CONFIG) === 'openrouter' ? 'openrouter' : 'tavily');
+    let activeModel = (model && String(model).trim()) || CONFIG.OPENROUTER_MODEL || DEFAULT_OPENROUTER_MODEL;
     const query = buildTavilyQuery(title, CONFIG.REVIEW_SEARCH_KEYWORD, priceText);
-    const cached = getCachedConfiguredAiSummary(title, CONFIG.REVIEW_SEARCH_KEYWORD, priceText, { provider: activeProv });
+    const initialCached = getCachedConfiguredAiSummary(title, CONFIG.REVIEW_SEARCH_KEYWORD, priceText, {
+      provider: activeProv,
+      model: activeModel
+    });
 
     let statusTimers = [];
+    let activeAbort = null;
     const clearTimers = () => {
       statusTimers.forEach(t => clearTimeout(t));
       statusTimers = [];
+    };
+    const abortFetch = () => {
+      if (activeAbort) {
+        try { activeAbort.abort(); } catch {}
+        activeAbort = null;
+      }
     };
 
     const { backdrop, panel, mount, close } = createPopoutDialog({
@@ -14666,6 +14685,7 @@ const SHADOW_MODAL_STYLES = `
       panelClass: 'tp-ai-panel',
       onClose: () => {
         clearTimers();
+        abortFetch();
         activeAiPopoverCleanup = null;
       }
     });
@@ -14688,6 +14708,48 @@ const SHADOW_MODAL_STYLES = `
       subheader.appendChild(priceBadge);
     }
     panel.appendChild(subheader);
+
+    let modelBarSelect = null;
+    let modelBarCustom = null;
+    if (activeProv === 'openrouter') {
+      const modelBar = document.createElement('div');
+      modelBar.className = 'tp-ai-model-bar';
+      const lbl = document.createElement('label');
+      lbl.htmlFor = 'tp-ai-popout-model-select';
+      lbl.textContent = 'Modell:';
+
+      modelBarSelect = document.createElement('select');
+      modelBarSelect.id = 'tp-ai-popout-model-select';
+      const { options: mOpts } = buildLauncherModelOptions(CONFIG);
+      const hasActive = mOpts.some(o => o.value === activeModel);
+      if (!hasActive && activeModel) {
+        const customActive = document.createElement('option');
+        customActive.value = activeModel;
+        customActive.textContent = `${activeModel} (Einmalig)`;
+        modelBarSelect.appendChild(customActive);
+      }
+      for (const o of mOpts) {
+        const opt = document.createElement('option');
+        opt.value = o.value;
+        opt.textContent = o.label;
+        modelBarSelect.appendChild(opt);
+      }
+      const custOpt = document.createElement('option');
+      custOpt.value = CUSTOM_MODEL_SENTINEL;
+      custOpt.textContent = '✏️ Einmaliges Modell…';
+      modelBarSelect.appendChild(custOpt);
+      modelBarSelect.value = activeModel;
+
+      modelBarCustom = document.createElement('input');
+      modelBarCustom.type = 'text';
+      modelBarCustom.id = 'tp-ai-popout-model-custom';
+      modelBarCustom.placeholder = 'provider/model-id + Enter';
+      modelBarCustom.spellcheck = false;
+      modelBarCustom.hidden = true;
+
+      modelBar.append(lbl, modelBarSelect, modelBarCustom);
+      panel.appendChild(modelBar);
+    }
 
     // Body content: loading / result / error
     const contentEl = document.createElement('div');
@@ -14743,6 +14805,9 @@ const SHADOW_MODAL_STYLES = `
 
     const fetchSummary = () => {
       clearTimers();
+      abortFetch();
+      currentVerdict = '';
+      copyBtn.disabled = true;
       retryBtn.hidden = true;
       contentEl.className = 'tp-ai-body';
       contentEl.innerHTML = '<span class="tp-ai-status">🤖 Analysiere Testberichte & Preiseinschätzung...</span>';
@@ -14759,21 +14824,64 @@ const SHADOW_MODAL_STYLES = `
         }
       }, 12000));
 
+      const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      activeAbort = controller;
+
       fetchConfiguredAiSummary(title, CONFIG.REVIEW_SEARCH_KEYWORD, priceText, {
         timeoutMs: 60000,
-        provider: activeProv
+        provider: activeProv,
+        model: activeModel,
+        signal: controller?.signal
       })
         .then(result => {
+          if (activeAbort === controller) activeAbort = null;
           if (backdrop.isConnected) {
             renderVerdict(result?.answer || '', result?.citations || []);
           }
         })
         .catch(err => {
+          if (activeAbort === controller) activeAbort = null;
+          if (err?.cancelled) return;
           if (backdrop.isConnected) {
             renderError(err?.message || 'Fehler beim Laden des Fazits');
           }
         });
     };
+
+    const switchModel = (nextModel) => {
+      const clean = String(nextModel || '').trim();
+      if (!clean) return;
+      activeModel = clean;
+      const hit = getCachedConfiguredAiSummary(title, CONFIG.REVIEW_SEARCH_KEYWORD, priceText, {
+        provider: 'openrouter',
+        model: activeModel
+      });
+      if (hit?.answer) {
+        abortFetch();
+        renderVerdict(hit.answer, hit.citations || []);
+      } else {
+        fetchSummary();
+      }
+    };
+
+    if (modelBarSelect) {
+      modelBarSelect.addEventListener('change', () => {
+        if (modelBarSelect.value === CUSTOM_MODEL_SENTINEL) {
+          modelBarCustom.hidden = false;
+          modelBarCustom.focus();
+        } else {
+          modelBarCustom.hidden = true;
+          switchModel(modelBarSelect.value);
+        }
+      });
+      modelBarCustom.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          const val = String(modelBarCustom.value || '').trim();
+          if (val) switchModel(val);
+        }
+      });
+    }
 
     retryBtn.addEventListener('click', fetchSummary);
 
@@ -14788,7 +14896,7 @@ const SHADOW_MODAL_STYLES = `
     copyBtn.type = 'button';
     copyBtn.className = 'tp-popout-btn';
     copyBtn.textContent = '📋 Fazit kopieren';
-    copyBtn.disabled = !cached?.answer;
+    copyBtn.disabled = !initialCached?.answer;
 
     copyBtn.addEventListener('click', () => {
       if (!currentVerdict) return;
@@ -14817,8 +14925,8 @@ const SHADOW_MODAL_STYLES = `
       }
     });
 
-    if (cached?.answer) {
-      renderVerdict(cached.answer, cached.citations || []);
+    if (initialCached?.answer) {
+      renderVerdict(initialCached.answer, initialCached.citations || []);
     } else {
       contentEl.innerHTML = '<span style="opacity:0.75;">🤖 Analysiere Testberichte & Preiseinschätzung...</span>';
     }
@@ -14833,7 +14941,7 @@ const SHADOW_MODAL_STYLES = `
     mount();
 
     // If not cached, trigger fetch now
-    if (!cached?.answer) {
+    if (!initialCached?.answer) {
       fetchSummary();
     }
 
@@ -14851,6 +14959,25 @@ const SHADOW_MODAL_STYLES = `
 
   const AI_LAUNCHER_POPOVER_ID = 'tp-ai-launcher-popover';
   const CUSTOM_MODEL_SENTINEL = '__custom__';
+
+  function openSearchTab(url, { active = true } = {}) {
+    if (!url || !/^https?:\/\//i.test(url)) return false;
+    if (typeof GM_openInTab === 'function') {
+      try {
+        GM_openInTab(url, { active: !!active, insert: true });
+        return true;
+      } catch { /* fallback below */ }
+    }
+    if (typeof window !== 'undefined' && typeof window.open === 'function') {
+      try {
+        const w = window.open(url, '_blank', 'noopener');
+        return !!w;
+      } catch {
+        return false;
+      }
+    }
+    return false;
+  }
 
   let activeCleanup = null;
 
@@ -15545,6 +15672,7 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   // Mini price-trend sparkline + history strip (step 5).
   function renderSparklineRow(ctx) {
     const { card, pid: rawPid, cardPrice, cardPriceEl, stats } = ctx;
@@ -15691,29 +15819,39 @@ const SHADOW_MODAL_STYLES = `
         reviewBtn.rel = 'noopener';
         reviewBtn.addEventListener('click', e => {
           e.stopPropagation();
-          const prov = effectiveAiProvider(CONFIG);
-          if (prov === 'openrouter' || prov === 'tavily') {
-            if (isConfiguredAiActive(CONFIG)) {
-              e.preventDefault();
-              const aiCtx = reviewBtn._tpAiCtx || {};
-              openAiPopover({
-                title: aiCtx.title || reviewName,
-                priceText: aiCtx.priceText || '',
-                googleUrl: reviewBtn.href,
-                card: aiCtx.card || card,
-                pid: aiCtx.pid || ctx.pid
-              });
-            } else if (prov === 'openrouter') {
-              showToast('💡 Tipp: OpenRouter API-Key in den Einstellungen (⚙️) hinterlegen für Direkt-Fazit auf der Karte');
-            } else {
-              showToast('💡 Tipp: Kostenlosen Tavily-Key in den Einstellungen (⚙️) hinterlegen für Direkt-Fazit auf der Karte');
+          if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button !== 0) return;
+          e.preventDefault();
+          const aiCtx = reviewBtn._tpAiCtx || {};
+          const q = aiCtx.fullQuery || fullQuery;
+          const baseGoogle = 'https://www.google.com/search?q=' + encodeURIComponent(q);
+          openAiLauncherPopover({
+            mode: 'single',
+            anchorEl: reviewBtn,
+            title: aiCtx.title || reviewName,
+            priceText: aiCtx.priceText || '',
+            onLaunch: ({ engine, model }) => {
+              if (engine === 'google') {
+                openSearchTab(baseGoogle);
+              } else if (engine === 'google-ai') {
+                openSearchTab(`${baseGoogle}&udm=50`);
+              } else if (engine === 'openrouter' || engine === 'tavily') {
+                openAiPopover({
+                  title: aiCtx.title || reviewName,
+                  priceText: aiCtx.priceText || '',
+                  googleUrl: reviewBtn.href,
+                  card: aiCtx.card || card,
+                  pid: aiCtx.pid || ctx.pid,
+                  provider: engine,
+                  model
+                });
+              }
             }
-          }
+          });
         });
       }
-      reviewBtn._tpAiCtx = { title: reviewName, priceText, card, pid: ctx.pid };
+      reviewBtn._tpAiCtx = { title: reviewName, priceText, fullQuery, card, pid: ctx.pid };
       reviewBtn.href = 'https://www.google.com/search?q=' + encodeURIComponent(fullQuery) + (aiMode ? '&udm=50' : '');
-      const { title: tipTitle, ariaLabel } = formatReviewTooltip(fullQuery, { hasTavily: hasAiSummary || activeProvider !== 'google', aiMode });
+      const { title: tipTitle, ariaLabel } = formatReviewTooltip(fullQuery, { hasTavily: true, aiMode });
       setTitleIfChanged(reviewBtn, tipTitle);
       reviewBtn.setAttribute('aria-label', ariaLabel);
       const titleEl = findCardTitleElement(card);
@@ -16468,8 +16606,12 @@ const SHADOW_MODAL_STYLES = `
               </div>
             </div>
             <div class="tp-settings-group">
-              <label for="tp-openrouter-model-input" title="OpenRouter Modell-ID für Web-Suche &amp; Batch-Vergleich.">OpenRouter Modell</label>
-              <input type="text" id="tp-openrouter-model-input" class="tp-field-dark" placeholder="google/gemini-2.5-flash" spellcheck="false">
+              <label for="tp-openrouter-model-input" title="Persistentes Standard-Modell für OpenRouter Web-Suche &amp; Batch-Vergleich.">OpenRouter Standard-Modell</label>
+              <input type="text" id="tp-openrouter-model-input" class="tp-field-dark" placeholder="openrouter/free" spellcheck="false">
+            </div>
+            <div class="tp-settings-group">
+              <label for="tp-openrouter-paid-model-input" title="Optionales schnelleres/bezahltes Modell für die Schnellauswahl im Launcher-Popover.">Schnelles / Paid Modell (optional)</label>
+              <input type="text" id="tp-openrouter-paid-model-input" class="tp-field-dark" placeholder="z.B. google/gemini-2.5-flash" spellcheck="false">
             </div>
             <div class="tp-settings-group tp-ai-split-row">
               <div class="tp-ai-split-col">
@@ -16670,6 +16812,7 @@ const SHADOW_MODAL_STYLES = `
       openrouterApiKeyEditor: shadow.getElementById('tp-openrouter-api-key-editor'),
       openrouterApiKeyStatus: shadow.getElementById('tp-openrouter-api-key-status'),
       openrouterModelInput: shadow.getElementById('tp-openrouter-model-input'),
+      openrouterPaidModelInput: shadow.getElementById('tp-openrouter-paid-model-input'),
       openrouterEngineSelect: shadow.getElementById('tp-openrouter-engine-select'),
       openrouterMaxResults: shadow.getElementById('tp-openrouter-max-results'),
       batchAiTargetSelect: shadow.getElementById('tp-batch-ai-target-select'),
@@ -16729,7 +16872,8 @@ const SHADOW_MODAL_STYLES = `
         ? '✅ Key hinterlegt'
         : 'Kein Key hinterlegt';
     }
-    if (els.openrouterModelInput) els.openrouterModelInput.value = CONFIG.OPENROUTER_MODEL || 'google/gemini-2.5-flash';
+    if (els.openrouterModelInput) els.openrouterModelInput.value = CONFIG.OPENROUTER_MODEL || DEFAULT_OPENROUTER_MODEL;
+    if (els.openrouterPaidModelInput) els.openrouterPaidModelInput.value = CONFIG.OPENROUTER_PAID_MODEL || '';
     if (els.openrouterEngineSelect) els.openrouterEngineSelect.value = CONFIG.OPENROUTER_SEARCH_ENGINE || 'auto';
     if (els.openrouterMaxResults) els.openrouterMaxResults.value = String(CONFIG.OPENROUTER_MAX_RESULTS || 5);
     if (els.batchAiTargetSelect) els.batchAiTargetSelect.value = CONFIG.BATCH_AI_TARGET || 'google-ai';
@@ -16809,7 +16953,10 @@ const SHADOW_MODAL_STYLES = `
     }
     if (els.openrouterModelInput) {
       const m = String(els.openrouterModelInput.value || '').trim();
-      updates.OPENROUTER_MODEL = m || 'google/gemini-2.5-flash';
+      updates.OPENROUTER_MODEL = m || DEFAULT_OPENROUTER_MODEL;
+    }
+    if (els.openrouterPaidModelInput) {
+      updates.OPENROUTER_PAID_MODEL = String(els.openrouterPaidModelInput.value || '').trim();
     }
     if (els.openrouterEngineSelect) {
       updates.OPENROUTER_SEARCH_ENGINE = els.openrouterEngineSelect.value || 'auto';
@@ -21003,7 +21150,11 @@ const SHADOW_MODAL_STYLES = `
 
   function hasOpenBatchDialog() {
     if (typeof document === 'undefined') return false;
-    return !!(document.getElementById('tp-batch-confirm-popout') || document.getElementById('tp-batch-ai-popout'));
+    return !!(
+      document.getElementById('tp-batch-confirm-popout') ||
+      document.getElementById('tp-batch-ai-popout') ||
+      document.getElementById(AI_LAUNCHER_POPOVER_ID)
+    );
   }
 
   function withConfirmGate(opts, runner) {
@@ -21199,98 +21350,110 @@ const SHADOW_MODAL_STYLES = `
       showToast(`✅ ${plural(items.length, 'Angebot', 'Angebote')} als CSV exportiert`);
     });
 
-    el.querySelector('#tp-batch-ai-compare-btn').addEventListener('click', () => {
-      const target = CONFIG.BATCH_AI_TARGET || 'google-ai';
-      if (target === 'openrouter' && (!CONFIG.OPENROUTER_API_KEY || !String(CONFIG.OPENROUTER_API_KEY).trim())) {
-        showToast('⚠️ OpenRouter API-Key fehlt — bitte in ⚙️ Einstellungen hinterlegen');
+    const aiCompareBtn = el.querySelector('#tp-batch-ai-compare-btn');
+    aiCompareBtn.addEventListener('click', () => {
+      const allItems = getScopedItems();
+      if (allItems.length === 0) {
+        showToast('Keine passenden Angebote im aktuellen Scope');
         return;
       }
-      withConfirmGate({
-        title: '🤖 KI-Vergleich starten',
-        actionLabel: 'Vergleich starten'
-      }, async (items) => {
-        const job = startBatchJob('KI-Vergleich', items.length);
-        syncBatchPopover();
-        try {
-          const res = await runBatchComparisonAi(items, { target, signal: job.signal });
-          if (res.mode === 'missing-key') {
-            showToast('⚠️ OpenRouter API-Key fehlt — bitte in ⚙️ Einstellungen hinterlegen');
-          } else if (res.mode === 'openrouter') {
-            openBatchAiPopout({
-              title: `🤖 KI-Vergleich (${plural(items.length, 'Angebot', 'Angebote')})`,
-              mode: 'comparison',
-              answer: res.answer,
-              citations: res.citations
-            });
-          } else if (res.mode === 'external') {
-            if (res.needsPaste) {
-              const label = AI_TARGET_LABELS[res.target] || res.target;
+      openAiLauncherPopover({
+        mode: 'batch-compare',
+        anchorEl: aiCompareBtn,
+        itemCount: allItems.length,
+        onLaunch: async ({ engine, model, limit }) => {
+          const items = limit && limit < allItems.length ? allItems.slice(0, limit) : allItems;
+          const target = engine;
+          const job = startBatchJob('KI-Vergleich', items.length);
+          syncBatchPopover();
+          try {
+            const res = await runBatchComparisonAi(items, { target, model, signal: job.signal });
+            if (res.mode === 'missing-key') {
+              showToast('⚠️ OpenRouter API-Key fehlt — bitte in ⚙️ Einstellungen hinterlegen');
+            } else if (res.mode === 'openrouter') {
               openBatchAiPopout({
                 title: `🤖 KI-Vergleich (${plural(items.length, 'Angebot', 'Angebote')})`,
-                mode: 'paste',
-                answer: res.prompt,
-                externalUrl: res.url,
-                externalLabel: label,
-                copied: res.copied
+                mode: 'comparison',
+                answer: res.answer,
+                citations: res.citations
               });
-            } else if (!res.opened) {
-              openBatchAiPopout({
-                title: '🤖 KI-Vergleich öffnen',
-                mode: 'blocked',
-                blockedItems: [{ title: `Vergleich (${res.target})`, url: res.url }]
-              });
-            } else {
-              showToast(`🤖 KI-Vergleich geöffnet (${AI_TARGET_LABELS[res.target] || res.target})`);
+            } else if (res.mode === 'external') {
+              if (res.needsPaste) {
+                const label = AI_TARGET_LABELS[res.target] || res.target;
+                openBatchAiPopout({
+                  title: `🤖 KI-Vergleich (${plural(items.length, 'Angebot', 'Angebote')})`,
+                  mode: 'paste',
+                  answer: res.prompt,
+                  externalUrl: res.url,
+                  externalLabel: label,
+                  copied: res.copied
+                });
+              } else if (!res.opened) {
+                openBatchAiPopout({
+                  title: '🤖 KI-Vergleich öffnen',
+                  mode: 'blocked',
+                  blockedItems: [{ title: `Vergleich (${res.target})`, url: res.url }]
+                });
+              } else {
+                showToast(`🤖 KI-Vergleich geöffnet (${AI_TARGET_LABELS[res.target] || res.target})`);
+              }
             }
+          } catch (err) {
+            if (!err?.cancelled) showToast(`⚠️ ${err?.message || 'KI-Vergleich fehlgeschlagen'}`);
+          } finally {
+            job.finish();
+            syncBatchPopover();
           }
-        } catch (err) {
-          if (!err?.cancelled) showToast(`⚠️ ${err?.message || 'KI-Vergleich fehlgeschlagen'}`);
-        } finally {
-          job.finish();
-          syncBatchPopover();
         }
       });
     });
 
-    el.querySelector('#tp-batch-ai-single-btn').addEventListener('click', () => {
-      const provider = effectiveAiProvider(CONFIG) === 'openrouter' ? 'openrouter' : 'google';
-      if (provider === 'openrouter' && (!CONFIG.OPENROUTER_API_KEY || !String(CONFIG.OPENROUTER_API_KEY).trim())) {
-        showToast('⚠️ OpenRouter API-Key fehlt — bitte in ⚙️ Einstellungen hinterlegen');
+    const aiSingleBtn = el.querySelector('#tp-batch-ai-single-btn');
+    aiSingleBtn.addEventListener('click', () => {
+      const allItems = getScopedItems();
+      if (allItems.length === 0) {
+        showToast('Keine passenden Angebote im aktuellen Scope');
         return;
       }
-      withConfirmGate({
-        title: provider === 'openrouter' ? '🔍 OpenRouter Einzelsuche' : '🔍 Google AI Einzelsuche',
-        actionLabel: `${provider === 'openrouter' ? 'Abfragen' : 'Tabs öffnen'}`
-      }, async (items) => {
-        const job = startBatchJob('Einzeln KI-Suchen', items.length);
-        syncBatchPopover();
-        try {
-          const res = await runBatchAiIndividual(items, {
-            provider,
-            signal: job.signal,
-            onProgress: (done, total, failed) => {
-              job.updateProgress(done, failed, total);
-              syncBatchPopover();
-            }
-          });
-          if (res.mode === 'google') {
-            if (res.blockedItems.length > 0) {
-              openBatchAiPopout({ title: '🔍 Blockierte Google AI Tabs', mode: 'blocked', blockedItems: res.blockedItems });
-            } else {
-              showToast(`🔍 ${plural(res.opened, 'Google AI Tab', 'Google AI Tabs')} geöffnet`);
-            }
-          } else if (!res.cancelled) {
-            openBatchAiPopout({
-              title: `🔍 OpenRouter Einzelsuche (${res.results.length})`,
-              mode: 'individual',
-              results: res.results
-            });
-          }
-        } catch (err) {
-          if (!err?.cancelled) showToast(`⚠️ ${err?.message || 'Einzelsuche fehlgeschlagen'}`);
-        } finally {
-          job.finish();
+      openAiLauncherPopover({
+        mode: 'batch-single',
+        anchorEl: aiSingleBtn,
+        itemCount: allItems.length,
+        onLaunch: async ({ engine, model, googleAiMode, limit }) => {
+          const items = limit && limit < allItems.length ? allItems.slice(0, limit) : allItems;
+          const provider = engine === 'openrouter' ? 'openrouter' : 'google';
+          const job = startBatchJob('Einzeln KI-Suchen', items.length);
           syncBatchPopover();
+          try {
+            const res = await runBatchAiIndividual(items, {
+              provider,
+              model,
+              googleAiMode,
+              signal: job.signal,
+              onProgress: (done, total, failed) => {
+                job.updateProgress(done, failed, total);
+                syncBatchPopover();
+              }
+            });
+            if (res.mode === 'google') {
+              if (res.blockedItems.length > 0) {
+                openBatchAiPopout({ title: '🔍 Blockierte Google Tabs', mode: 'blocked', blockedItems: res.blockedItems });
+              } else {
+                showToast(`🔍 ${plural(res.opened, 'Google Tab', 'Google Tabs')} geöffnet`);
+              }
+            } else if (!res.cancelled) {
+              openBatchAiPopout({
+                title: `🔍 OpenRouter Einzelsuche (${res.results.length})`,
+                mode: 'individual',
+                results: res.results
+              });
+            }
+          } catch (err) {
+            if (!err?.cancelled) showToast(`⚠️ ${err?.message || 'Einzelsuche fehlgeschlagen'}`);
+          } finally {
+            job.finish();
+            syncBatchPopover();
+          }
         }
       });
     });
@@ -21475,10 +21638,10 @@ const SHADOW_MODAL_STYLES = `
     }
 
     const aiCmpMeta = pop.querySelector('#tp-batch-ai-compare-meta');
-    if (aiCmpMeta) aiCmpMeta.textContent = AI_TARGET_LABELS[CONFIG.BATCH_AI_TARGET || 'google-ai'] || 'Google AI';
+    if (aiCmpMeta) aiCmpMeta.textContent = 'Wählen ›';
 
     const aiSglMeta = pop.querySelector('#tp-batch-ai-single-meta');
-    if (aiSglMeta) aiSglMeta.textContent = effectiveAiProvider(CONFIG) === 'openrouter' ? 'OpenRouter' : 'Google AI';
+    if (aiSglMeta) aiSglMeta.textContent = 'Wählen ›';
 
     const alarmsMeta = pop.querySelector('#tp-batch-alarms-meta');
     if (alarmsMeta) {
@@ -21922,6 +22085,7 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   let detailRun = 0;
 
   const removeDetailDecorations = () => {
@@ -21977,23 +22141,40 @@ const SHADOW_MODAL_STYLES = `
       btn.rel = 'noopener';
       btn.addEventListener('click', e => {
         e.stopPropagation();
-        if (CONFIG.TAVILY_ENABLED && CONFIG.TAVILY_API_KEY && CONFIG.TAVILY_API_KEY.trim()) {
-          e.preventDefault();
-          const payload = btn._tpReviewPayload || { title, priceText, pid };
-          openAiPopover({
-            title: payload.title,
-            priceText: payload.priceText,
-            googleUrl: btn.href,
-            card: headingEl,
-            pid: payload.pid
-          });
-        }
+        if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button !== 0) return;
+        e.preventDefault();
+        const payload = btn._tpReviewPayload || { title, priceText, pid };
+        const q = formatSearchQuery(payload.title, sanitizeReviewKeyword(CONFIG.REVIEW_SEARCH_KEYWORD), payload.priceText);
+        const baseGoogle = 'https://www.google.com/search?q=' + encodeURIComponent(q);
+        openAiLauncherPopover({
+          mode: 'single',
+          anchorEl: btn,
+          title: payload.title,
+          priceText: payload.priceText,
+          onLaunch: ({ engine, model }) => {
+            if (engine === 'google') {
+              openSearchTab(baseGoogle);
+            } else if (engine === 'google-ai') {
+              openSearchTab(`${baseGoogle}&udm=50`);
+            } else if (engine === 'openrouter' || engine === 'tavily') {
+              openAiPopover({
+                title: payload.title,
+                priceText: payload.priceText,
+                googleUrl: btn.href,
+                card: headingEl,
+                pid: payload.pid,
+                provider: engine,
+                model
+              });
+            }
+          }
+        });
       });
       headingEl.appendChild(btn);
     }
     btn._tpReviewPayload = { title, priceText, pid };
     btn.href = 'https://www.google.com/search?q=' + encodeURIComponent(fullQuery) + (aiMode ? '&udm=50' : '');
-    const { title: tipTitle, ariaLabel } = formatReviewTooltip(fullQuery, { hasTavily, aiMode });
+    const { title: tipTitle, ariaLabel } = formatReviewTooltip(fullQuery, { hasTavily: true, aiMode });
     setTitleIfChanged(btn, tipTitle);
     btn.setAttribute('aria-label', ariaLabel);
   }
@@ -22697,6 +22878,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
     lastKnownHref = typeof location !== 'undefined' ? location.href : '';
     closeSparklinePopout();
     closeAiPopover();
+    closeAiLauncherPopover();
     closeSharePreviewModal();
     closeFetchedAlarmDialogs();
     closeBatchPopover();
@@ -22730,7 +22912,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.564';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.565';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

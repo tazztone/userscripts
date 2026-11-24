@@ -34,6 +34,7 @@ import {
   runBatchNativeCompare
 } from '../features/batch-runners.js';
 import { openBatchConfirmDialog, openBatchAiPopout } from './batch-dialogs.js';
+import { openAiLauncherPopover, AI_LAUNCHER_POPOVER_ID } from './ai-launcher-popover.js';
 
 export const BATCH_POPOVER_ID = 'tp-batch-popover';
 
@@ -62,7 +63,11 @@ function getScopedItems() {
 
 function hasOpenBatchDialog() {
   if (typeof document === 'undefined') return false;
-  return !!(document.getElementById('tp-batch-confirm-popout') || document.getElementById('tp-batch-ai-popout'));
+  return !!(
+    document.getElementById('tp-batch-confirm-popout') ||
+    document.getElementById('tp-batch-ai-popout') ||
+    document.getElementById(AI_LAUNCHER_POPOVER_ID)
+  );
 }
 
 function withConfirmGate(opts, runner) {
@@ -258,98 +263,110 @@ export function ensureBatchPopover() {
     showToast(`✅ ${plural(items.length, 'Angebot', 'Angebote')} als CSV exportiert`);
   });
 
-  el.querySelector('#tp-batch-ai-compare-btn').addEventListener('click', () => {
-    const target = CONFIG.BATCH_AI_TARGET || 'google-ai';
-    if (target === 'openrouter' && (!CONFIG.OPENROUTER_API_KEY || !String(CONFIG.OPENROUTER_API_KEY).trim())) {
-      showToast('⚠️ OpenRouter API-Key fehlt — bitte in ⚙️ Einstellungen hinterlegen');
+  const aiCompareBtn = el.querySelector('#tp-batch-ai-compare-btn');
+  aiCompareBtn.addEventListener('click', () => {
+    const allItems = getScopedItems();
+    if (allItems.length === 0) {
+      showToast('Keine passenden Angebote im aktuellen Scope');
       return;
     }
-    withConfirmGate({
-      title: '🤖 KI-Vergleich starten',
-      actionLabel: 'Vergleich starten'
-    }, async (items) => {
-      const job = startBatchJob('KI-Vergleich', items.length);
-      syncBatchPopover();
-      try {
-        const res = await runBatchComparisonAi(items, { target, signal: job.signal });
-        if (res.mode === 'missing-key') {
-          showToast('⚠️ OpenRouter API-Key fehlt — bitte in ⚙️ Einstellungen hinterlegen');
-        } else if (res.mode === 'openrouter') {
-          openBatchAiPopout({
-            title: `🤖 KI-Vergleich (${plural(items.length, 'Angebot', 'Angebote')})`,
-            mode: 'comparison',
-            answer: res.answer,
-            citations: res.citations
-          });
-        } else if (res.mode === 'external') {
-          if (res.needsPaste) {
-            const label = AI_TARGET_LABELS[res.target] || res.target;
+    openAiLauncherPopover({
+      mode: 'batch-compare',
+      anchorEl: aiCompareBtn,
+      itemCount: allItems.length,
+      onLaunch: async ({ engine, model, limit }) => {
+        const items = limit && limit < allItems.length ? allItems.slice(0, limit) : allItems;
+        const target = engine;
+        const job = startBatchJob('KI-Vergleich', items.length);
+        syncBatchPopover();
+        try {
+          const res = await runBatchComparisonAi(items, { target, model, signal: job.signal });
+          if (res.mode === 'missing-key') {
+            showToast('⚠️ OpenRouter API-Key fehlt — bitte in ⚙️ Einstellungen hinterlegen');
+          } else if (res.mode === 'openrouter') {
             openBatchAiPopout({
               title: `🤖 KI-Vergleich (${plural(items.length, 'Angebot', 'Angebote')})`,
-              mode: 'paste',
-              answer: res.prompt,
-              externalUrl: res.url,
-              externalLabel: label,
-              copied: res.copied
+              mode: 'comparison',
+              answer: res.answer,
+              citations: res.citations
             });
-          } else if (!res.opened) {
-            openBatchAiPopout({
-              title: '🤖 KI-Vergleich öffnen',
-              mode: 'blocked',
-              blockedItems: [{ title: `Vergleich (${res.target})`, url: res.url }]
-            });
-          } else {
-            showToast(`🤖 KI-Vergleich geöffnet (${AI_TARGET_LABELS[res.target] || res.target})`);
+          } else if (res.mode === 'external') {
+            if (res.needsPaste) {
+              const label = AI_TARGET_LABELS[res.target] || res.target;
+              openBatchAiPopout({
+                title: `🤖 KI-Vergleich (${plural(items.length, 'Angebot', 'Angebote')})`,
+                mode: 'paste',
+                answer: res.prompt,
+                externalUrl: res.url,
+                externalLabel: label,
+                copied: res.copied
+              });
+            } else if (!res.opened) {
+              openBatchAiPopout({
+                title: '🤖 KI-Vergleich öffnen',
+                mode: 'blocked',
+                blockedItems: [{ title: `Vergleich (${res.target})`, url: res.url }]
+              });
+            } else {
+              showToast(`🤖 KI-Vergleich geöffnet (${AI_TARGET_LABELS[res.target] || res.target})`);
+            }
           }
+        } catch (err) {
+          if (!err?.cancelled) showToast(`⚠️ ${err?.message || 'KI-Vergleich fehlgeschlagen'}`);
+        } finally {
+          job.finish();
+          syncBatchPopover();
         }
-      } catch (err) {
-        if (!err?.cancelled) showToast(`⚠️ ${err?.message || 'KI-Vergleich fehlgeschlagen'}`);
-      } finally {
-        job.finish();
-        syncBatchPopover();
       }
     });
   });
 
-  el.querySelector('#tp-batch-ai-single-btn').addEventListener('click', () => {
-    const provider = effectiveAiProvider(CONFIG) === 'openrouter' ? 'openrouter' : 'google';
-    if (provider === 'openrouter' && (!CONFIG.OPENROUTER_API_KEY || !String(CONFIG.OPENROUTER_API_KEY).trim())) {
-      showToast('⚠️ OpenRouter API-Key fehlt — bitte in ⚙️ Einstellungen hinterlegen');
+  const aiSingleBtn = el.querySelector('#tp-batch-ai-single-btn');
+  aiSingleBtn.addEventListener('click', () => {
+    const allItems = getScopedItems();
+    if (allItems.length === 0) {
+      showToast('Keine passenden Angebote im aktuellen Scope');
       return;
     }
-    withConfirmGate({
-      title: provider === 'openrouter' ? '🔍 OpenRouter Einzelsuche' : '🔍 Google AI Einzelsuche',
-      actionLabel: `${provider === 'openrouter' ? 'Abfragen' : 'Tabs öffnen'}`
-    }, async (items) => {
-      const job = startBatchJob('Einzeln KI-Suchen', items.length);
-      syncBatchPopover();
-      try {
-        const res = await runBatchAiIndividual(items, {
-          provider,
-          signal: job.signal,
-          onProgress: (done, total, failed) => {
-            job.updateProgress(done, failed, total);
-            syncBatchPopover();
-          }
-        });
-        if (res.mode === 'google') {
-          if (res.blockedItems.length > 0) {
-            openBatchAiPopout({ title: '🔍 Blockierte Google AI Tabs', mode: 'blocked', blockedItems: res.blockedItems });
-          } else {
-            showToast(`🔍 ${plural(res.opened, 'Google AI Tab', 'Google AI Tabs')} geöffnet`);
-          }
-        } else if (!res.cancelled) {
-          openBatchAiPopout({
-            title: `🔍 OpenRouter Einzelsuche (${res.results.length})`,
-            mode: 'individual',
-            results: res.results
-          });
-        }
-      } catch (err) {
-        if (!err?.cancelled) showToast(`⚠️ ${err?.message || 'Einzelsuche fehlgeschlagen'}`);
-      } finally {
-        job.finish();
+    openAiLauncherPopover({
+      mode: 'batch-single',
+      anchorEl: aiSingleBtn,
+      itemCount: allItems.length,
+      onLaunch: async ({ engine, model, googleAiMode, limit }) => {
+        const items = limit && limit < allItems.length ? allItems.slice(0, limit) : allItems;
+        const provider = engine === 'openrouter' ? 'openrouter' : 'google';
+        const job = startBatchJob('Einzeln KI-Suchen', items.length);
         syncBatchPopover();
+        try {
+          const res = await runBatchAiIndividual(items, {
+            provider,
+            model,
+            googleAiMode,
+            signal: job.signal,
+            onProgress: (done, total, failed) => {
+              job.updateProgress(done, failed, total);
+              syncBatchPopover();
+            }
+          });
+          if (res.mode === 'google') {
+            if (res.blockedItems.length > 0) {
+              openBatchAiPopout({ title: '🔍 Blockierte Google Tabs', mode: 'blocked', blockedItems: res.blockedItems });
+            } else {
+              showToast(`🔍 ${plural(res.opened, 'Google Tab', 'Google Tabs')} geöffnet`);
+            }
+          } else if (!res.cancelled) {
+            openBatchAiPopout({
+              title: `🔍 OpenRouter Einzelsuche (${res.results.length})`,
+              mode: 'individual',
+              results: res.results
+            });
+          }
+        } catch (err) {
+          if (!err?.cancelled) showToast(`⚠️ ${err?.message || 'Einzelsuche fehlgeschlagen'}`);
+        } finally {
+          job.finish();
+          syncBatchPopover();
+        }
       }
     });
   });
@@ -534,10 +551,10 @@ export function syncBatchPopover(precomputedCounts = null) {
   }
 
   const aiCmpMeta = pop.querySelector('#tp-batch-ai-compare-meta');
-  if (aiCmpMeta) aiCmpMeta.textContent = AI_TARGET_LABELS[CONFIG.BATCH_AI_TARGET || 'google-ai'] || 'Google AI';
+  if (aiCmpMeta) aiCmpMeta.textContent = 'Wählen ›';
 
   const aiSglMeta = pop.querySelector('#tp-batch-ai-single-meta');
-  if (aiSglMeta) aiSglMeta.textContent = effectiveAiProvider(CONFIG) === 'openrouter' ? 'OpenRouter' : 'Google AI';
+  if (aiSglMeta) aiSglMeta.textContent = 'Wählen ›';
 
   const alarmsMeta = pop.querySelector('#tp-batch-alarms-meta');
   if (alarmsMeta) {

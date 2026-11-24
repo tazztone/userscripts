@@ -14,6 +14,7 @@ import { withLivePrice } from './share-discord.js';
 import { CONFIG, sanitizeReviewKeyword } from '../state/config.js';
 import { formatSearchQuery, formatReviewTooltip } from './tavily-search.js';
 import { openAiPopover } from '../ui/badges/card-ai-popover.js';
+import { openAiLauncherPopover, openSearchTab } from '../ui/ai-launcher-popover.js';
 import { openSparklinePopout, renderSparkline } from '../ui/sparkline.js';
 import { extractShareData, parseProductOffers, pickCheapestOffer } from '../page/product-offers.js';
 import { triggerDiscordShare } from '../ui/badges/card-share.js';
@@ -75,23 +76,40 @@ export function renderDetailReviewButton(headingEl, title, currentPrice, stats, 
     btn.rel = 'noopener';
     btn.addEventListener('click', e => {
       e.stopPropagation();
-      if (CONFIG.TAVILY_ENABLED && CONFIG.TAVILY_API_KEY && CONFIG.TAVILY_API_KEY.trim()) {
-        e.preventDefault();
-        const payload = btn._tpReviewPayload || { title, priceText, pid };
-        openAiPopover({
-          title: payload.title,
-          priceText: payload.priceText,
-          googleUrl: btn.href,
-          card: headingEl,
-          pid: payload.pid
-        });
-      }
+      if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button !== 0) return;
+      e.preventDefault();
+      const payload = btn._tpReviewPayload || { title, priceText, pid };
+      const q = formatSearchQuery(payload.title, sanitizeReviewKeyword(CONFIG.REVIEW_SEARCH_KEYWORD), payload.priceText);
+      const baseGoogle = 'https://www.google.com/search?q=' + encodeURIComponent(q);
+      openAiLauncherPopover({
+        mode: 'single',
+        anchorEl: btn,
+        title: payload.title,
+        priceText: payload.priceText,
+        onLaunch: ({ engine, model }) => {
+          if (engine === 'google') {
+            openSearchTab(baseGoogle);
+          } else if (engine === 'google-ai') {
+            openSearchTab(`${baseGoogle}&udm=50`);
+          } else if (engine === 'openrouter' || engine === 'tavily') {
+            openAiPopover({
+              title: payload.title,
+              priceText: payload.priceText,
+              googleUrl: btn.href,
+              card: headingEl,
+              pid: payload.pid,
+              provider: engine,
+              model
+            });
+          }
+        }
+      });
     });
     headingEl.appendChild(btn);
   }
   btn._tpReviewPayload = { title, priceText, pid };
   btn.href = 'https://www.google.com/search?q=' + encodeURIComponent(fullQuery) + (aiMode ? '&udm=50' : '');
-  const { title: tipTitle, ariaLabel } = formatReviewTooltip(fullQuery, { hasTavily, aiMode });
+  const { title: tipTitle, ariaLabel } = formatReviewTooltip(fullQuery, { hasTavily: true, aiMode });
   setTitleIfChanged(btn, tipTitle);
   btn.setAttribute('aria-label', ariaLabel);
 }

@@ -3,7 +3,7 @@
  * Extracted to keep modal-template.js, modal-bindings.js & modal-actions.js < 25 KB.
  */
 
-import { CONFIG, DEFAULTS, effectiveAiProvider } from '../state/config.js';
+import { CONFIG, DEFAULTS, DEFAULT_OPENROUTER_MODEL, effectiveAiProvider } from '../state/config.js';
 import {
   buildComparisonPrompt,
   findUnknownPromptTokens,
@@ -64,8 +64,12 @@ export function renderAiProviderTopMarkup() {
             </div>
           </div>
           <div class="tp-settings-group">
-            <label for="tp-openrouter-model-input" title="OpenRouter Modell-ID für Web-Suche &amp; Batch-Vergleich.">OpenRouter Modell</label>
-            <input type="text" id="tp-openrouter-model-input" class="tp-field-dark" placeholder="google/gemini-2.5-flash" spellcheck="false">
+            <label for="tp-openrouter-model-input" title="Persistentes Standard-Modell für OpenRouter Web-Suche &amp; Batch-Vergleich.">OpenRouter Standard-Modell</label>
+            <input type="text" id="tp-openrouter-model-input" class="tp-field-dark" placeholder="openrouter/free" spellcheck="false">
+          </div>
+          <div class="tp-settings-group">
+            <label for="tp-openrouter-paid-model-input" title="Optionales schnelleres/bezahltes Modell für die Schnellauswahl im Launcher-Popover.">Schnelles / Paid Modell (optional)</label>
+            <input type="text" id="tp-openrouter-paid-model-input" class="tp-field-dark" placeholder="z.B. google/gemini-2.5-flash" spellcheck="false">
           </div>
           <div class="tp-settings-group tp-ai-split-row">
             <div class="tp-ai-split-col">
@@ -266,6 +270,7 @@ export function collectAiSectionElements(shadow) {
     openrouterApiKeyEditor: shadow.getElementById('tp-openrouter-api-key-editor'),
     openrouterApiKeyStatus: shadow.getElementById('tp-openrouter-api-key-status'),
     openrouterModelInput: shadow.getElementById('tp-openrouter-model-input'),
+    openrouterPaidModelInput: shadow.getElementById('tp-openrouter-paid-model-input'),
     openrouterEngineSelect: shadow.getElementById('tp-openrouter-engine-select'),
     openrouterMaxResults: shadow.getElementById('tp-openrouter-max-results'),
     batchAiTargetSelect: shadow.getElementById('tp-batch-ai-target-select'),
@@ -325,7 +330,8 @@ export function syncAiSectionFromConfig(els) {
       ? '✅ Key hinterlegt'
       : 'Kein Key hinterlegt';
   }
-  if (els.openrouterModelInput) els.openrouterModelInput.value = CONFIG.OPENROUTER_MODEL || 'google/gemini-2.5-flash';
+  if (els.openrouterModelInput) els.openrouterModelInput.value = CONFIG.OPENROUTER_MODEL || DEFAULT_OPENROUTER_MODEL;
+  if (els.openrouterPaidModelInput) els.openrouterPaidModelInput.value = CONFIG.OPENROUTER_PAID_MODEL || '';
   if (els.openrouterEngineSelect) els.openrouterEngineSelect.value = CONFIG.OPENROUTER_SEARCH_ENGINE || 'auto';
   if (els.openrouterMaxResults) els.openrouterMaxResults.value = String(CONFIG.OPENROUTER_MAX_RESULTS || 5);
   if (els.batchAiTargetSelect) els.batchAiTargetSelect.value = CONFIG.BATCH_AI_TARGET || 'google-ai';
@@ -405,7 +411,10 @@ export function collectAiSectionUpdates(els, updates) {
   }
   if (els.openrouterModelInput) {
     const m = String(els.openrouterModelInput.value || '').trim();
-    updates.OPENROUTER_MODEL = m || 'google/gemini-2.5-flash';
+    updates.OPENROUTER_MODEL = m || DEFAULT_OPENROUTER_MODEL;
+  }
+  if (els.openrouterPaidModelInput) {
+    updates.OPENROUTER_PAID_MODEL = String(els.openrouterPaidModelInput.value || '').trim();
   }
   if (els.openrouterEngineSelect) {
     updates.OPENROUTER_SEARCH_ENGINE = els.openrouterEngineSelect.value || 'auto';

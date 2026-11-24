@@ -237,7 +237,12 @@ export function syncUiControl(key, val, opts = {}, shadowRoot = null) {
         }
         case 'OPENROUTER_MODEL': {
           const input = shadow.getElementById('tp-openrouter-model-input');
-          if (input) input.value = val || 'google/gemini-2.5-flash';
+          if (input) input.value = val || 'openrouter/free';
+          break;
+        }
+        case 'OPENROUTER_PAID_MODEL': {
+          const input = shadow.getElementById('tp-openrouter-paid-model-input');
+          if (input) input.value = val || '';
           break;
         }
         case 'OPENROUTER_SEARCH_ENGINE': {
