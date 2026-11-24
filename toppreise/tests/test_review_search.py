@@ -316,3 +316,41 @@ def test_review_button_placement_and_title_across_all_layouts(page):
         assert expected_names[row['pid']] in row['href']
         assert len(row['title']) <= 120
         assert expected_names[row['pid']] in row['ariaLabel']
+
+
+def test_review_ai_popover_openrouter_and_missing_key_toast(page: Page):
+    import json
+    btn = page.locator('#card-cheapest a.tp-review-search-btn')
+    assert btn.count() == 1
+
+    # OpenRouter active without key -> shows OpenRouter tip toast
+    page.evaluate("() => window.ToppreiseSuite?.updateConfig?.('AI_SEARCH_PROVIDER', 'openrouter')")
+    btn.dispatch_event('click')
+    assert page.locator('#tp-ai-popout').count() == 0
+    assert 'OpenRouter API-Key' in page.evaluate("() => window.ToppreiseSuite?.lastToast?.() || ''")
+
+    # With key + mocked OpenRouter response -> renders verdict + citations
+    page.route('https://openrouter.ai/api/v1/chat/completions', lambda route: route.fulfill(
+        status=200,
+        headers={'content-type': 'application/json', 'access-control-allow-origin': '*'},
+        body=json.dumps({
+            'choices': [{
+                'message': {
+                    'content': '**Solides Angebot** mit starker Leistung.',
+                    'annotations': [{
+                        'type': 'url_citation',
+                        'url_citation': {'url': 'https://example.com/or-review', 'title': 'OR Review'}
+                    }]
+                }
+            }]
+        })
+    ))
+    page.evaluate("() => window.ToppreiseSuite?.updateConfig?.('OPENROUTER_API_KEY', 'sk-or-card-test')")
+    btn.dispatch_event('click')
+
+    popout = page.locator('#tp-ai-popout')
+    popout.wait_for(state='visible')
+    assert 'Solides Angebot' in (popout.text_content() or '')
+    cite = popout.locator('.tp-ai-citations a')
+    assert cite.count() == 1
+    assert cite.get_attribute('href') == 'https://example.com/or-review'

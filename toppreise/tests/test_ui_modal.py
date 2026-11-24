@@ -1011,6 +1011,45 @@ def test_settings_dialog_has_no_double_scrollbars(page: Page):
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
 
 
+def test_ai_provider_save_roundtrip_and_batch_reset_group(page: Page):
+    open_settings(page)
+
+    page.select_option('#tp-root >> #tp-ai-provider-select', 'openrouter')
+    page.fill('#tp-root >> #tp-openrouter-model-input', 'openai/gpt-4o-mini')
+    page.select_option('#tp-root >> #tp-openrouter-engine-select', 'exa')
+    page.select_option('#tp-root >> #tp-openrouter-max-results', '8')
+    page.select_option('#tp-root >> #tp-batch-ai-target-select', 'claude')
+    page.fill('#tp-root >> #tp-batch-confirm-threshold-input', '25')
+
+    page.click('#tp-root >> #tp-btn-save')
+    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
+
+    open_settings(page)
+    assert page.locator('#tp-root >> #tp-ai-provider-select').input_value() == 'openrouter'
+    assert page.locator('#tp-root >> #tp-openrouter-model-input').input_value() == 'openai/gpt-4o-mini'
+    assert page.locator('#tp-root >> #tp-openrouter-engine-select').input_value() == 'exa'
+    assert page.locator('#tp-root >> #tp-openrouter-max-results').input_value() == '8'
+    assert page.locator('#tp-root >> #tp-batch-ai-target-select').input_value() == 'claude'
+    assert page.locator('#tp-root >> #tp-batch-confirm-threshold-input').input_value() == '25'
+    assert 'tp-provider-dimmed' in (page.locator('#tp-root >> #tp-ai-tavily-block').get_attribute('class') or '')
+
+    # Store OpenRouter API key, save, then reset batch group
+    page.click('#tp-root >> #tp-openrouter-api-key-reveal')
+    page.fill('#tp-root >> #tp-openrouter-api-key-input', 'sk-or-persist-test')
+    page.click('#tp-root >> #tp-btn-save')
+    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
+
+    open_settings(page)
+    page.once("dialog", lambda d: d.accept())
+    page.click('#tp-root >> [data-reset-group="batch"]')
+    assert page.locator('#tp-root >> #tp-batch-ai-target-select').input_value() == 'google-ai'
+    assert page.locator('#tp-root >> #tp-batch-confirm-threshold-input').input_value() == '10'
+    assert page.locator('#tp-root >> #tp-openrouter-api-key-status').text_content() == '✅ Key hinterlegt'
+
+    page.click('#tp-root >> #tp-btn-close')
+    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
+
+
 
 
 

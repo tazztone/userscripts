@@ -302,3 +302,149 @@ def test_openrouter_api_key_cleared_on_modal_close(page: Page):
     page.keyboard.press('Escape')
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
     assert key_input.input_value() == ''
+
+
+def test_batch_openrouter_individual_cancel_and_running_pill(page: Page):
+    pending_routes = []
+
+    def handle_delayed(route):
+        pending_routes.append(route)
+
+    page.route('https://openrouter.ai/api/v1/chat/completions', handle_delayed)
+    page.evaluate("""() => {
+        window.__tpCopiedAi = [];
+        Object.defineProperty(navigator, 'clipboard', {
+            configurable: true,
+            value: { writeText: async (t) => { window.__tpCopiedAi.push(t); } }
+        });
+        window.ToppreiseSuite.updateConfig('BATCH_CONFIRM_THRESHOLD', 50);
+        window.ToppreiseSuite.updateConfig('AI_SEARCH_PROVIDER', 'openrouter');
+        window.ToppreiseSuite.updateConfig('OPENROUTER_API_KEY', 'sk-or-test-key');
+    }""")
+
+    page.click('#tp-floating-batch-btn')
+    page.click('#tp-batch-ai-single-btn')
+
+    # In-flight: running pill & progress row visible
+    page.wait_for_selector('#tp-floating-batch-btn.tp-batch-running')
+    assert '⏳' in (page.locator('#tp-floating-batch-count').text_content() or '')
+    assert page.locator('#tp-batch-progress-row').is_visible()
+
+    # Cancel mid-run
+    page.click('#tp-batch-cancel-btn')
+    page.wait_for_function("() => !document.getElementById('tp-floating-batch-btn')?.classList.contains('tp-batch-running')")
+    assert not page.locator('#tp-batch-progress-row').is_visible()
+    for r in pending_routes:
+        try:
+            r.abort()
+        except Exception:
+            pass
+
+    # Now run a full OpenRouter individual search to completion (limit 2 via confirm dialog)
+    page.unroute('https://openrouter.ai/api/v1/chat/completions', handle_delayed)
+    page.route('https://openrouter.ai/api/v1/chat/completions', lambda route: route.fulfill(
+        status=200,
+        headers={'content-type': 'application/json', 'access-control-allow-origin': '*'},
+        body=json.dumps({
+            'choices': [{
+                'message': {
+                    'content': '### Bewertung\n**Sehr stark** im Test.',
+                    'annotations': [{
+                        'type': 'url_citation',
+                        'url_citation': {'url': 'https://example.com/or-src', 'title': 'OR Source'}
+                    }]
+                }
+            }]
+        })
+    ))
+    page.evaluate("() => window.ToppreiseSuite.updateConfig('BATCH_CONFIRM_THRESHOLD', 2)")
+    page.click('#tp-batch-ai-single-btn')
+    page.wait_for_selector('#tp-batch-confirm-popout', state='visible')
+    page.fill('#tp-batch-limit-input', '2')
+    page.click('#tp-batch-confirm-go')
+
+    ai_pop = page.locator('#tp-batch-ai-popout')
+    ai_pop.wait_for(state='visible')
+    assert ai_pop.locator('.tp-batch-ai-item-title a').count() == 2
+    assert ai_pop.locator('strong.tp-ai-h').count() >= 2
+    assert ai_pop.locator('.tp-batch-citations a').first.get_attribute('href') == 'https://example.com/or-src'
+
+    ai_pop.locator('button:has-text("Alle kopieren")').click()
+    page.wait_for_function("() => window.__tpCopiedAi.length === 1")
+    copied = page.evaluate("() => window.__tpCopiedAi[0]")
+    assert '### ' in copied
+
+
+def test_batch_missing_key_toast_empty_scope_and_settings_shortcut(page: Page):
+    page.evaluate("""() => {
+        window.ToppreiseSuite.updateConfig('BATCH_AI_TARGET', 'openrouter');
+        window.ToppreiseSuite.updateConfig('AI_SEARCH_PROVIDER', 'openrouter');
+        window.ToppreiseSuite.updateConfig('OPENROUTER_API_KEY', '');
+    }""")
+
+    page.click('#tp-floating-batch-btn')
+    page.click('#tp-batch-ai-compare-btn')
+    assert 'OpenRouter API-Key fehlt' in page.evaluate("() => window.ToppreiseSuite?.lastToast?.() || ''")
+    assert page.locator('#tp-batch-confirm-popout').count() == 0
+    assert page.locator('#tp-batch-ai-popout').count() == 0
+
+    page.click('#tp-batch-ai-single-btn')
+    assert 'OpenRouter API-Key fehlt' in page.evaluate("() => window.ToppreiseSuite?.lastToast?.() || ''")
+    assert page.locator('#tp-batch-confirm-popout').count() == 0
+
+    # Switch to deals scope (0 deals) -> actions disabled
+    page.click('button.tp-bp-scope[data-scope="deals"]')
+    assert page.locator('#tp-batch-copy-btn').is_disabled()
+    assert page.locator('#tp-batch-csv-btn').is_disabled()
+    assert page.locator('#tp-batch-copy-fmt-btn').is_disabled()
+
+    # Settings shortcut closes popover and opens settings modal
+    page.click('#tp-batch-settings-btn')
+    assert not page.locator('#tp-batch-popover').is_visible()
+    assert page.locator('#tp-root >> #tp-settings-dialog').is_visible()
+
+
+def test_batch_dealer_fetch_and_scoped_discord_meta(page: Page):
+    from conftest import seed_verified_deal
+
+    page.route('https://www.toppreise.ch/preisvergleich/**', lambda route: route.fulfill(
+        status=200,
+        headers={'content-type': 'text/html'},
+        body='<html><head><script type="application/ld+json">{"@type":"Product","offers":{"@type":"Offer","price":100,"seller":{"name":"MockShop"}}}</script></head><body></body></html>'
+    ))
+    page.route('https://discord.com/api/webhooks/**', lambda route: route.fulfill(
+        status=204,
+        headers={'access-control-allow-origin': '*'}
+    ))
+
+    page.evaluate("""() => {
+        document.querySelectorAll('#Plugin_Product_492326 .Plugin_DealerRelProdPriceInfo').forEach(el => el.remove());
+        window.ToppreiseSuite.updateConfig('BATCH_CONFIRM_THRESHOLD', 50);
+        window.ToppreiseSuite.updateConfig('DISCORD_WEBHOOK_URL', 'https://discord.com/api/webhooks/123/abc');
+        window.ToppreiseSuite.updateConfig('DISCORD_CHANNELS', [{ id: 'ch1', name: 'Deals', url: 'https://discord.com/api/webhooks/123/abc' }]);
+    }""")
+
+    page.click('#tp-floating-batch-btn')
+    assert page.locator('#tp-batch-discord-meta').text_content() == '0 neu ›'
+
+    page.click('#tp-batch-dealers-btn')
+    page.wait_for_function("() => (window.ToppreiseSuite?.lastToast?.() || '').includes('geladen')")
+
+    # Repeat click immediately reports all dealers already loaded
+    page.click('#tp-batch-dealers-btn')
+    page.wait_for_function("() => window.ToppreiseSuite?.lastToast?.() === '🏬 Alle Händler bereits geladen'")
+
+    # Seed a verified deal and check #tp-batch-discord-meta reflects it, then resets after sharing
+    seed_verified_deal(page)
+    page.click('#tp-batch-close-btn')
+    page.click('#tp-floating-batch-btn')
+    assert page.locator('#tp-batch-discord-meta').text_content() == '1 neu ›'
+
+    page.click('#tp-batch-discord-btn')
+    page.wait_for_selector('#tp-batch-confirm-popout', state='visible')
+    page.click('#tp-batch-confirm-go')
+    page.wait_for_function("() => (window.ToppreiseSuite?.lastToast?.() || '').includes('geteilt')")
+
+    if not page.locator('#tp-batch-popover').is_visible():
+        page.click('#tp-floating-batch-btn')
+    assert page.locator('#tp-batch-discord-meta').text_content() == '0 neu ›'
