@@ -41,6 +41,7 @@ export async function fetchWithTimeout(url, fetchOpts = {}, opts = {}) {
     readAs = null,
     customFetch = null,
     signal = null,
+    isOk = null,
   } = opts || {};
 
   const fetchFn = customFetch || globalThis.fetch;
@@ -82,6 +83,8 @@ export async function fetchWithTimeout(url, fetchOpts = {}, opts = {}) {
       signal: controller.signal,
     });
 
+    const ok = typeof isOk === 'function' ? Boolean(isOk(res)) : Boolean(res?.ok);
+
     if (readAs === 'text' || readAs === 'json' || readAs === 'blob') {
       const body = typeof res?.[readAs] === 'function' ? await res[readAs]() : null;
       const elapsed = Date.now() - startedAt;
@@ -89,7 +92,7 @@ export async function fetchWithTimeout(url, fetchOpts = {}, opts = {}) {
         ? body.length
         : (body && typeof body.size === 'number' ? body.size : null);
       logActivity(
-        res.ok ? 'debug' : 'warn',
+        ok ? 'debug' : 'warn',
         source,
         `${tag}${res.status} ${safeUrl} (${elapsed}ms${bytes != null ? `, ${bytes}B` : ''})`
       );
@@ -97,7 +100,7 @@ export async function fetchWithTimeout(url, fetchOpts = {}, opts = {}) {
     }
 
     const elapsed = Date.now() - startedAt;
-    logActivity(res.ok ? 'debug' : 'warn', source, `${tag}${res.status} ${safeUrl} (${elapsed}ms)`);
+    logActivity(ok ? 'debug' : 'warn', source, `${tag}${res.status} ${safeUrl} (${elapsed}ms)`);
     return res;
   } catch (err) {
     const elapsed = Date.now() - startedAt;
@@ -127,6 +130,7 @@ export function gmRequestWithTimeout(gmOpts = {}, opts = {}) {
     signal = null,
     source = 'net',
     label = '',
+    isOk = null,
   } = opts || {};
 
   const gmFn = globalThis.GM_xmlhttpRequest;
@@ -185,7 +189,9 @@ export function gmRequestWithTimeout(gmOpts = {}, opts = {}) {
           settled = true;
           cleanup();
           const elapsed = Date.now() - startedAt;
-          const ok = res && res.status >= 200 && res.status < 300;
+          const ok = typeof isOk === 'function'
+            ? Boolean(isOk(res))
+            : Boolean(res && res.status >= 200 && res.status < 300);
           logActivity(ok ? 'debug' : 'warn', source, `${tag}GM ${res?.status ?? '?'} ${safeUrl} (${elapsed}ms)`);
           resolve(res);
         },

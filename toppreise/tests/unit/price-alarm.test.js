@@ -9,6 +9,7 @@ import {
 } from '../../src/features/price-alarm.js';
 import { CONFIG } from '../../src/state/config.js';
 import { SELECTORS } from '../../src/page/selectors.js';
+import { clearActivityLog, getActivityLog } from '../../src/state/activity-log.js';
 
 describe('Price Alarm logic & toast formatting', () => {
   it('formats toast with price and duration', () => {
@@ -397,6 +398,136 @@ describe('Price alarm fallback URL hardening', () => {
       if (prevLoc === undefined) delete globalThis.location; else globalThis.location = prevLoc;
       if (prevFetch === undefined) delete globalThis.fetch; else globalThis.fetch = prevFetch;
       if (prevDOMParser === undefined) delete globalThis.DOMParser; else globalThis.DOMParser = prevDOMParser;
+    }
+  });
+
+  it('processPriceAlarmModal falls back to _tpDismissDialog without logging a warning when no close button exists', async () => {
+    const { processPriceAlarmModal } = await import('../../src/features/price-alarm.js');
+    const prevDoc = globalThis.document;
+    const prevLoc = globalThis.location;
+    const prevObserver = globalThis.MutationObserver;
+    const prevConfigAlarm = CONFIG.ALARM_ENABLED;
+    const prevAuto = CONFIG.ALARM_AUTO_SUBMIT;
+    const prevShipping = CONFIG.USE_SHIPPING_PRICE;
+    CONFIG.ALARM_ENABLED = true;
+    CONFIG.ALARM_AUTO_SUBMIT = true;
+    CONFIG.USE_SHIPPING_PRICE = false;
+    globalThis.location = { href: 'https://www.toppreise.ch/neue-toppreise' };
+    clearActivityLog();
+    let observerCb = null;
+    globalThis.MutationObserver = class {
+      constructor(cb) { observerCb = cb; }
+      observe() {}
+      disconnect() {}
+    };
+    let dismissed = false;
+    const priceEl = { isConnected: true, textContent: 'CHF 100.00' };
+    const priceInput = { value: '', dispatchEvent() {} };
+    const durationHidden = { value: '', dispatchEvent() {} };
+    const submitBtn = { click() {} };
+    const modal = {
+      isConnected: true,
+      dataset: {},
+      _tpDismissDialog: () => { dismissed = true; },
+      closest: () => null,
+      querySelector: (sel) => {
+        if (sel === '.productPrice .Plugin_Price') return priceEl;
+        if (sel === 'input#f_NewInfoMailForm_priceFrom') return priceInput;
+        if (sel === 'input[name="im_nimf_du"]') return durationHidden;
+        if (sel === 'input.f_submitbtn') return submitBtn;
+        if (sel.includes('.success')) return modal.dataset.tpAlarmState === 'submitted' ? {} : null;
+        return null;
+      },
+    };
+    globalThis.document = {
+      activeElement: null,
+      body: {},
+      getElementById: () => ({ shadowRoot: { getElementById: () => null } }),
+      querySelector: (sel) => (sel === SELECTORS.alarm.form ? modal : null),
+      querySelectorAll: () => [],
+    };
+    try {
+      processPriceAlarmModal();
+      await new Promise(r => setTimeout(r, 350));
+      observerCb();
+      assert.equal(dismissed, true);
+      assert.equal('_tpDismissDialog' in modal, false);
+      const warns = getActivityLog().filter(e => e.source === 'price-alarm' && e.level === 'warn');
+      assert.equal(warns.length, 0);
+    } finally {
+      clearActivityLog();
+      CONFIG.ALARM_ENABLED = prevConfigAlarm;
+      CONFIG.ALARM_AUTO_SUBMIT = prevAuto;
+      CONFIG.USE_SHIPPING_PRICE = prevShipping;
+      if (prevDoc === undefined) delete globalThis.document; else globalThis.document = prevDoc;
+      if (prevLoc === undefined) delete globalThis.location; else globalThis.location = prevLoc;
+      if (prevObserver === undefined) delete globalThis.MutationObserver; else globalThis.MutationObserver = prevObserver;
+    }
+  });
+
+  it('processPriceAlarmModal clicks [data-dismiss="modal"] inside .modal without logging a warning', async () => {
+    const { processPriceAlarmModal } = await import('../../src/features/price-alarm.js');
+    const prevDoc = globalThis.document;
+    const prevLoc = globalThis.location;
+    const prevObserver = globalThis.MutationObserver;
+    const prevConfigAlarm = CONFIG.ALARM_ENABLED;
+    const prevAuto = CONFIG.ALARM_AUTO_SUBMIT;
+    const prevShipping = CONFIG.USE_SHIPPING_PRICE;
+    CONFIG.ALARM_ENABLED = true;
+    CONFIG.ALARM_AUTO_SUBMIT = true;
+    CONFIG.USE_SHIPPING_PRICE = false;
+    globalThis.location = { href: 'https://www.toppreise.ch/neue-toppreise' };
+    clearActivityLog();
+    let observerCb = null;
+    globalThis.MutationObserver = class {
+      constructor(cb) { observerCb = cb; }
+      observe() {}
+      disconnect() {}
+    };
+    let closeClicked = false;
+    const bootstrapCloseBtn = { click() { closeClicked = true; } };
+    const modalWrapper = {
+      querySelector: (sel) => (sel.includes('[data-dismiss="modal"]') ? bootstrapCloseBtn : null),
+    };
+    const priceEl = { isConnected: true, textContent: 'CHF 100.00' };
+    const priceInput = { value: '', dispatchEvent() {} };
+    const durationHidden = { value: '', dispatchEvent() {} };
+    const submitBtn = { click() {} };
+    const modal = {
+      isConnected: true,
+      dataset: {},
+      closest: (sel) => (sel.includes('.modal') ? modalWrapper : null),
+      querySelector: (sel) => {
+        if (sel === '.productPrice .Plugin_Price') return priceEl;
+        if (sel === 'input#f_NewInfoMailForm_priceFrom') return priceInput;
+        if (sel === 'input[name="im_nimf_du"]') return durationHidden;
+        if (sel === 'input.f_submitbtn') return submitBtn;
+        if (sel.includes('.success')) return modal.dataset.tpAlarmState === 'submitted' ? {} : null;
+        return null;
+      },
+    };
+    globalThis.document = {
+      activeElement: null,
+      body: modalWrapper,
+      getElementById: () => ({ shadowRoot: { getElementById: () => null } }),
+      querySelector: (sel) => (sel === SELECTORS.alarm.form ? modal : null),
+      querySelectorAll: () => [],
+    };
+    try {
+      processPriceAlarmModal();
+      await new Promise(r => setTimeout(r, 350));
+      observerCb();
+      assert.equal(closeClicked, true);
+      const warns = getActivityLog().filter(e => e.source === 'price-alarm' && e.level === 'warn');
+      assert.equal(warns.length, 0);
+    } finally {
+      clearActivityLog();
+      CONFIG.ALARM_ENABLED = prevConfigAlarm;
+      CONFIG.ALARM_AUTO_SUBMIT = prevAuto;
+      CONFIG.USE_SHIPPING_PRICE = prevShipping;
+      if (prevDoc === undefined) delete globalThis.document; else globalThis.document = prevDoc;
+      if (prevLoc === undefined) delete globalThis.location; else globalThis.location = prevLoc;
+      if (prevObserver === undefined) delete globalThis.MutationObserver; else globalThis.MutationObserver = prevObserver;
     }
   });
 });

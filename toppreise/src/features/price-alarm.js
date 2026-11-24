@@ -284,6 +284,7 @@ export function processPriceAlarmModal() {
       reqModal._tpAlarmObserver = null;
       if (reqModal.dataset.tpAlarmAttempt === reqAttempt) reqModal.dataset.tpAlarmState = 'cancelled';
       delete reqModal._tpBatchAlarmOpts;
+      delete reqModal._tpDismissDialog;
       batchOpts?.onResult?.({ status: 'cancelled', targetPrice: reqSnap.target });
     };
     const flagUnconfirmed = () => {
@@ -316,8 +317,12 @@ export function processPriceAlarmModal() {
           if (reqModal.dataset.tpAlarmAttempt === reqAttempt) reqModal.dataset.tpAlarmState = 'confirmed';
           showToast(formatAlarmToast(reqSnap.target, reqSnap.duration));
           const closeBtn = reqModal.closest('.AbstractDialog, .AbstractDialog_NewInfoMailFormDialog')?.querySelector('.AbstractDialog_CloseButton') ||
-                           document.querySelector('#tmpAbstractDialogContainer .AbstractDialog_CloseButton');
+                           reqModal.closest('.AbstractDialog, .AbstractDialog_NewInfoMailFormDialog, .modal')?.querySelector('.close, .btn-close, [data-dismiss="modal"], [data-bs-dismiss="modal"]') ||
+                           document.querySelector('#tmpAbstractDialogContainer .AbstractDialog_CloseButton, .AbstractDialog.show .AbstractDialog_CloseButton, .AbstractDialog_NewInfoMailFormDialog.show .AbstractDialog_CloseButton');
+          const dismissFn = reqModal._tpDismissDialog;
+          delete reqModal._tpDismissDialog;
           if (closeBtn) closeBtn.click();
+          else if (typeof dismissFn === 'function') dismissFn();
           else logActivity('warn', 'price-alarm', 'Preisalarm: kein Close-Button gefunden');
           delete reqModal._tpBatchAlarmOpts;
           batchOpts?.onResult?.({ status: 'confirmed', targetPrice: reqSnap.target });
@@ -328,6 +333,7 @@ export function processPriceAlarmModal() {
           reqModal._tpAlarmObserver = null;
           if (reqModal.dataset.tpAlarmAttempt === reqAttempt) reqModal.dataset.tpAlarmState = 'cancelled';
           delete reqModal._tpBatchAlarmOpts;
+          delete reqModal._tpDismissDialog;
           batchOpts?.onResult?.({ status: 'cancelled', targetPrice: reqSnap.target });
         }
       });
@@ -456,10 +462,11 @@ export async function openFetchedAlarmDialog(html, batchOpts = null) {
     .filter(Boolean);
   const content = dialogNode.querySelector(SELECTORS.alarm.content);
   if (content) content.replaceChildren(...nodes);
-  if (batchOpts) {
-    const formEl = dialogNode.querySelector(SELECTORS.alarm.form);
-    if (!formEl) return false;
-    formEl._tpBatchAlarmOpts = batchOpts;
+  const formEl = dialogNode.querySelector(SELECTORS.alarm.form);
+  if (batchOpts && !formEl) return false;
+  if (formEl) {
+    formEl._tpDismissDialog = dismissDialog;
+    if (batchOpts) formEl._tpBatchAlarmOpts = batchOpts;
   }
 
   if (dialogId) {

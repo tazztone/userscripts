@@ -444,13 +444,22 @@ export async function resolveAmazonAsin(directUrl, productId = null, storage = n
       }
     }
 
+    const isAsinHeadOk = (res, resolvedUrl) =>
+      (res?.status >= 200 && res?.status < 300)
+      || (res?.status === 405 && isAllowedAmazonUrl(resolvedUrl));
+
     try {
       if (typeof GM_xmlhttpRequest !== 'undefined') {
         const res = await gmRequestWithTimeout({
           method: 'HEAD',
           url: target,
           headers: { 'Referer': (typeof location !== 'undefined' && location.href) ? location.href : 'https://www.toppreise.ch/' },
-        }, { timeoutMs: 6000, source: 'asin', label: 'HEAD' });
+        }, {
+          timeoutMs: 6000,
+          source: 'asin',
+          label: 'HEAD',
+          isOk: r => isAsinHeadOk(r, r?.finalUrl || r?.responseHeaders?.match(/(?:^|\r?\n)location:\s*([^\r\n]+)/i)?.[1] || ''),
+        });
         const loc = res?.finalUrl || res?.responseHeaders?.match(/(?:^|\r?\n)location:\s*([^\r\n]+)/i)?.[1] || '';
         const asin = isAllowedAmazonUrl(loc) ? parseAmazonAsin(loc) : null;
         if (asin && productId) {
@@ -460,7 +469,11 @@ export async function resolveAmazonAsin(directUrl, productId = null, storage = n
         return asin || null;
       }
       if (typeof fetch !== 'undefined') {
-        const { res } = await fetchWithTimeout(target, { method: 'HEAD', redirect: 'follow' }, { timeoutMs: 6000, source: 'asin', label: 'HEAD' });
+        const res = await fetchWithTimeout(
+          target,
+          { method: 'HEAD', redirect: 'follow' },
+          { timeoutMs: 6000, source: 'asin', label: 'HEAD', isOk: r => isAsinHeadOk(r, r?.url || '') }
+        );
         const asin = isAllowedAmazonUrl(res.url) ? parseAmazonAsin(res.url) : null;
         if (asin && productId) {
           lruSet(memoryAsinCache, productId, asin, 500);

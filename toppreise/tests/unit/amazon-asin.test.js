@@ -2,6 +2,7 @@ import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseAmazonAsin, resolveAmazonAsin, clearMemoryAsinCache } from '../../src/page/product-offers.js';
 import { getCachedAsin, setCachedAsin, clearPriceStatsCache, ASIN_CACHE_PREFIX } from '../../src/scanner/cache.js';
+import { clearActivityLog, getActivityLog } from '../../src/state/activity-log.js';
 
 function memStorage() {
   const map = new Map();
@@ -169,6 +170,77 @@ describe('Amazon ASIN resolution and caching', () => {
         assert.equal(getCachedAsin('p700', s), 'B0GMREQ123');
       } finally {
         if (prevGM === undefined) delete globalThis.GM_xmlhttpRequest; else globalThis.GM_xmlhttpRequest = prevGM;
+      }
+    });
+
+    it('treats GM_xmlhttpRequest 405 on redirected Amazon URL as non-warning and resolves ASIN', async () => {
+      const s = memStorage();
+      const prevGM = globalThis.GM_xmlhttpRequest;
+      clearActivityLog();
+      globalThis.GM_xmlhttpRequest = (opts) => {
+        opts.onload({
+          status: 405,
+          finalUrl: 'https://www.amazon.de/dp/B0HEAD405X',
+          responseHeaders: '',
+        });
+        return { abort() {} };
+      };
+      try {
+        const res = await resolveAmazonAsin('/ext_de?pid=701', 'p701', s);
+        assert.equal(res, 'B0HEAD405X');
+        assert.equal(getCachedAsin('p701', s), 'B0HEAD405X');
+        const warns = getActivityLog().filter(e => e.source === 'asin' && e.level === 'warn');
+        assert.equal(warns.length, 0);
+      } finally {
+        clearActivityLog();
+        if (prevGM === undefined) delete globalThis.GM_xmlhttpRequest; else globalThis.GM_xmlhttpRequest = prevGM;
+      }
+    });
+
+    it('still logs warn when GM_xmlhttpRequest 405 does not redirect to an allowed Amazon domain', async () => {
+      const s = memStorage();
+      const prevGM = globalThis.GM_xmlhttpRequest;
+      clearActivityLog();
+      globalThis.GM_xmlhttpRequest = (opts) => {
+        opts.onload({
+          status: 405,
+          finalUrl: 'https://www.toppreise.ch/ext_de?pid=702',
+          responseHeaders: '',
+        });
+        return { abort() {} };
+      };
+      try {
+        const res = await resolveAmazonAsin('/ext_de?pid=702', 'p702', s);
+        assert.equal(res, null);
+        const warns = getActivityLog().filter(e => e.source === 'asin' && e.level === 'warn');
+        assert.equal(warns.length, 1);
+      } finally {
+        clearActivityLog();
+        if (prevGM === undefined) delete globalThis.GM_xmlhttpRequest; else globalThis.GM_xmlhttpRequest = prevGM;
+      }
+    });
+
+    it('resolves ASIN via fetch fallback on 405 Amazon redirect without logging warn', async () => {
+      const s = memStorage();
+      const prevGM = globalThis.GM_xmlhttpRequest;
+      const prevFetch = globalThis.fetch;
+      delete globalThis.GM_xmlhttpRequest;
+      clearActivityLog();
+      globalThis.fetch = async () => ({
+        ok: false,
+        status: 405,
+        url: 'https://www.amazon.de/dp/B0FETCH405',
+      });
+      try {
+        const res = await resolveAmazonAsin('/ext_de?pid=703', 'p703', s);
+        assert.equal(res, 'B0FETCH405');
+        assert.equal(getCachedAsin('p703', s), 'B0FETCH405');
+        const warns = getActivityLog().filter(e => e.source === 'asin' && e.level === 'warn');
+        assert.equal(warns.length, 0);
+      } finally {
+        clearActivityLog();
+        if (prevGM === undefined) delete globalThis.GM_xmlhttpRequest; else globalThis.GM_xmlhttpRequest = prevGM;
+        if (prevFetch === undefined) delete globalThis.fetch; else globalThis.fetch = prevFetch;
       }
     });
   });
