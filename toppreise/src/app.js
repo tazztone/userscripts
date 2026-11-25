@@ -10,16 +10,18 @@ import { computeDealScore } from './domain/deal-score.js';
 import { memoryCache, statsKey, trimMemoryCache, getSharedDeal } from './scanner/cache.js';
 import {
   getProductCards,
-  parseNegativeTerms,
   extractCardData,
   extractActiveStores,
   getCardDealerRows,
+  scanEligibility
+} from './page/cards.js';
+import {
+  parseNegativeTerms,
   applyCardFilters,
   isCardFilteredOut,
   dealerLoserFor,
-  scanEligibility,
   scanCandidateState
-} from './page/cards.js';
+} from './page/card-filters.js';
 import {
   isShippingPriceActive,
   isNeueToppreisePage,
@@ -76,7 +78,7 @@ import { enhanceCategorySidebar, disconnectCategoryObservers } from './features/
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.573
+// @version      2.18.574
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -460,7 +462,7 @@ import { enhanceCategorySidebar, disconnectCategoryObservers } from './features/
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.573';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.574';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     const isFileFixture = typeof location !== 'undefined' && location.protocol === 'file:';
     if (isDebugHost) {

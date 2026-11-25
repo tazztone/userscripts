@@ -2,7 +2,7 @@ import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { fetchSingleProductPriceStats, activeFetches, requestWithRetry, resetOriginCooldown, runProductScanner } from '../../src/scanner/scanner.js';
 import { setOriginCooldownUntil } from '../../src/state/net.js';
-import { scanCandidateState, FILTER_CAUSE_DEFS } from '../../src/page/cards.js';
+import { scanCandidateState, FILTER_CAUSE_DEFS } from '../../src/page/card-filters.js';
 import { scanState } from '../../src/state/store.js';
 import { setCachedPriceStats, getCachedPriceStats, memoryCache, statsKey, hasUsablePriceStats } from '../../src/scanner/cache.js';
 import { CONFIG } from '../../src/state/config.js';

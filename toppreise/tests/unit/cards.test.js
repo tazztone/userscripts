@@ -1,6 +1,7 @@
 import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { getDistinctProductIds, extractCardDiff, extractCardDiscount, getInsetHeatStyle, getBadgeHeatStyle, applyCardFilters, isCardFilteredOut, parseNegativeTerms, matchesNegativeTerms, extractOfferCount, extractCardData, dealerLoserFor, scanEligibility, getCardEffectiveDiscount, FILTER_CAUSE_DEFS } from '../../src/page/cards.js';
+import { getDistinctProductIds, extractCardDiff, extractCardDiscount, getInsetHeatStyle, getBadgeHeatStyle, extractOfferCount, extractCardData, scanEligibility, getCardEffectiveDiscount } from '../../src/page/cards.js';
+import { applyCardFilters, isCardFilteredOut, parseNegativeTerms, matchesNegativeTerms, dealerLoserFor, FILTER_CAUSE_DEFS } from '../../src/page/card-filters.js';
 import { STYLES_CARDS } from '../../src/ui/styles/cards.js';
 import { setCachedPriceStats, memoryCache, statsKey } from '../../src/scanner/cache.js';
 import { withConfig, withConfigs } from './helpers.js';

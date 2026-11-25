@@ -6,7 +6,8 @@
 
 import { getCachedPriceStats, setCachedPriceStats, currentCacheGen } from './cache.js';
 import { analyzePriceTimeSeries, parsePriceStatsFromHtml, extractCanonicalPrice } from '../domain/price.js';
-import { getProductCards, getCardProductId, extractCardDiscount, extractCardData, extractActiveStores, dealerLoserFor, applyCardFilters, isCardFilteredOut, parseNegativeTerms, extractOfferCount, scanEligibility, scanCandidateState } from '../page/cards.js';
+import { getProductCards, getCardProductId, extractCardDiscount, extractCardData, extractActiveStores, extractOfferCount, scanEligibility } from '../page/cards.js';
+import { dealerLoserFor, applyCardFilters, isCardFilteredOut, parseNegativeTerms, scanCandidateState } from '../page/card-filters.js';
 import { isShippingPriceActive, isNeueToppreisePage, triggerProcessListings } from '../page/adapter.js';
 import { CONFIG } from '../state/config.js';
 import { scanState } from '../state/store.js';

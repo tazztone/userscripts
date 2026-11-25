@@ -150,6 +150,14 @@ const localIn = code => {
       if (id) names.add(id[0]);
     }
   }
+  for (const m of code.matchAll(/(?:const|let|var)\s*\{([^}]+)\}\s*=/g)) {
+    for (const part of m[1].split(',')) {
+      const lhs = part.split('=')[0].trim();
+      if (!lhs) continue;
+      const alias = lhs.includes(':') ? lhs.split(':').pop().trim() : lhs.replace(/^\.\.\./, '').trim();
+      if (/^[A-Za-z_$][\w$]*$/.test(alias)) names.add(alias);
+    }
+  }
   for (const m of code.matchAll(/class\s+([A-Za-z_$][\w$]*)/g)) names.add(m[1]);
   for (const m of code.matchAll(/catch\s*\(\s*([A-Za-z_$][\w$]*)/g)) names.add(m[1]);
   // Function and arrow function parameters (including destructured params)

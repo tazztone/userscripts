@@ -4,7 +4,8 @@
  */
 
 import { CONFIG, DEFAULTS } from '../state/config.js';
-import { getProductCards, extractCardData, isCardFilteredOut } from '../page/cards.js';
+import { getProductCards, extractCardData } from '../page/cards.js';
+import { isCardFilteredOut } from '../page/card-filters.js';
 import { extractShareData, extractDealer, extractDealerUrl } from '../page/product-offers.js';
 import { isShippingPriceActive } from '../page/adapter.js';
 import { getCachedDealer, hasUsablePriceStats } from '../scanner/cache.js';

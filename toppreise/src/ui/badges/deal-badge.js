@@ -7,7 +7,8 @@
  */
 
 import { CONFIG } from '../../state/config.js';
-import { getBadgeHeatStyle, getInsetHeatStyle, getCardDealerRows, extractCardDiscount, getCardProductId, dealerLoserFor, getCardStats, FILTER_CAUSE_DEFS } from '../../page/cards.js';
+import { getBadgeHeatStyle, getInsetHeatStyle, getCardDealerRows, extractCardDiscount, getCardProductId, getCardStats } from '../../page/cards.js';
+import { dealerLoserFor, FILTER_CAUSE_DEFS } from '../../page/card-filters.js';
 import { getCardSortableUnit } from '../../page/sort.js';
 import { extractCanonicalPrice, parsePrice, priceToCents } from '../../domain/price.js';
 import { fetchSingleProductPriceStats } from '../../scanner/scanner.js';

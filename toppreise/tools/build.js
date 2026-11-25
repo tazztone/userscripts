@@ -77,6 +77,7 @@ export function buildBundle() {
     'state/net.js',
     'page/adapter.js',
     'page/cards.js',
+    'page/card-filters.js',
     'page/product-offers.js',
     'features/category-tree-model.js',
     'features/category-tree-actions.js',

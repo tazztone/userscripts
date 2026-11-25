@@ -6,7 +6,8 @@
 
 import { CONFIG, updateConfig, updateConfigs, sanitizeReviewKeyword, realDealMinDiscount } from '../../state/config.js';
 import { getDisplayDelta, getHeatInput, computeDealScore } from '../../domain/deal-score.js';
-import { basisMatchesFor, FILTER_CAUSE_DEFS } from '../../page/cards.js';
+import { basisMatchesFor } from '../../page/cards.js';
+import { FILTER_CAUSE_DEFS } from '../../page/card-filters.js';
 import { getCachedDealer, setCachedDealer, lruSet, hasUsablePriceStats, currentCacheGen, fullSeries } from '../../scanner/cache.js';
 import { priceToCents } from '../../domain/price.js';
 import { withLivePrice } from '../../features/share-discord.js';

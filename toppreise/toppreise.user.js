@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.573
+// @version      2.18.574
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -7722,7 +7722,6 @@ const SHADOW_MODAL_STYLES = `
 
 
 
-
   const normalizeName = name => name ? name.toLowerCase().replace(/[^a-z0-9]/g, '') : '';
 
   function getCardDealerRows(card) {
@@ -7806,50 +7805,6 @@ const SHADOW_MODAL_STYLES = `
       }
     }
     return null;
-  }
-
-  const _negReCache = new Map();
-  function matchesNegativeTerms(card, termsList) {
-    if (!termsList || termsList.length === 0) return false;
-    let text = card._tpTextLower;
-    if (text === undefined) {
-      const nodes = card.querySelectorAll?.('.bold, .product-name, .productDetails, .Plugin_ProductHeading');
-      const joined = [...(nodes ?? [])].map(el => {
-        if (!el.querySelector?.('[class*="tp-"]')) return el.textContent;
-        const clone = el.cloneNode(true);
-        clone.querySelectorAll('[class*="tp-"]').forEach(n => n.remove());
-        return clone.textContent;
-      }).join(' ');
-      if (joined.trim()) text = joined.toLowerCase();
-      else {
-        const single = card.querySelector?.('.bold, .product-name, .productDetails, .Plugin_ProductHeading');
-        if (single?.textContent?.trim()) text = single.textContent.toLowerCase();
-        else if (typeof card.cloneNode === 'function') {
-          const clone = card.cloneNode(true);
-          clone.querySelectorAll?.('.tp-injected-badge, .tp-share-btn, .tp-dealer-name, [class*="tp-"]').forEach(el => el.remove());
-          text = (clone.textContent || '').toLowerCase();
-        } else {
-          text = (card.textContent || '').toLowerCase();
-        }
-      }
-      card._tpTextLower = text;
-    }
-    return termsList.some(entry => {
-      if (!entry) return false;
-      const re = typeof entry === 'string' ? null : entry.re;
-      if (re) return re.test(text);
-      const term = typeof entry === 'string' ? entry : entry.term;
-      if (!term) return false;
-      if (term.length <= 3) {
-        let shortRe = _negReCache.get(term);
-        if (!shortRe) {
-          shortRe = new RegExp(`(?<![\\p{L}\\p{N}])${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}\\p{N}])`, 'iu');
-          lruSet(_negReCache, term, shortRe, 100);
-        }
-        return shortRe.test(text);
-      }
-      return text.includes(term);
-    });
   }
 
   function extractCardDiff(card) {
@@ -7995,16 +7950,6 @@ const SHADOW_MODAL_STYLES = `
     }).filter(name => name.length > 0);
   }
 
-  let _negCacheRaw = null;
-  let _negCacheParsed = null;
-  function parseNegativeTerms(rawTerms = CONFIG.NEGATIVE_TERMS || '') {
-    if (rawTerms === _negCacheRaw && _negCacheParsed) return _negCacheParsed;
-    const parsed = (rawTerms || '').split(/[,;\n]/).map(t => t.trim().toLowerCase()).filter(Boolean)
-      .map(term => ({ term, re: term.length <= 3 ? new RegExp(`(?<![\\p{L}\\p{N}])${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}\\p{N}])`, 'iu') : null }));
-    _negCacheRaw = rawTerms;
-    _negCacheParsed = parsed;
-    return parsed;
-  }
   // Basis gate rule (single source): a product-only live price must never score
   // against shipping-inclusive history (or vice versa). Legacy cache entries
   // without the boolean flag pass through; mismatches render unverified.
@@ -8124,28 +8069,97 @@ const SHADOW_MODAL_STYLES = `
     return rawDisc || 0;
   }
 
-  function applyCardFilters(cd, termsList, minOffers, pageHasOffers, isDealFeed = true) {
-     const isNeg = CONFIG.FILTER_NEG_ENABLED ? matchesNegativeTerms(cd.card, termsList) : false;
-     const isLowOffers = CONFIG.FILTER_MIN_ENABLED ? !!(pageHasOffers && minOffers > 0 && cd.offerCount < minOffers) : false;
-     const kind = cd.displayDelta?.kind;
-     const isVortief = !cd.dealScore && (kind === 'at-low' || kind === 'new-low');
-     const isVortiefExcluded = CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && isVortief;
-     const stats = cd.verifiedStats !== undefined ? cd.verifiedStats : cd.stats;
-     const isVerified = !!cd.dealScore || hasUsablePriceStats(stats);
-     const isUnchecked = CONFIG.BESTPREISE_HIDE_UNCHECKED === true && !hasUsablePriceStats(stats);
-     const isBelowMinDiscount = CONFIG.FILTER_DEAL_DISCOUNT_ENABLED && CONFIG.MIN_DEAL_DISCOUNT > 0 && isVerified && getCardEffectiveDiscount(cd) < CONFIG.MIN_DEAL_DISCOUNT;
-     const price = cd.cardPrice || 0;
-     const minP = CONFIG.FILTER_PRICE_MIN || 0;
-     const maxP = CONFIG.FILTER_PRICE_MAX || 0;
-     const isOutOfPriceRange = CONFIG.FILTER_PRICE_ENABLED && price > 0 && (
-       (minP > 0 && price < minP) || (maxP > 0 && price > maxP)
-     );
-     const minS = CONFIG.FILTER_SAVINGS_MIN || 0;
-     const savings = cd.savingsChf ?? computeSavingsChf(cd.cardPrice, getCardEffectiveDiscount(cd));
-     const isBelowMinSavings = CONFIG.FILTER_SAVINGS_ENABLED && isVerified && minS > 0 && savings < minS;
-     const isDealerLoser = false;
-     return { isNeg, isLowOffers, isBelowMinDiscount, isOutOfPriceRange, isBelowMinSavings, isVortiefExcluded, isUnchecked, isDealerLoser };
+  // ─── MODULE: src/page/card-filters.js ───────────────────────────────────────
+  /**
+   * Page Card Filtering & Scan Candidacy
+   * Evaluates negative keywords, offer/price/discount/savings/dealer filters,
+   * visibility/scan exclusions, and candidate readiness.
+   */
+
+
+
+
+
+
+  const _negReCache = new Map();
+
+  function matchesNegativeTerms(card, termsList) {
+    if (!termsList || termsList.length === 0) return false;
+    let text = card._tpTextLower;
+    if (text === undefined) {
+      const nodes = card.querySelectorAll?.('.bold, .product-name, .productDetails, .Plugin_ProductHeading');
+      const joined = [...(nodes ?? [])].map(el => {
+        if (!el.querySelector?.('[class*="tp-"]')) return el.textContent;
+        const clone = el.cloneNode(true);
+        clone.querySelectorAll('[class*="tp-"]').forEach(n => n.remove());
+        return clone.textContent;
+      }).join(' ');
+      if (joined.trim()) text = joined.toLowerCase();
+      else {
+        const single = card.querySelector?.('.bold, .product-name, .productDetails, .Plugin_ProductHeading');
+        if (single?.textContent?.trim()) text = single.textContent.toLowerCase();
+        else if (typeof card.cloneNode === 'function') {
+          const clone = card.cloneNode(true);
+          clone.querySelectorAll?.('.tp-injected-badge, .tp-share-btn, .tp-dealer-name, [class*="tp-"]').forEach(el => el.remove());
+          text = (clone.textContent || '').toLowerCase();
+        } else {
+          text = (card.textContent || '').toLowerCase();
+        }
+      }
+      card._tpTextLower = text;
+    }
+    return termsList.some(entry => {
+      if (!entry) return false;
+      const re = typeof entry === 'string' ? null : entry.re;
+      if (re) return re.test(text);
+      const term = typeof entry === 'string' ? entry : entry.term;
+      if (!term) return false;
+      if (term.length <= 3) {
+        let shortRe = _negReCache.get(term);
+        if (!shortRe) {
+          shortRe = new RegExp(`(?<![\\p{L}\\p{N}])${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}\\p{N}])`, 'iu');
+          lruSet(_negReCache, term, shortRe, 100);
+        }
+        return shortRe.test(text);
+      }
+      return text.includes(term);
+    });
   }
+
+  let _negCacheRaw = null;
+  let _negCacheParsed = null;
+  function parseNegativeTerms(rawTerms = CONFIG.NEGATIVE_TERMS || '') {
+    if (rawTerms === _negCacheRaw && _negCacheParsed) return _negCacheParsed;
+    const parsed = (rawTerms || '').split(/[,;\n]/).map(t => t.trim().toLowerCase()).filter(Boolean)
+      .map(term => ({ term, re: term.length <= 3 ? new RegExp(`(?<![\\p{L}\\p{N}])${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}\\p{N}])`, 'iu') : null }));
+    _negCacheRaw = rawTerms;
+    _negCacheParsed = parsed;
+    return parsed;
+  }
+
+  function applyCardFilters(cd, termsList, minOffers, pageHasOffers, isDealFeed = true) {
+    const isNeg = CONFIG.FILTER_NEG_ENABLED ? matchesNegativeTerms(cd.card, termsList) : false;
+    const isLowOffers = CONFIG.FILTER_MIN_ENABLED ? !!(pageHasOffers && minOffers > 0 && cd.offerCount < minOffers) : false;
+    const kind = cd.displayDelta?.kind;
+    const isVortief = !cd.dealScore && (kind === 'at-low' || kind === 'new-low');
+    const isVortiefExcluded = CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && isVortief;
+    const stats = cd.verifiedStats !== undefined ? cd.verifiedStats : cd.stats;
+    const isVerified = !!cd.dealScore || hasUsablePriceStats(stats);
+    const isUnchecked = CONFIG.BESTPREISE_HIDE_UNCHECKED === true && !hasUsablePriceStats(stats);
+    const isBelowMinDiscount = CONFIG.FILTER_DEAL_DISCOUNT_ENABLED && CONFIG.MIN_DEAL_DISCOUNT > 0 && isVerified && getCardEffectiveDiscount(cd) < CONFIG.MIN_DEAL_DISCOUNT;
+    const price = cd.cardPrice || 0;
+    const minP = CONFIG.FILTER_PRICE_MIN || 0;
+    const maxP = CONFIG.FILTER_PRICE_MAX || 0;
+    const isOutOfPriceRange = CONFIG.FILTER_PRICE_ENABLED && price > 0 && (
+      (minP > 0 && price < minP) || (maxP > 0 && price > maxP)
+    );
+    const minS = CONFIG.FILTER_SAVINGS_MIN || 0;
+    const savings = cd.savingsChf ?? computeSavingsChf(cd.cardPrice, getCardEffectiveDiscount(cd));
+    const isBelowMinSavings = CONFIG.FILTER_SAVINGS_ENABLED && isVerified && minS > 0 && savings < minS;
+    const isDealerLoser = false;
+    return { isNeg, isLowOffers, isBelowMinDiscount, isOutOfPriceRange, isBelowMinSavings, isVortiefExcluded, isUnchecked, isDealerLoser };
+  }
+
   function dealerLoserFor(card, activeStores) {
     if (!activeStores || activeStores.length === 0) return false;
     const dealerRows = getCardDealerRows(card);
@@ -11734,6 +11748,7 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   const COMPARISON_BTN_SEL = '.Plugin_AddToProductComparisonButton';
 
   function extractCardSpecs(card) {
@@ -13417,6 +13432,7 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   const activeFetches = new Map();
 
   // Single-flight abort for the running batch scan. Next run replaces it.
@@ -13931,6 +13947,7 @@ const SHADOW_MODAL_STYLES = `
    * {card, pid, cardPrice, cardPriceEl, stats, diffVal, dealData, displayDelta,
    * heatInfo, effectiveDiff} — neither half recomputes (ADR-0005 single-source rule).
    */
+
 
 
 
@@ -15903,6 +15920,7 @@ const SHADOW_MODAL_STYLES = `
    * button, dealer name, review button, fresh glow, empty state — plus the
    * renderCardEffects orchestrator (signature frozen, app.js untouched).
    */
+
 
 
 
@@ -23211,7 +23229,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.573';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.574';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     const isFileFixture = typeof location !== 'undefined' && location.protocol === 'file:';
     if (isDebugHost) {
