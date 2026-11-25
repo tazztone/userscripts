@@ -17,6 +17,8 @@ import { markFreshVerified, armFreshDismiss } from '../fresh-dismiss.js';
 import { scanState, isScanningPid } from '../../state/store.js';
 import { logActivity } from '../../state/activity-log.js';
 import { setHtmlIfChanged } from './dom-helpers.js';
+import { boundedSetAdd, boundedMapSet } from '../../utils/common.js';
+export { boundedSetAdd, boundedMapSet };
 
 // Single-product verify flow. Reads price at click time and re-verifies it
 // after fetch so a stale or swapped card never paints another product's stats.
@@ -33,18 +35,6 @@ export const dealerHydrated = new Set();
 // Auto-Fetch (DEALER_AUTOFETCH): pro pid:Modus und Pageload — bei transienten
 // Fehlern (429/5xx/Timeout) 1× verzögert erneut versuchen, sonst stoppen.
 export const dealerAutoTries = new Map();
-export function boundedSetAdd(set, key, limit = 500) {
-  set.add(key);
-  while (set.size > limit) {
-    set.delete(set.values().next().value);
-  }
-}
-export function boundedMapSet(map, key, val, limit = 500) {
-  map.set(key, val);
-  while (map.size > limit) {
-    map.delete(map.keys().next().value);
-  }
-}
 export function clearDealerMemory() {
   dealerCache.clear();
   dealerHydrated.clear();

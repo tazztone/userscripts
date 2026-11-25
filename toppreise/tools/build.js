@@ -63,6 +63,7 @@ export function buildBundle() {
   const MODULES = [
     'page/selectors.js',
     'page/sanitize.js',
+    'utils/common.js',
     'domain/price.js',
     'domain/deal-score.js',
     'scanner/cache.js',
@@ -83,6 +84,7 @@ export function buildBundle() {
     'ui/popout-dialog.js',
     'ui/sparkline.js',
     'features/discord-recipe.js',
+    'utils/ai-cache.js',
     'features/tavily-search.js',
     'features/openrouter-search.js',
     'features/batch-actions.js',

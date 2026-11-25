@@ -6,11 +6,11 @@ import { horizonText, horizonUiToStored, minPointsFromIndex, clampMinPoints } fr
 import { getCachedPriceStats, fullSeries } from "../scanner/cache.js";
 import { SELECTORS } from "../page/selectors.js";
 import { DAY_MS, PRESET_DATA_S26, PRESET_DATA_R5, PRESET_DATA_SSD990, PRESET_DATA_SYNTHETIC, expandRleSeries, PRESETS, getPreset } from './calc-preset-data.js';
+import { escapeHtml } from '../utils/common.js';
 export { DAY_MS, PRESET_DATA_S26, PRESET_DATA_R5, PRESET_DATA_SSD990, PRESET_DATA_SYNTHETIC, expandRleSeries, PRESETS, getPreset };
 
 
 export const fmtPreviewMedian = v => String(Number(v.toFixed(2)));
-const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 export function previewStats(points, o) {
   const band = o?.band ?? 0.50;
@@ -244,7 +244,7 @@ export function getPageProductOptions(limit = 30) {
     if (!entry || entry.unavailable || !Array.isArray(entry.timeSeries) || !entry.timeSeries.length) continue;
     const title = (extractShareData(card).title || card.querySelector('.title')?.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 40);
     const med = typeof entry.medianPrice === 'number' && entry.medianPrice > 0 ? ` · Ø ${fmtPreviewMedian(entry.medianPrice)}` : '';
-    out.push({ pid, label: esc(`${title || `pid ${pid}`}${med}`), card });
+    out.push({ pid, label: escapeHtml(`${title || `pid ${pid}`}${med}`), card });
   }
   return out;
 }
@@ -264,7 +264,7 @@ export function refreshCalcPreview(opts = {}) {
     const prevVal = sel ? sel.value : activePresetId;
     if (sel) {
       sel.innerHTML = `<optgroup label="Beispiel-Historien">${Object.values(PRESETS).map(p => `<option value="${p.id}">${p.label}</option>`).join('')}</optgroup>`
-        + (cachedPageOpts.length ? `<optgroup label="Geprüfte Produkte auf dieser Seite">${cachedPageOpts.map(o => `<option value="page:${esc(o.pid)}">${o.label}</option>`).join('')}</optgroup>` : '');
+        + (cachedPageOpts.length ? `<optgroup label="Geprüfte Produkte auf dieser Seite">${cachedPageOpts.map(o => `<option value="page:${escapeHtml(o.pid)}">${o.label}</option>`).join('')}</optgroup>` : '');
       const isValidSel = v => !!(PRESETS[v] || (typeof v === 'string' && v.startsWith('page:') && cachedPageOpts.some(o => `page:${o.pid}` === v)));
       if (!isValidSel(activePresetId)) activePresetId = 's26';
       sel.value = isValidSel(prevVal) ? prevVal : activePresetId;
@@ -307,7 +307,7 @@ export function refreshCalcPreview(opts = {}) {
   const st = previewStats(points, { band, hours, enabled, horizonDays, weightRecord, minPoints, cardPrice, now });
   const { visibleDropped } = cropPreviewWindow(st.clean, st.dropped, st.cutoffTs);
   const visibleRaw = (enabled && visibleDropped.length > 0) ? (st.cutoffTs ? points.filter(p => p[0] >= st.cutoffTs) : points) : null;
-  const co = previewCoords(st.clean, { median: st.median, localMedians: st.localMedians, band: enabled ? band : 0, cardPrice, dropped: visibleDropped, recordLow: st.recordLow, raw: visibleRaw, maxPoints: 200 });
+  const co = previewCoords(st.clean, { median: st.median, localMedians: st.localMedians, band: enabled ? band : 0, cardPrice, dropped: visibleDropped, recordLow: st.recordLow, raw: visibleRaw, maxPoints: 400 });
   const f1 = v => v.toFixed(1);
   const mainStroke = st.activeCount < minPoints ? '#94a3b8' : '#3b82f6';
   let s = '';

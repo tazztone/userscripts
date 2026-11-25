@@ -10,6 +10,7 @@ import { countCachedPriceStats } from '../scanner/cache.js';
 import { expandKeywordWithPrice, formatSearchQuery } from '../features/tavily-search.js';
 import { findUnknownSingleSearchTokens } from '../features/batch-actions.js';
 import { collectAiSectionElements, syncAiSectionFromConfig } from './modal-ai-section.js';
+import { escapeHtml } from '../utils/common.js';
 
 // Element-lookup table: one record, shared by sync/bind/actions.
 export function collectModalElements(shadow) {
@@ -129,8 +130,6 @@ function renderLayoutPreview(els) {
 }
 export function scheduleLayoutPreview(els) { clearTimeout(els.layoutTimer); els.layoutTimer = setTimeout(() => renderLayoutPreview(els), 150); }
 
-const escapeHtmlAttr = s => String(s ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-
 export function renderExtraChannelsList(container, extras) {
   if (!container) return;
   container.innerHTML = '';
@@ -140,7 +139,7 @@ export function renderExtraChannelsList(container, extras) {
     card.dataset.channelId = ch.id;
     card.innerHTML = `
       <div class="tp-discord-channel-header">
-        <input type="text" class="tp-field-dark tp-discord-channel-name" value="${escapeHtmlAttr(ch.name || '')}" placeholder="Kanalname (z.B. Gaming)" style="flex:1;">
+        <input type="text" class="tp-field-dark tp-discord-channel-name" value="${escapeHtml(ch.name || '')}" placeholder="Kanalname (z.B. Gaming)" style="flex:1;">
         <button type="button" class="tp-btn tp-btn-danger tp-discord-remove-channel-btn" title="Kanal entfernen">🗑️</button>
       </div>
       <div class="tp-discord-extra-collapsed">

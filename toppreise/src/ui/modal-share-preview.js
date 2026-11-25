@@ -6,13 +6,7 @@
 
 import { ensureSkeleton, uiShadowRoot } from './shell.js';
 import { renderDiscordMarkdownPreview } from '../features/discord-recipe.js';
-
-const escapeHtml = s => String(s ?? '')
-  .replace(/&/g, '&amp;')
-  .replace(/</g, '&lt;')
-  .replace(/>/g, '&gt;')
-  .replace(/"/g, '&quot;')
-  .replace(/'/g, '&#39;');
+import { escapeHtml } from '../utils/common.js';
 
 let activeSharePreviewCancel = null;
 

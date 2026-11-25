@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.570
+// @version      2.18.571
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -4281,6 +4281,33 @@ const SHADOW_MODAL_STYLES = `
       for (const child of Array.from(node.children || [])) stack.push(child);
     }
     return root;
+  }
+
+  // ─── MODULE: src/utils/common.js ────────────────────────────────────────────
+  /**
+   * Shared Pure Helpers
+   * HTML escaping and bounded Map/Set utilities shared across UI and badge modules.
+   */
+
+  const escapeHtml = s => String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+  function boundedSetAdd(set, key, limit = 500) {
+    set.add(key);
+    while (set.size > limit) {
+      set.delete(set.values().next().value);
+    }
+  }
+
+  function boundedMapSet(map, key, val, limit = 500) {
+    map.set(key, val);
+    while (map.size > limit) {
+      map.delete(map.keys().next().value);
+    }
   }
 
   // ─── MODULE: src/domain/price.js ────────────────────────────────────────────
@@ -11118,6 +11145,125 @@ const SHADOW_MODAL_STYLES = `
     };
   }
 
+  // ─── MODULE: src/utils/ai-cache.js ──────────────────────────────────────────
+  /**
+   * Persistent AI Search Cache Factory
+   * Bounded in-memory LRU + TTL localStorage store shared by Tavily & OpenRouter clients.
+   */
+
+
+  function createPersistentAiCache({
+    prefix,
+    ttlMs,
+    maxMem = 200,
+    maxDisk = 100,
+    normalizeEntry = parsed => parsed
+  }) {
+    const memCache = new Map();
+
+    const get = (key) => {
+      if (!key) return null;
+      const now = Date.now();
+      const mem = memCache.get(key);
+      if (mem && (now - mem.timestamp < ttlMs)) {
+        return mem;
+      }
+      if (typeof localStorage !== 'undefined') {
+        try {
+          const raw = localStorage.getItem(prefix + key);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            const entry = parsed && typeof parsed.answer === 'string' ? normalizeEntry(parsed) : null;
+            if (entry && (now - (entry.timestamp || 0) < ttlMs)) {
+              lruSet(memCache, key, entry, maxMem);
+              return entry;
+            }
+            localStorage.removeItem(prefix + key);
+          }
+        } catch { /* ignore storage read error */ }
+      }
+      return null;
+    };
+
+    const prune = (maxEntries = maxDisk, storage = null) => {
+      const store = storage || (typeof localStorage !== 'undefined' ? localStorage : null);
+      if (!store) return 0;
+      let removed = 0;
+      try {
+        const now = Date.now();
+        const valid = [];
+        const keys = [];
+        for (let i = 0; i < store.length; i++) {
+          const k = store.key(i);
+          if (k && k.startsWith(prefix)) keys.push(k);
+        }
+        for (const k of keys) {
+          try {
+            const raw = store.getItem(k);
+            const parsed = raw ? JSON.parse(raw) : null;
+            if (
+              !parsed ||
+              typeof parsed.answer !== 'string' ||
+              !Number.isFinite(parsed.timestamp) ||
+              (now - parsed.timestamp >= ttlMs)
+            ) {
+              store.removeItem(k);
+              removed++;
+            } else {
+              valid.push({ key: k, timestamp: parsed.timestamp });
+            }
+          } catch {
+            store.removeItem(k);
+            removed++;
+          }
+        }
+        if (Number.isFinite(maxEntries) && maxEntries >= 0 && valid.length > maxEntries) {
+          valid.sort((a, b) => a.timestamp - b.timestamp);
+          const excess = valid.length - maxEntries;
+          for (let i = 0; i < excess; i++) {
+            store.removeItem(valid[i].key);
+            removed++;
+          }
+        }
+      } catch { /* ignore storage access error */ }
+      return removed;
+    };
+
+    const set = (key, entry, storage = null) => {
+      if (!key || !entry || typeof entry.answer !== 'string') return;
+      lruSet(memCache, key, entry, maxMem);
+      const store = storage || (typeof localStorage !== 'undefined' ? localStorage : null);
+      if (store) {
+        const payload = JSON.stringify(entry);
+        try {
+          store.setItem(prefix + key, payload);
+          prune(maxDisk, store);
+        } catch {
+          prune(50, store);
+          try {
+            store.setItem(prefix + key, payload);
+          } catch { /* ignore storage full or quota errors */ }
+        }
+      }
+    };
+
+    const clear = () => {
+      memCache.clear();
+      if (typeof localStorage !== 'undefined') {
+        try {
+          const keys = [];
+          for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k && k.startsWith(prefix)) keys.push(k);
+          }
+          for (const k of keys) localStorage.removeItem(k);
+        } catch { /* ignore storage access error */ }
+      }
+    };
+
+    return { memCache, get, set, prune, clear };
+  }
+
   // ─── MODULE: src/features/tavily-search.js ──────────────────────────────────
   /**
    * Tavily AI Search Client & Persistent Cache
@@ -11132,7 +11278,11 @@ const SHADOW_MODAL_STYLES = `
   const TAVILY_CACHE_KEY_PREFIX = 'tp_suite_v2_tavily_';
   const TAVILY_CACHE_TTL_MS = 48 * 60 * 60 * 1000; // 48h
 
-  const memCache = new Map();
+  const tavilyCache = createPersistentAiCache({
+    prefix: TAVILY_CACHE_KEY_PREFIX,
+    ttlMs: TAVILY_CACHE_TTL_MS,
+    normalizeEntry: p => ({ answer: p.answer, timestamp: p.timestamp })
+  });
   const inFlight = new Map();
 
   function normalizeTavilyQuery(query) {
@@ -11144,125 +11294,21 @@ const SHADOW_MODAL_STYLES = `
   }
 
   function getCachedTavily(query) {
-    const key = tavilyCacheKey(query);
-    if (!key) return null;
-
-    const now = Date.now();
-    const mem = memCache.get(key);
-    if (mem && (now - mem.timestamp < TAVILY_CACHE_TTL_MS)) {
-      return mem;
-    }
-
-    if (typeof localStorage !== 'undefined') {
-      try {
-        const raw = localStorage.getItem(TAVILY_CACHE_KEY_PREFIX + key);
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (parsed && typeof parsed.answer === 'string' && (now - (parsed.timestamp || 0) < TAVILY_CACHE_TTL_MS)) {
-            lruSet(memCache, key, parsed, 200);
-            return parsed;
-          }
-          localStorage.removeItem(TAVILY_CACHE_KEY_PREFIX + key);
-        }
-      } catch {
-        /* ignore storage read error */
-      }
-    }
-
-    return null;
+    return tavilyCache.get(tavilyCacheKey(query));
   }
 
   function pruneTavilyCache(maxEntries = 100, storage = null) {
-    const store = storage || (typeof localStorage !== 'undefined' ? localStorage : null);
-    if (!store) return 0;
-
-    let removed = 0;
-    try {
-      const now = Date.now();
-      const valid = [];
-      const keys = [];
-      for (let i = 0; i < store.length; i++) {
-        const k = store.key(i);
-        if (k && k.startsWith(TAVILY_CACHE_KEY_PREFIX)) {
-          keys.push(k);
-        }
-      }
-      for (const k of keys) {
-        try {
-          const raw = store.getItem(k);
-          const parsed = raw ? JSON.parse(raw) : null;
-          if (
-            !parsed ||
-            typeof parsed.answer !== 'string' ||
-            !Number.isFinite(parsed.timestamp) ||
-            (now - parsed.timestamp >= TAVILY_CACHE_TTL_MS)
-          ) {
-            store.removeItem(k);
-            removed++;
-          } else {
-            valid.push({ key: k, timestamp: parsed.timestamp });
-          }
-        } catch {
-          store.removeItem(k);
-          removed++;
-        }
-      }
-      if (Number.isFinite(maxEntries) && maxEntries >= 0 && valid.length > maxEntries) {
-        valid.sort((a, b) => a.timestamp - b.timestamp);
-        const excess = valid.length - maxEntries;
-        for (let i = 0; i < excess; i++) {
-          store.removeItem(valid[i].key);
-          removed++;
-        }
-      }
-    } catch {
-      /* ignore storage access error */
-    }
-    return removed;
+    return tavilyCache.prune(maxEntries, storage);
   }
 
   function setCachedTavily(query, answer, storage = null) {
     const key = tavilyCacheKey(query);
     if (!key || typeof answer !== 'string') return;
-
-    const entry = { answer: answer.trim(), timestamp: Date.now() };
-    lruSet(memCache, key, entry, 200);
-
-    const store = storage || (typeof localStorage !== 'undefined' ? localStorage : null);
-    if (store) {
-      const payload = JSON.stringify(entry);
-      try {
-        store.setItem(TAVILY_CACHE_KEY_PREFIX + key, payload);
-        pruneTavilyCache(100, store);
-      } catch {
-        pruneTavilyCache(50, store);
-        try {
-          store.setItem(TAVILY_CACHE_KEY_PREFIX + key, payload);
-        } catch {
-          /* ignore storage full or quota errors */
-        }
-      }
-    }
+    tavilyCache.set(key, { answer: answer.trim(), timestamp: Date.now() }, storage);
   }
 
   function clearTavilyCache() {
-    memCache.clear();
-    if (typeof localStorage !== 'undefined') {
-      try {
-        const keysToRemove = [];
-        for (let i = 0; i < localStorage.length; i++) {
-          const k = localStorage.key(i);
-          if (k && k.startsWith(TAVILY_CACHE_KEY_PREFIX)) {
-            keysToRemove.push(k);
-          }
-        }
-        for (const k of keysToRemove) {
-          localStorage.removeItem(k);
-        }
-      } catch {
-        /* ignore storage access error */
-      }
-    }
+    tavilyCache.clear();
   }
 
   function expandKeywordWithPrice(keyword, priceText = '') {
@@ -11451,7 +11497,15 @@ const SHADOW_MODAL_STYLES = `
   const OPENROUTER_CACHE_KEY_PREFIX = 'tp_suite_v2_or_';
   const OPENROUTER_CACHE_TTL_MS = 48 * 60 * 60 * 1000; // 48h
 
-  const orMemCache = new Map();
+  const orCache = createPersistentAiCache({
+    prefix: OPENROUTER_CACHE_KEY_PREFIX,
+    ttlMs: OPENROUTER_CACHE_TTL_MS,
+    normalizeEntry: p => ({
+      answer: p.answer,
+      citations: Array.isArray(p.citations) ? p.citations : [],
+      timestamp: p.timestamp
+    })
+  });
   const orInFlight = new Map();
 
   function hashCacheStr(str) {
@@ -11492,107 +11546,24 @@ const SHADOW_MODAL_STYLES = `
   }
 
   function getCachedOpenRouter(cacheKey) {
-    if (!cacheKey) return null;
-    const now = Date.now();
-    const mem = orMemCache.get(cacheKey);
-    if (mem && (now - mem.timestamp < OPENROUTER_CACHE_TTL_MS)) {
-      return mem;
-    }
-    if (typeof localStorage !== 'undefined') {
-      try {
-        const raw = localStorage.getItem(OPENROUTER_CACHE_KEY_PREFIX + cacheKey);
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (parsed && typeof parsed.answer === 'string' && (now - (parsed.timestamp || 0) < OPENROUTER_CACHE_TTL_MS)) {
-            const entry = {
-              answer: parsed.answer,
-              citations: Array.isArray(parsed.citations) ? parsed.citations : [],
-              timestamp: parsed.timestamp
-            };
-            lruSet(orMemCache, cacheKey, entry, 200);
-            return entry;
-          }
-          localStorage.removeItem(OPENROUTER_CACHE_KEY_PREFIX + cacheKey);
-        }
-      } catch { /* ignore storage read error */ }
-    }
-    return null;
+    return orCache.get(cacheKey);
   }
 
   function pruneOpenRouterCache(maxEntries = 100, storage = null) {
-    const store = storage || (typeof localStorage !== 'undefined' ? localStorage : null);
-    if (!store) return 0;
-    let removed = 0;
-    try {
-      const now = Date.now();
-      const valid = [];
-      const keys = [];
-      for (let i = 0; i < store.length; i++) {
-        const k = store.key(i);
-        if (k && k.startsWith(OPENROUTER_CACHE_KEY_PREFIX)) keys.push(k);
-      }
-      for (const k of keys) {
-        try {
-          const raw = store.getItem(k);
-          const parsed = raw ? JSON.parse(raw) : null;
-          if (!parsed || typeof parsed.answer !== 'string' || !Number.isFinite(parsed.timestamp) || (now - parsed.timestamp >= OPENROUTER_CACHE_TTL_MS)) {
-            store.removeItem(k);
-            removed++;
-          } else {
-            valid.push({ key: k, timestamp: parsed.timestamp });
-          }
-        } catch {
-          store.removeItem(k);
-          removed++;
-        }
-      }
-      if (Number.isFinite(maxEntries) && maxEntries >= 0 && valid.length > maxEntries) {
-        valid.sort((a, b) => a.timestamp - b.timestamp);
-        const excess = valid.length - maxEntries;
-        for (let i = 0; i < excess; i++) {
-          store.removeItem(valid[i].key);
-          removed++;
-        }
-      }
-    } catch { /* ignore */ }
-    return removed;
+    return orCache.prune(maxEntries, storage);
   }
 
   function setCachedOpenRouter(cacheKey, result, storage = null) {
     if (!cacheKey || !result || typeof result.answer !== 'string') return;
-    const entry = {
+    orCache.set(cacheKey, {
       answer: result.answer.trim(),
       citations: Array.isArray(result.citations) ? result.citations : [],
       timestamp: Date.now()
-    };
-    lruSet(orMemCache, cacheKey, entry, 200);
-    const store = storage || (typeof localStorage !== 'undefined' ? localStorage : null);
-    if (store) {
-      const payload = JSON.stringify(entry);
-      try {
-        store.setItem(OPENROUTER_CACHE_KEY_PREFIX + cacheKey, payload);
-        pruneOpenRouterCache(100, store);
-      } catch {
-        pruneOpenRouterCache(50, store);
-        try {
-          store.setItem(OPENROUTER_CACHE_KEY_PREFIX + cacheKey, payload);
-        } catch { /* ignore */ }
-      }
-    }
+    }, storage);
   }
 
   function clearOpenRouterCache() {
-    orMemCache.clear();
-    if (typeof localStorage !== 'undefined') {
-      try {
-        const keys = [];
-        for (let i = 0; i < localStorage.length; i++) {
-          const k = localStorage.key(i);
-          if (k && k.startsWith(OPENROUTER_CACHE_KEY_PREFIX)) keys.push(k);
-        }
-        for (const k of keys) localStorage.removeItem(k);
-      } catch { /* ignore */ }
-    }
+    orCache.clear();
   }
 
   function mapOpenRouterHttpError(status) {
@@ -14039,6 +14010,8 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
+
   // Single-product verify flow. Reads price at click time and re-verifies it
   // after fetch so a stale or swapped card never paints another product's stats.
   // Händlername (§8 in renderCardEffects): Memory-Map pid:Modus -> Name.
@@ -14054,18 +14027,6 @@ const SHADOW_MODAL_STYLES = `
   // Auto-Fetch (DEALER_AUTOFETCH): pro pid:Modus und Pageload — bei transienten
   // Fehlern (429/5xx/Timeout) 1× verzögert erneut versuchen, sonst stoppen.
   const dealerAutoTries = new Map();
-  function boundedSetAdd(set, key, limit = 500) {
-    set.add(key);
-    while (set.size > limit) {
-      set.delete(set.values().next().value);
-    }
-  }
-  function boundedMapSet(map, key, val, limit = 500) {
-    map.set(key, val);
-    while (map.size > limit) {
-      map.delete(map.keys().next().value);
-    }
-  }
   function clearDealerMemory() {
     dealerCache.clear();
     dealerHydrated.clear();
@@ -14529,11 +14490,6 @@ const SHADOW_MODAL_STYLES = `
   // Tiefstpreis-mode verdict wrapper
   function renderModeVerdict(ctx, filters, badgeDifEl, isListView, sitePctText, rawDiscount) {
     renderDealVerdict(ctx, filters, false, badgeDifEl, isListView, sitePctText, rawDiscount, true);
-  }
-
-  // Browse verdict wrapper
-  function renderBrowseVerdict(ctx, filters, isNeueFeed, badgeDifEl, isListView, sitePctText, rawDiscount) {
-    renderDealVerdict(ctx, filters, isNeueFeed, badgeDifEl, isListView, sitePctText, rawDiscount, false);
   }
 
   // Step-4 orchestrator: setup first, then unified deal verdict
@@ -17724,6 +17680,7 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   // Element-lookup table: one record, shared by sync/bind/actions.
   function collectModalElements(shadow) {
     const dialog = shadow.getElementById('tp-settings-dialog');
@@ -17842,8 +17799,6 @@ const SHADOW_MODAL_STYLES = `
   }
   function scheduleLayoutPreview(els) { clearTimeout(els.layoutTimer); els.layoutTimer = setTimeout(() => renderLayoutPreview(els), 150); }
 
-  const escapeHtmlAttr = s => String(s ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-
   function renderExtraChannelsList(container, extras) {
     if (!container) return;
     container.innerHTML = '';
@@ -17853,7 +17808,7 @@ const SHADOW_MODAL_STYLES = `
       card.dataset.channelId = ch.id;
       card.innerHTML = `
         <div class="tp-discord-channel-header">
-          <input type="text" class="tp-field-dark tp-discord-channel-name" value="${escapeHtmlAttr(ch.name || '')}" placeholder="Kanalname (z.B. Gaming)" style="flex:1;">
+          <input type="text" class="tp-field-dark tp-discord-channel-name" value="${escapeHtml(ch.name || '')}" placeholder="Kanalname (z.B. Gaming)" style="flex:1;">
           <button type="button" class="tp-btn tp-btn-danger tp-discord-remove-channel-btn" title="Kanal entfernen">🗑️</button>
         </div>
         <div class="tp-discord-extra-collapsed">
@@ -18523,12 +18478,6 @@ const SHADOW_MODAL_STYLES = `
 
 
 
-  const escapeHtml = s => String(s ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
 
   let activeSharePreviewCancel = null;
 
@@ -18879,7 +18828,6 @@ const SHADOW_MODAL_STYLES = `
 
   // ─── MODULE: src/ui/calc-preview.js ─────────────────────────────────────────
   const fmtPreviewMedian = v => String(Number(v.toFixed(2)));
-  const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
   function previewStats(points, o) {
     const band = o?.band ?? 0.50;
@@ -19113,7 +19061,7 @@ const SHADOW_MODAL_STYLES = `
       if (!entry || entry.unavailable || !Array.isArray(entry.timeSeries) || !entry.timeSeries.length) continue;
       const title = (extractShareData(card).title || card.querySelector('.title')?.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 40);
       const med = typeof entry.medianPrice === 'number' && entry.medianPrice > 0 ? ` · Ø ${fmtPreviewMedian(entry.medianPrice)}` : '';
-      out.push({ pid, label: esc(`${title || `pid ${pid}`}${med}`), card });
+      out.push({ pid, label: escapeHtml(`${title || `pid ${pid}`}${med}`), card });
     }
     return out;
   }
@@ -19133,7 +19081,7 @@ const SHADOW_MODAL_STYLES = `
       const prevVal = sel ? sel.value : activePresetId;
       if (sel) {
         sel.innerHTML = `<optgroup label="Beispiel-Historien">${Object.values(PRESETS).map(p => `<option value="${p.id}">${p.label}</option>`).join('')}</optgroup>`
-          + (cachedPageOpts.length ? `<optgroup label="Geprüfte Produkte auf dieser Seite">${cachedPageOpts.map(o => `<option value="page:${esc(o.pid)}">${o.label}</option>`).join('')}</optgroup>` : '');
+          + (cachedPageOpts.length ? `<optgroup label="Geprüfte Produkte auf dieser Seite">${cachedPageOpts.map(o => `<option value="page:${escapeHtml(o.pid)}">${o.label}</option>`).join('')}</optgroup>` : '');
         const isValidSel = v => !!(PRESETS[v] || (typeof v === 'string' && v.startsWith('page:') && cachedPageOpts.some(o => `page:${o.pid}` === v)));
         if (!isValidSel(activePresetId)) activePresetId = 's26';
         sel.value = isValidSel(prevVal) ? prevVal : activePresetId;
@@ -19176,7 +19124,7 @@ const SHADOW_MODAL_STYLES = `
     const st = previewStats(points, { band, hours, enabled, horizonDays, weightRecord, minPoints, cardPrice, now });
     const { visibleDropped } = cropPreviewWindow(st.clean, st.dropped, st.cutoffTs);
     const visibleRaw = (enabled && visibleDropped.length > 0) ? (st.cutoffTs ? points.filter(p => p[0] >= st.cutoffTs) : points) : null;
-    const co = previewCoords(st.clean, { median: st.median, localMedians: st.localMedians, band: enabled ? band : 0, cardPrice, dropped: visibleDropped, recordLow: st.recordLow, raw: visibleRaw, maxPoints: 200 });
+    const co = previewCoords(st.clean, { median: st.median, localMedians: st.localMedians, band: enabled ? band : 0, cardPrice, dropped: visibleDropped, recordLow: st.recordLow, raw: visibleRaw, maxPoints: 400 });
     const f1 = v => v.toFixed(1);
     const mainStroke = st.activeCount < minPoints ? '#94a3b8' : '#3b82f6';
     let s = '';
@@ -19363,7 +19311,7 @@ const SHADOW_MODAL_STYLES = `
         },
         focus: 'window',
         onCommit: (v, isChange) => {
-          recomputeCachedMedians(v, undefined, { horizonOnly: true, debounceMs: 300 });
+          recomputeCachedMedians(v, undefined, { horizonOnly: true });
           updateConfig('BESTPREISE_MEDIAN_HORIZON_DAYS', v);
           if (isChange) showToast(`Ø-Vergleichszeitraum: ${horizonText(v)} — live aktualisiert`);
         }
@@ -23173,7 +23121,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   let debounceTimer = null;
   let lastKnownHref = typeof location !== 'undefined' ? location.href : '';
   const OBSERVE_OPTS = { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'href', 'data-entity-id', 'data-tp-product-id', 'data-current_url', 'data-current-url'] };
-  const TP_OWNED_SEL = '#tp-root,#tp-suite-filter-bar,#tp-floating-check-cta,#tp-batch-popover,#tp-batch-confirm-popout,#tp-batch-ai-popout,#tp-sparkline-popout,#tp-empty-state-notice,.tp-injected-badge,.tp-card-subline-row,.tp-card-dealer-row,.tp-sparkline-container,.tp-card-historical-price,.tp-share-btn,.tp-dealer-name,.tp-review-search-btn,#tp-detail-subline,.tp-detail-subline,#tp-detail-share-btn,#tp-detail-sparkline,.tp-detail-share-btn,.tp-detail-review-btn,.tp-alarm-cog,.tp-card-alarm-group,.tp-card-alarm-btn,.tp-alarm-status,[data-tp-alarm-state]';
+  const TP_OWNED_SEL = '#tp-root,#tp-suite-filter-bar,#tp-floating-check-cta,#tp-batch-popover,#tp-batch-confirm-popout,#tp-batch-ai-popout,#tp-sparkline-popout,#tp-empty-state-notice,.tp-injected-badge,.tp-card-subline-row,.tp-card-dealer-row,.tp-sparkline-container,.tp-card-historical-price,.tp-share-btn,.tp-dealer-name,.tp-review-search-btn,#tp-detail-subline,.tp-detail-subline,#tp-detail-share-btn,#tp-detail-sparkline,.tp-detail-review-btn,.tp-alarm-cog,.tp-card-alarm-group,.tp-card-alarm-btn,.tp-alarm-status,[data-tp-alarm-state]';
   const TP_CARD_SEL = '.Plugin_Product,.mixedBrowsingListProduct';
   const isOwnedNode = n => n?.nodeType === 1 && !!n.closest?.(TP_OWNED_SEL);
   const cardOf = n => {
@@ -23357,7 +23305,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.570';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.571';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     const isFileFixture = typeof location !== 'undefined' && location.protocol === 'file:';
     if (isDebugHost) {

@@ -4,9 +4,9 @@
  * and dispatches between OpenRouter and legacy Tavily for card/Discord/batch AI.
  */
 
-import { lruSet } from '../scanner/cache.js';
 import { CONFIG, DEFAULT_OPENROUTER_MODEL, effectiveAiProvider } from '../state/config.js';
 import { fetchWithTimeout, gmRequestWithTimeout } from '../state/net.js';
+import { createPersistentAiCache } from '../utils/ai-cache.js';
 import {
   buildTavilyQuery,
   fetchTavilySummary,
@@ -17,7 +17,15 @@ export const OPENROUTER_API_ENDPOINT = 'https://openrouter.ai/api/v1/chat/comple
 export const OPENROUTER_CACHE_KEY_PREFIX = 'tp_suite_v2_or_';
 export const OPENROUTER_CACHE_TTL_MS = 48 * 60 * 60 * 1000; // 48h
 
-const orMemCache = new Map();
+const orCache = createPersistentAiCache({
+  prefix: OPENROUTER_CACHE_KEY_PREFIX,
+  ttlMs: OPENROUTER_CACHE_TTL_MS,
+  normalizeEntry: p => ({
+    answer: p.answer,
+    citations: Array.isArray(p.citations) ? p.citations : [],
+    timestamp: p.timestamp
+  })
+});
 const orInFlight = new Map();
 
 function hashCacheStr(str) {
@@ -58,107 +66,24 @@ export function extractOpenRouterCitations(annotations) {
 }
 
 export function getCachedOpenRouter(cacheKey) {
-  if (!cacheKey) return null;
-  const now = Date.now();
-  const mem = orMemCache.get(cacheKey);
-  if (mem && (now - mem.timestamp < OPENROUTER_CACHE_TTL_MS)) {
-    return mem;
-  }
-  if (typeof localStorage !== 'undefined') {
-    try {
-      const raw = localStorage.getItem(OPENROUTER_CACHE_KEY_PREFIX + cacheKey);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed && typeof parsed.answer === 'string' && (now - (parsed.timestamp || 0) < OPENROUTER_CACHE_TTL_MS)) {
-          const entry = {
-            answer: parsed.answer,
-            citations: Array.isArray(parsed.citations) ? parsed.citations : [],
-            timestamp: parsed.timestamp
-          };
-          lruSet(orMemCache, cacheKey, entry, 200);
-          return entry;
-        }
-        localStorage.removeItem(OPENROUTER_CACHE_KEY_PREFIX + cacheKey);
-      }
-    } catch { /* ignore storage read error */ }
-  }
-  return null;
+  return orCache.get(cacheKey);
 }
 
 export function pruneOpenRouterCache(maxEntries = 100, storage = null) {
-  const store = storage || (typeof localStorage !== 'undefined' ? localStorage : null);
-  if (!store) return 0;
-  let removed = 0;
-  try {
-    const now = Date.now();
-    const valid = [];
-    const keys = [];
-    for (let i = 0; i < store.length; i++) {
-      const k = store.key(i);
-      if (k && k.startsWith(OPENROUTER_CACHE_KEY_PREFIX)) keys.push(k);
-    }
-    for (const k of keys) {
-      try {
-        const raw = store.getItem(k);
-        const parsed = raw ? JSON.parse(raw) : null;
-        if (!parsed || typeof parsed.answer !== 'string' || !Number.isFinite(parsed.timestamp) || (now - parsed.timestamp >= OPENROUTER_CACHE_TTL_MS)) {
-          store.removeItem(k);
-          removed++;
-        } else {
-          valid.push({ key: k, timestamp: parsed.timestamp });
-        }
-      } catch {
-        store.removeItem(k);
-        removed++;
-      }
-    }
-    if (Number.isFinite(maxEntries) && maxEntries >= 0 && valid.length > maxEntries) {
-      valid.sort((a, b) => a.timestamp - b.timestamp);
-      const excess = valid.length - maxEntries;
-      for (let i = 0; i < excess; i++) {
-        store.removeItem(valid[i].key);
-        removed++;
-      }
-    }
-  } catch { /* ignore */ }
-  return removed;
+  return orCache.prune(maxEntries, storage);
 }
 
 export function setCachedOpenRouter(cacheKey, result, storage = null) {
   if (!cacheKey || !result || typeof result.answer !== 'string') return;
-  const entry = {
+  orCache.set(cacheKey, {
     answer: result.answer.trim(),
     citations: Array.isArray(result.citations) ? result.citations : [],
     timestamp: Date.now()
-  };
-  lruSet(orMemCache, cacheKey, entry, 200);
-  const store = storage || (typeof localStorage !== 'undefined' ? localStorage : null);
-  if (store) {
-    const payload = JSON.stringify(entry);
-    try {
-      store.setItem(OPENROUTER_CACHE_KEY_PREFIX + cacheKey, payload);
-      pruneOpenRouterCache(100, store);
-    } catch {
-      pruneOpenRouterCache(50, store);
-      try {
-        store.setItem(OPENROUTER_CACHE_KEY_PREFIX + cacheKey, payload);
-      } catch { /* ignore */ }
-    }
-  }
+  }, storage);
 }
 
 export function clearOpenRouterCache() {
-  orMemCache.clear();
-  if (typeof localStorage !== 'undefined') {
-    try {
-      const keys = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        if (k && k.startsWith(OPENROUTER_CACHE_KEY_PREFIX)) keys.push(k);
-      }
-      for (const k of keys) localStorage.removeItem(k);
-    } catch { /* ignore */ }
-  }
+  orCache.clear();
 }
 
 function mapOpenRouterHttpError(status) {

@@ -177,11 +177,6 @@ export function renderModeVerdict(ctx, filters, badgeDifEl, isListView, sitePctT
   renderDealVerdict(ctx, filters, false, badgeDifEl, isListView, sitePctText, rawDiscount, true);
 }
 
-// Browse verdict wrapper
-export function renderBrowseVerdict(ctx, filters, isNeueFeed, badgeDifEl, isListView, sitePctText, rawDiscount) {
-  renderDealVerdict(ctx, filters, isNeueFeed, badgeDifEl, isListView, sitePctText, rawDiscount, false);
-}
-
 // Step-4 orchestrator: setup first, then unified deal verdict
 export function renderBadgeVerdict(ctx, filters, isNeueFeed) {
   const { card, pid } = ctx;
