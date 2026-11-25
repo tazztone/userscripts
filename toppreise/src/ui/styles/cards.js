@@ -79,7 +79,7 @@ export const STYLES_CARDS = `
     filter: grayscale(40%) !important;
   }
   .tp-highlighted {
-    outline: 2px dotted var(--tp-acc, #10b981) !important;
+    outline: 2px dotted var(--tp-warn, #f59e0b) !important;
     outline-offset: -4px !important;
   }
   /* Harmonize product card column contents on feed pages without distorting category browsing or subcards */

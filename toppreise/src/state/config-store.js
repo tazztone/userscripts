@@ -323,7 +323,7 @@ export const sanitizeChannels = raw => {
     .filter(Boolean);
 };
 export function sanitizeConfigValue(key, raw) {
-  const rule = SETTING_SCHEMA[key];
+  const rule = Object.hasOwn(SETTING_SCHEMA, key) ? SETTING_SCHEMA[key] : null;
   if (!rule) {
     try { if (_getValue('DEBUG', false) === true) console.warn('[Toppreise-Suite] unknown config key ignored', key); } catch {}
     return undefined;

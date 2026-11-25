@@ -147,8 +147,9 @@ export function renderHeat(ctx) {
     }
   } else if (card.dataset.tpAppliedHeat || card.classList.contains('tp-heat-blend') || card.querySelector('.badge-dif, [class*="badge-dif"]')?.style.background) {
     // Tripwire: heat stripped while the badge still claims a verified % means
-    // a stats regression slipped through — enable DEBUG to catch it live.
-    if (CONFIG.HEATMAP_ENABLED === true && card.querySelector('.tp-deal-alltime-low, .tp-deal-new-record')) {
+    // a stats regression slipped through — ignore expected 0%/deadband verified deals.
+    const heatExpectedEmpty = heatInfo?.kind === 'blend' || heatInfo?.kind === 'none' || ctx.dealData?.isZeroMargin;
+    if ((CONFIG.HEATMAP_ENABLED === true || CONFIG.HEATMAP_ENABLED === 'all') && !heatExpectedEmpty && card.querySelector('.tp-deal-alltime-low, .tp-deal-new-record')) {
       logActivity('warn', 'deal-badge', 'heat removed with verified badge present',
         { pid, median: stats?.medianPrice ?? null, tiefstpreis: stats?.tiefstpreis ?? null });
     }

@@ -199,7 +199,7 @@ export function wireModalActions(els) {
         const prev = captureResetSnapshot();
         let count = 0;
         for (const [key, val] of Object.entries(importConfig)) {
-          if (!(key in DEFAULTS) || key === 'DEBUG' || SECRET_KEYS.has(key)) continue;
+          if (!Object.hasOwn(DEFAULTS, key) || key === 'DEBUG' || SECRET_KEYS.has(key)) continue;
           // Single schema: sanitize each imported key, drop unknowns/invalid.
           if (key === 'DISCORD_LAYOUT' && validateLayoutRecipe(String(val))) continue;
           const clean = sanitizeConfigValue(key, val);

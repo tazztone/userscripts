@@ -3,7 +3,7 @@
  * Split from ui/badges/card-chrome.js to satisfy module size budget.
  */
 
-import { openPriceAlarmForProduct, refreshAlarmBellDecor } from '../../features/price-alarm.js';
+import { openPriceAlarmForProduct } from '../../features/price-alarm.js';
 
 export function renderAlarmBell(ctx) {
   const { card, pid, cardPriceEl } = ctx;
@@ -51,5 +51,4 @@ export function renderAlarmBell(ctx) {
       card.appendChild(group);
     }
   }
-  refreshAlarmBellDecor();
 }

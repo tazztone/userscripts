@@ -87,6 +87,14 @@ describe('Page & Card Layer - Container Defense & Heatmap', () => {
       const card = { dataset: { entityId: 'p1' }, querySelector: () => badge, textContent: '' };
       assert.strictEqual(extractCardDiff(card), -50);
     });
+
+    it('returns null when no native badge element exists even if title/specs contain percentages', () => {
+      for (const text of ['Single Malt Whisky 40% Vol. 70cl', 'Monitor 27" 99% sRGB IPS', '100% Baumwolle -20% kompakter']) {
+        const card = { dataset: {}, querySelector: () => null, textContent: text };
+        assert.strictEqual(extractCardDiff(card), null);
+        assert.strictEqual(extractCardDiscount(card), null);
+      }
+    });
   });
 
   describe('scanEligibility', () => {

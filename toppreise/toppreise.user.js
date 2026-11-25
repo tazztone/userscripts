@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.567
+// @version      2.18.568
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -156,7 +156,7 @@ const STYLES_CARDS = `
     filter: grayscale(40%) !important;
   }
   .tp-highlighted {
-    outline: 2px dotted var(--tp-acc, #10b981) !important;
+    outline: 2px dotted var(--tp-warn, #f59e0b) !important;
     outline-offset: -4px !important;
   }
   /* Harmonize product card column contents on feed pages without distorting category browsing or subcards */
@@ -1059,6 +1059,12 @@ const STYLES_BADGES = `
       display: none !important;
     }
   }
+  .tp-alarm-off { opacity: .45 !important; }
+  .tp-alarm-fill, .tp-alarm-auto { position: relative !important; outline: 2px solid #3b82f6 !important; outline-offset: 2px; border-radius: 4px; }
+  .tp-alarm-auto::after { content: "\\26A1"; position: absolute; top: -10px; right: -10px; font-size: 12px; line-height: 1; }
+  .tp-alarm-cog { position: relative; display: inline-flex; align-items: center; justify-content: center; min-width: 24px; min-height: 24px; margin-left: 6px; padding: 2px 4px; border: none; border-radius: 4px; background: transparent; color: inherit; font-size: 14px; line-height: 1; cursor: pointer; opacity: .75; }
+  .tp-alarm-cog:hover, .tp-alarm-cog:focus-visible { opacity: 1; }
+  .tp-alarm-cog:focus-visible { outline: 2px solid var(--tp-focus, #3b82f6); outline-offset: 2px; }
 `;
 
 /** Chrome part (split from ui/styles.js): bestpreise controls, empty state, detail badge, filter bar. */
@@ -2561,13 +2567,11 @@ const STYLES_FLOATING_CTA = `
     box-shadow: 0 4px 16px rgba(0,0,0,0.15) !important;
     padding: 2px 4px !important;
     font-family: var(--tp-font) !important;
-    animation: tp-floating-pulse 2.4s ease-in-out infinite !important;
     transition: left 0.2s ease, bottom 0.2s ease, opacity 0.2s ease, transform 0.2s ease !important;
     box-sizing: border-box !important;
   }
-  #tp-floating-check-cta.tp-scanning { animation: none !important; border-color: rgba(245,158,11,0.6) !important; }
+  #tp-floating-check-cta.tp-scanning { border-color: rgba(245,158,11,0.6) !important; }
   #tp-floating-check-cta.tp-empty {
-    animation: none !important;
     border-color: rgba(148,163,184,0.2) !important;
     box-shadow: 0 2px 10px rgba(0,0,0,0.2) !important;
     opacity: 0.65 !important;
@@ -2585,10 +2589,6 @@ const STYLES_FLOATING_CTA = `
     color: var(--tp-txt) !important;
   }
   #tp-floating-check-cta.tp-hidden { display: none !important; }
-  @keyframes tp-floating-pulse {
-    0%, 100% { box-shadow: 0 4px 16px rgba(0,0,0,0.15); }
-    50% { box-shadow: 0 4px 22px rgba(16, 185, 129, 0.35); }
-  }
   #tp-floating-check-col {
     display: inline-flex !important;
     align-items: center !important;
@@ -2759,6 +2759,11 @@ const STYLES_FLOATING_CTA = `
       height: 30px !important;
       min-width: 30px !important;
       min-height: 30px !important;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #tp-floating-refresh-btn.tp-spinning {
+      animation: none !important;
     }
   }
   @media (max-width: 768px) {
@@ -3935,7 +3940,7 @@ const SHADOW_MODAL_STYLES = `
     gap: 4px;
     font-size: 11px;
     font-weight: 600;
-    color: var(--tp-accent, #6366f1);
+    color: var(--tp-acc2, #7c3aed);
     background: rgba(99, 102, 241, 0.1);
     border: 1px solid rgba(99, 102, 241, 0.25);
     border-radius: 9999px;
@@ -4076,7 +4081,7 @@ const SHADOW_MODAL_STYLES = `
   #tp-diag-dialog::backdrop { background: rgba(15, 23, 42, 0.55); }
   .tp-diag-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 10px; flex-shrink: 0; }
   .tp-diag-tabs { display: flex; gap: 6px; margin-top: 10px; flex-shrink: 0; }
-  .tp-diag-tab.tp-diag-tab-active { background: var(--tp-accent); color: #fff; border-color: var(--tp-accent); }
+  .tp-diag-tab.tp-diag-tab-active { background: var(--tp-acc-deep, #047857); color: #fff; border-color: var(--tp-acc-deep, #047857); }
   .tp-diag-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 10px 0; font-size: 12px; flex-shrink: 0; }
   #tp-diag-snapshot { flex-shrink: 0; }
   #tp-diag-snapshot, #tp-diag-log-pre {
@@ -4229,7 +4234,11 @@ const SHADOW_MODAL_STYLES = `
    * Strips unsafe tags (including <style>), inline event handlers, and dangerous URL schemes.
    */
 
-  const UNSAFE_IMPORT_TAGS = new Set(['script', 'iframe', 'object', 'embed', 'base', 'meta', 'link', 'style']);
+  const UNSAFE_IMPORT_TAGS = new Set([
+    'script', 'iframe', 'object', 'embed', 'base', 'meta', 'link', 'style',
+    'foreignobject', 'animate', 'animatemotion', 'animatetransform', 'set',
+    'noscript', 'math', 'maction', 'handler'
+  ]);
   const URL_ATTRIBUTES = new Set([
     'href', 'src', 'srcset', 'action', 'formaction', 'poster',
     'xlink:href', 'data-ajax-url', 'data-ajax-form-url'
@@ -5751,7 +5760,7 @@ const SHADOW_MODAL_STYLES = `
       .filter(Boolean);
   };
   function sanitizeConfigValue(key, raw) {
-    const rule = SETTING_SCHEMA[key];
+    const rule = Object.hasOwn(SETTING_SCHEMA, key) ? SETTING_SCHEMA[key] : null;
     if (!rule) {
       try { if (_getValue('DEBUG', false) === true) console.warn('[Toppreise-Suite] unknown config key ignored', key); } catch {}
       return undefined;
@@ -6085,14 +6094,14 @@ const SHADOW_MODAL_STYLES = `
     }
   }
 
-  const saveConfigKey = (key, val) => {
+  const saveConfigKey = (key, val, options = {}) => {
     if (SECRET_KEYS.has(key)) return;
     const clean = sanitizeConfigValue(key, val);
     if (clean === undefined) return;
     CONFIG[key] = clean;
     _setValue(key, clean);
 
-    if (CONFIG.FILTER_REMEMBER_PER_PAGE_TYPE && PAGE_SCOPED_KEYS.has(key)) {
+    if (!options.deferProfileSave && CONFIG.FILTER_REMEMBER_PER_PAGE_TYPE && PAGE_SCOPED_KEYS.has(key)) {
       const profileType = getActiveProfileType();
       const rawProfiles = _getValue('PAGE_PROFILES', null);
       const profiles = (rawProfiles && typeof rawProfiles === 'object' && !Array.isArray(rawProfiles))
@@ -6150,7 +6159,7 @@ const SHADOW_MODAL_STYLES = `
       const clean = sanitizeConfigValue(key, val);
       if (clean === undefined) return;
       val = clean;
-      saveConfigKey(key, val);
+      saveConfigKey(key, val, options);
     }
     if (!options.skipUiSync) {
       syncUiControl(key, val);
@@ -6179,10 +6188,33 @@ const SHADOW_MODAL_STYLES = `
   }
 
   function updateConfigs(entries, options = {}) {
-    for (const [k, v] of Object.entries(entries)) {
-      updateConfig(k, v, { ...options, skipRender: true });
+    const ordered = Object.entries(entries);
+    const idx = ordered.findIndex(([k]) => k === 'FILTER_REMEMBER_PER_PAGE_TYPE');
+    if (idx > 0) {
+      const [pair] = ordered.splice(idx, 1);
+      ordered.unshift(pair);
     }
-    const needsRender = !options.skipRender && Object.keys(entries).some(k => !FAST_SYNC_KEYS.has(k));
+    for (const [k, v] of ordered) {
+      updateConfig(k, v, { ...options, skipRender: true, deferProfileSave: true });
+    }
+    if (CONFIG.FILTER_REMEMBER_PER_PAGE_TYPE) {
+      const touchedScoped = ordered.filter(([k]) => PAGE_SCOPED_KEYS.has(k) && !SECRET_KEYS.has(k));
+      if (touchedScoped.length > 0) {
+        const profileType = getActiveProfileType();
+        const rawProfiles = _getValue('PAGE_PROFILES', null);
+        const profiles = (rawProfiles && typeof rawProfiles === 'object' && !Array.isArray(rawProfiles))
+          ? rawProfiles
+          : { neue: {}, search: {} };
+        if (!profiles[profileType] || typeof profiles[profileType] !== 'object' || Array.isArray(profiles[profileType])) {
+          profiles[profileType] = {};
+        }
+        for (const [k] of touchedScoped) {
+          profiles[profileType][k] = CONFIG[k];
+        }
+        _setValue('PAGE_PROFILES', profiles);
+      }
+    }
+    const needsRender = !options.skipRender && ordered.some(([k]) => !FAST_SYNC_KEYS.has(k));
     if (needsRender) {
       triggerProcessListings();
     }
@@ -7696,10 +7728,14 @@ const SHADOW_MODAL_STYLES = `
       }
       /* snapshot voided: fall through to host parse below */
     }
-    // Never parse our own injected badge text as the site Differenz: when only
-    // our badge exists there is no unverified site number to read.
-    const text = badgeEl ? badgeEl.textContent
-      : (card.querySelector?.('.tp-injected-badge') ? '' : (card.textContent || ''));
+    // Never parse our own injected badge text as the site Differenz, and never
+    // fall back to full card.textContent (specs like "40% Vol." or "99% sRGB"
+    // would become phantom discounts).
+    if (!badgeEl) {
+      if (card.dataset) card.dataset.tpDiff = '';
+      return null;
+    }
+    const text = badgeEl.textContent || '';
     const match = text.match(/([+-]?\d+(?:[.,]\d+)?)\s*%/);
     if (match) {
       let val = parseFloat(match[1].replace(',', '.'));
@@ -8601,8 +8637,21 @@ const SHADOW_MODAL_STYLES = `
   function toFeedUrl(catalogUrl, currentFeedPath = '') {
     if (!catalogUrl || typeof catalogUrl !== 'string') return '/neue-toppreise';
     const trimmed = catalogUrl.trim();
-    if (!/^\/(?!\/)/.test(trimmed) && !/^https?:\/\//i.test(trimmed)) {
-      return '/neue-toppreise';
+    const isRelPath = /^\/(?!\/)/.test(trimmed);
+    let normalizedPath = trimmed;
+    if (!isRelPath) {
+      if (!/^https?:\/\//i.test(trimmed)) return '/neue-toppreise';
+      try {
+        const u = new URL(trimmed);
+        const host = u.hostname.toLowerCase();
+        if (host !== 'toppreise.ch' && !host.endsWith('.toppreise.ch')) return '/neue-toppreise';
+        normalizedPath = u.pathname + u.search + u.hash;
+        const m = currentFeedPath?.match(/^\/(?:new-best-prices|nouveaux-meilleurs-prix)/i);
+        const prefix = m ? m[0] : '/neue-toppreise';
+        return u.origin + normalizedPath.replace(/^\/(?:produktsuche|katalog|productsearch|recherche-produits)/i, prefix);
+      } catch {
+        return '/neue-toppreise';
+      }
     }
     const m = currentFeedPath?.match(/^\/(?:new-best-prices|nouveaux-meilleurs-prix)/i);
     const prefix = m ? m[0] : '/neue-toppreise';
@@ -13828,8 +13877,9 @@ const SHADOW_MODAL_STYLES = `
       }
     } else if (card.dataset.tpAppliedHeat || card.classList.contains('tp-heat-blend') || card.querySelector('.badge-dif, [class*="badge-dif"]')?.style.background) {
       // Tripwire: heat stripped while the badge still claims a verified % means
-      // a stats regression slipped through — enable DEBUG to catch it live.
-      if (CONFIG.HEATMAP_ENABLED === true && card.querySelector('.tp-deal-alltime-low, .tp-deal-new-record')) {
+      // a stats regression slipped through — ignore expected 0%/deadband verified deals.
+      const heatExpectedEmpty = heatInfo?.kind === 'blend' || heatInfo?.kind === 'none' || ctx.dealData?.isZeroMargin;
+      if ((CONFIG.HEATMAP_ENABLED === true || CONFIG.HEATMAP_ENABLED === 'all') && !heatExpectedEmpty && card.querySelector('.tp-deal-alltime-low, .tp-deal-new-record')) {
         logActivity('warn', 'deal-badge', 'heat removed with verified badge present',
           { pid, median: stats?.medianPrice ?? null, tiefstpreis: stats?.tiefstpreis ?? null });
       }
@@ -14684,6 +14734,7 @@ const SHADOW_MODAL_STYLES = `
 
     let statusTimers = [];
     let activeAbort = null;
+    let reqSeq = 0;
     const clearTimers = () => {
       statusTimers.forEach(t => clearTimeout(t));
       statusTimers = [];
@@ -14821,6 +14872,7 @@ const SHADOW_MODAL_STYLES = `
     retryBtn.textContent = '🔄 Erneut versuchen';
 
     const fetchSummary = () => {
+      const seq = ++reqSeq;
       clearTimers();
       abortFetch();
       currentVerdict = '';
@@ -14830,13 +14882,13 @@ const SHADOW_MODAL_STYLES = `
       contentEl.innerHTML = '<span class="tp-ai-status">🤖 Analysiere Testberichte & Preiseinschätzung...</span>';
 
       statusTimers.push(setTimeout(() => {
-        if (backdrop.isConnected && !currentVerdict) {
+        if (seq === reqSeq && backdrop.isConnected && !currentVerdict) {
           contentEl.innerHTML = '<span class="tp-ai-status tp-ai-status-delayed">🤖 Websuche läuft noch (Testberichte werden analysiert)...</span>';
         }
       }, 5000));
 
       statusTimers.push(setTimeout(() => {
-        if (backdrop.isConnected && !currentVerdict) {
+        if (seq === reqSeq && backdrop.isConnected && !currentVerdict) {
           contentEl.innerHTML = '<span class="tp-ai-status tp-ai-status-delayed">⏳ Synthese dauert etwas länger, läuft im Hintergrund weiter...<br><span class="tp-ai-status-sub">Antwort erscheint hier automatisch sobald fertig.</span></span>';
         }
       }, 12000));
@@ -14852,13 +14904,14 @@ const SHADOW_MODAL_STYLES = `
       })
         .then(result => {
           if (activeAbort === controller) activeAbort = null;
+          if (seq !== reqSeq) return;
           if (backdrop.isConnected) {
             renderVerdict(result?.answer || '', result?.citations || []);
           }
         })
         .catch(err => {
           if (activeAbort === controller) activeAbort = null;
-          if (err?.cancelled) return;
+          if (seq !== reqSeq || err?.cancelled) return;
           if (backdrop.isConnected) {
             renderError(err?.message || 'Fehler beim Laden des Fazits');
           }
@@ -14874,6 +14927,7 @@ const SHADOW_MODAL_STYLES = `
         model: activeModel
       });
       if (hit?.answer) {
+        reqSeq++;
         abortFetch();
         renderVerdict(hit.answer, hit.citations || []);
       } else {
@@ -14933,7 +14987,8 @@ const SHADOW_MODAL_STYLES = `
     discordBtn.textContent = '📤 In Discord teilen';
 
     discordBtn.addEventListener('click', () => {
-      const shareBtn = card?.querySelector('.tp-share-btn');
+      const shareBtn = card?.querySelector?.('.tp-share-btn, .tp-detail-share-btn')
+        || (!card?.matches?.('.Plugin_Product, .mixedBrowsingListProduct') ? document.getElementById('tp-detail-share-btn') : null);
       if (shareBtn && typeof shareBtn.click === 'function') {
         close();
         shareBtn.click();
@@ -15152,9 +15207,11 @@ const SHADOW_MODAL_STYLES = `
       el.appendChild(limRow);
     }
 
-    const currentLimit = () => (limitInput
-      ? Math.max(1, Math.min(itemCount, parseInt(limitInput.value, 10) || itemCount))
-      : itemCount);
+    const currentLimit = () => {
+      if (!limitInput) return itemCount;
+      const parsed = parseInt(limitInput.value, 10);
+      return Number.isFinite(parsed) ? Math.max(1, Math.min(itemCount, parsed)) : itemCount;
+    };
 
     // Speed section: Google Search (routed by REVIEW_SEARCH_AI_MODE)
     const useGoogleAi = CONFIG.REVIEW_SEARCH_AI_MODE === true;
@@ -15652,7 +15709,6 @@ const SHADOW_MODAL_STYLES = `
         card.appendChild(group);
       }
     }
-    refreshAlarmBellDecor();
   }
 
   // ─── MODULE: src/ui/badges/card-chrome.js ───────────────────────────────────
@@ -17875,7 +17931,7 @@ const SHADOW_MODAL_STYLES = `
           const prev = captureResetSnapshot();
           let count = 0;
           for (const [key, val] of Object.entries(importConfig)) {
-            if (!(key in DEFAULTS) || key === 'DEBUG' || SECRET_KEYS.has(key)) continue;
+            if (!Object.hasOwn(DEFAULTS, key) || key === 'DEBUG' || SECRET_KEYS.has(key)) continue;
             // Single schema: sanitize each imported key, drop unknowns/invalid.
             if (key === 'DISCORD_LAYOUT' && validateLayoutRecipe(String(val))) continue;
             const clean = sanitizeConfigValue(key, val);
@@ -19827,7 +19883,6 @@ const SHADOW_MODAL_STYLES = `
     'a[href*="NewInfoMail"]:not(.tp-review-search-btn):not(.tp-alarm-cog)',
     '.tp-card-alarm-btn',
   ];
-  const BELL_STYLE_ID = 'tp-alarm-bell-style';
 
   const alarmBellState = () => {
     if (CONFIG.ALARM_ENABLED === false) return 'off';
@@ -19841,21 +19896,6 @@ const SHADOW_MODAL_STYLES = `
         if (!seen.has(el)) seen.add(el);
     return [...seen];
   };
-
-  function ensureAlarmBellStyle() {
-    if (document.getElementById(BELL_STYLE_ID)) return;
-    const style = document.createElement('style');
-    style.id = BELL_STYLE_ID;
-    style.textContent = [
-      '.tp-alarm-off{opacity:.45 !important;}',
-      '.tp-alarm-fill,.tp-alarm-auto{position:relative !important;outline:2px solid #3b82f6 !important;outline-offset:2px;border-radius:4px;}',
-      '.tp-alarm-auto::after{content:"\\26A1";position:absolute;top:-10px;right:-10px;font-size:12px;line-height:1;}',
-      '.tp-alarm-cog{position:relative;display:inline-flex;align-items:center;justify-content:center;min-width:24px;min-height:24px;margin-left:6px;padding:2px 4px;border:none;border-radius:4px;background:transparent;color:inherit;font-size:14px;line-height:1;cursor:pointer;opacity:.75;}',
-      '.tp-alarm-cog:hover,.tp-alarm-cog:focus-visible{opacity:1;}',
-      '.tp-alarm-cog:focus-visible{outline:2px solid var(--tp-focus,#3b82f6);outline-offset:2px;}',
-    ].join('\n');
-    document.head.appendChild(style);
-  }
 
   function ensureAlarmCog(bell) {
     // One cog per bell: the site may insert nodes between bell and cog on
@@ -19894,7 +19934,6 @@ const SHADOW_MODAL_STYLES = `
   function refreshAlarmBellDecor() {
     try {
       if (typeof document === 'undefined') return;
-      ensureAlarmBellStyle();
       const bells = findAlarmBells();
       if (!bells.length) return;
       for (const bell of bells) {
@@ -19985,8 +20024,8 @@ const SHADOW_MODAL_STYLES = `
     const durationLi = modalContainer.querySelector(`li[data-value="${duration}"]`);
     // Missing-controls: no submission, no attempt stamp — next DOM pass retries.
     if (!priceInput || (!durationHidden && !durationLi)) return failBatch('missing-controls');
-    // Refill must not clobber a focused manual edit.
-    if (document.activeElement === priceInput && priceInput.value !== snapshot.target) return;
+    // Refill must not clobber a focused manual edit (batch mode always overwrites).
+    if (!batchOpts && document.activeElement === priceInput && priceInput.value !== snapshot.target) return;
     priceInput.value = targetPrice;
     priceInput.dispatchEvent(new Event('input', { bubbles: true }));
     priceInput.dispatchEvent(new Event('change', { bubbles: true }));
@@ -20140,7 +20179,7 @@ const SHADOW_MODAL_STYLES = `
     });
     if (!requestUrl) return false;
 
-    sanitizeImportedNode(dialogNode);
+    if (!sanitizeImportedNode(dialogNode)) return false;
 
     const dismissDialog = () => {
       activeAlarmDismissers.delete(dismissDialog);
@@ -20874,7 +20913,7 @@ const SHADOW_MODAL_STYLES = `
         previewEl.className = 'tp-batch-alarm-preview';
         const updatePreview = () => {
           const p = Math.max(5, Math.min(99, parseInt(pctInput.value, 10) || 60));
-          const lim = limitInput ? Math.max(1, Math.min(maxItems, parseInt(limitInput.value, 10) || maxItems)) : pricedItems.length;
+          const lim = limitInput ? (() => { const n = parseInt(limitInput.value, 10); return Number.isFinite(n) ? Math.max(1, Math.min(maxItems, n)) : maxItems; })() : pricedItems.length;
           const shown = pricedItems.slice(0, Math.min(3, lim));
           previewEl.replaceChildren();
           for (const it of shown) {
@@ -20946,9 +20985,11 @@ const SHADOW_MODAL_STYLES = `
     confirmBtn.type = 'button';
     confirmBtn.id = 'tp-batch-confirm-go';
     confirmBtn.className = 'tp-popout-btn tp-batch-btn-primary';
-    const currentLimit = () => (limitInput
-      ? Math.max(1, Math.min(maxItems, parseInt(limitInput.value, 10) || maxItems))
-      : maxItems);
+    const currentLimit = () => {
+      if (!limitInput) return maxItems;
+      const parsed = parseInt(limitInput.value, 10);
+      return Number.isFinite(parsed) ? Math.max(1, Math.min(maxItems, parsed)) : maxItems;
+    };
     const updateConfirmLabel = () => {
       const n = currentLimit();
       confirmBtn.textContent = n > 0 ? `${actionLabel} (${n})` : actionLabel;
@@ -21148,6 +21189,7 @@ const SHADOW_MODAL_STYLES = `
   let outsideListenersBound = false;
 
   const AI_TARGET_LABELS = {
+    google: 'Google',
     'google-ai': 'Google AI',
     openrouter: 'OpenRouter',
     chatgpt: 'ChatGPT',
@@ -22693,6 +22735,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
       renderEmptyState(cards, counts);
       renderSuiteFilterBar(counts, pageHasOffers, isNeueFeed, isSortPage);
       renderFloatingCTA(counts, isNeueFeed);
+      refreshAlarmBellDecor();
       if (isNeueFeed) enhanceCategorySidebar();
       const mig = migrateFilterSplit();
       if (mig.hadMode || mig.modeWasActive) showToast(mig.modeWasActive ? '💎 sortiert jetzt nur noch — Filtern entfernt, Ansicht dimmt (👁️ zeigt sie)' : 'Neu: Filtern entfernt Karten, Ansicht dimmt nur (👁️ zeigt sie)');
@@ -22932,15 +22975,16 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.567';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.568';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
+    const isFileFixture = typeof location !== 'undefined' && location.protocol === 'file:';
     if (isDebugHost) {
       window.ToppreiseSuite = {
         processListings,
         processPriceAlarmModal,
         formatAlarmToast,
         processProductDetailPage: safeProcessProductDetailPage,
-        updateConfig,
+        updateConfig: (k, v, opts) => { if (SECRET_KEYS.has(k) && !isFileFixture) return; return updateConfig(k, v, opts); },
         openSettingsAt,
         saveConfigKey,
         initPageProfiles,

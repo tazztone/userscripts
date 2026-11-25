@@ -530,4 +530,81 @@ describe('Price alarm fallback URL hardening', () => {
       if (prevObserver === undefined) delete globalThis.MutationObserver; else globalThis.MutationObserver = prevObserver;
     }
   });
+
+  it('openFetchedAlarmDialog returns false without mounting when template root is unsafe (e.g. SCRIPT)', async () => {
+    const { openFetchedAlarmDialog } = await import('../../src/features/price-alarm.js');
+    const prevDoc = globalThis.document;
+    const prevLoc = globalThis.location;
+    const prevDOMParser = globalThis.DOMParser;
+
+    let appended = false;
+    const unsafeRoot = {
+      nodeType: 1,
+      tagName: 'SCRIPT',
+      id: 'evil-dlg',
+      attributes: [],
+      children: [],
+      getAttribute: () => '1',
+      querySelector: () => null,
+      remove() {}
+    };
+    const triggerEl = { getAttribute: () => '/plugins/infomails/NewInfoMailForm?im_nimf_pid=797571&im_nimf_cks=ok' };
+
+    globalThis.location = { href: 'https://www.toppreise.ch/preisvergleich/p797571' };
+    globalThis.document = {
+      body: { appendChild() { appended = true; } },
+      importNode: n => n,
+      addEventListener() {},
+      removeEventListener() {}
+    };
+    globalThis.DOMParser = class {
+      parseFromString() {
+        return {
+          querySelector: sel => {
+            if (sel === SELECTORS.alarm.lazyDialog) return { content: { firstElementChild: unsafeRoot } };
+            if (sel === SELECTORS.alarm.triggers[0]) return triggerEl;
+            return null;
+          }
+        };
+      }
+    };
+
+    try {
+      const ok = await openFetchedAlarmDialog('<template class="f_lazyDialog"><script></script></template>');
+      assert.equal(ok, false);
+      assert.equal(appended, false);
+    } finally {
+      if (prevDoc === undefined) delete globalThis.document; else globalThis.document = prevDoc;
+      if (prevLoc === undefined) delete globalThis.location; else globalThis.location = prevLoc;
+      if (prevDOMParser === undefined) delete globalThis.DOMParser; else globalThis.DOMParser = prevDOMParser;
+    }
+  });
+
+  it('sanitizeImportedNode strips SVG/MathML scripting tags while preserving harmless <svg><path/></svg>', async () => {
+    const { sanitizeImportedNode } = await import('../../src/features/price-alarm.js');
+    const removed = [];
+    const pathNode = { nodeType: 1, tagName: 'path', attributes: [], children: [], remove() { removed.push('path'); } };
+    const animateNode = { nodeType: 1, tagName: 'animate', attributes: [], children: [], remove() { removed.push('animate'); } };
+    const setNode = { nodeType: 1, tagName: 'set', attributes: [], children: [], remove() { removed.push('set'); } };
+    const foreignNode = { nodeType: 1, tagName: 'foreignObject', attributes: [], children: [], remove() { removed.push('foreignObject'); } };
+    const noscriptNode = { nodeType: 1, tagName: 'NOSCRIPT', attributes: [], children: [], remove() { removed.push('NOSCRIPT'); } };
+    const svgNode = {
+      nodeType: 1,
+      tagName: 'svg',
+      attributes: [],
+      children: [pathNode, animateNode, setNode, foreignNode],
+      remove() { removed.push('svg'); }
+    };
+    const root = {
+      nodeType: 1,
+      tagName: 'DIV',
+      attributes: [],
+      children: [svgNode, noscriptNode],
+      remove() { removed.push('DIV'); }
+    };
+
+    const res = sanitizeImportedNode(root);
+    assert.equal(res, root);
+    assert.deepEqual(removed.sort(), ['NOSCRIPT', 'animate', 'foreignObject', 'set']);
+  });
 });

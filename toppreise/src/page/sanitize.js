@@ -3,7 +3,11 @@
  * Strips unsafe tags (including <style>), inline event handlers, and dangerous URL schemes.
  */
 
-const UNSAFE_IMPORT_TAGS = new Set(['script', 'iframe', 'object', 'embed', 'base', 'meta', 'link', 'style']);
+const UNSAFE_IMPORT_TAGS = new Set([
+  'script', 'iframe', 'object', 'embed', 'base', 'meta', 'link', 'style',
+  'foreignobject', 'animate', 'animatemotion', 'animatetransform', 'set',
+  'noscript', 'math', 'maction', 'handler'
+]);
 const URL_ATTRIBUTES = new Set([
   'href', 'src', 'srcset', 'action', 'formaction', 'poster',
   'xlink:href', 'data-ajax-url', 'data-ajax-form-url'

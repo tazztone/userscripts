@@ -191,9 +191,11 @@ export function openAiLauncherPopover(opts = {}) {
     el.appendChild(limRow);
   }
 
-  const currentLimit = () => (limitInput
-    ? Math.max(1, Math.min(itemCount, parseInt(limitInput.value, 10) || itemCount))
-    : itemCount);
+  const currentLimit = () => {
+    if (!limitInput) return itemCount;
+    const parsed = parseInt(limitInput.value, 10);
+    return Number.isFinite(parsed) ? Math.max(1, Math.min(itemCount, parsed)) : itemCount;
+  };
 
   // Speed section: Google Search (routed by REVIEW_SEARCH_AI_MODE)
   const useGoogleAi = CONFIG.REVIEW_SEARCH_AI_MODE === true;

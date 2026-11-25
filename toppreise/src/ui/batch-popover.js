@@ -42,6 +42,7 @@ let isOpen = false;
 let outsideListenersBound = false;
 
 const AI_TARGET_LABELS = {
+  google: 'Google',
   'google-ai': 'Google AI',
   openrouter: 'OpenRouter',
   chatgpt: 'ChatGPT',
@@ -107,6 +108,7 @@ function bindOutsideHandlers() {
   outsideListenersBound = true;
   document.addEventListener('click', (e) => {
     if (!isOpen || !e.isTrusted || hasOpenBatchDialog()) return;
+    if (!e.target?.isConnected) return;
     const pop = document.getElementById(BATCH_POPOVER_ID);
     const btn = document.getElementById('tp-floating-batch-btn');
     if (pop?.contains(e.target) || btn?.contains(e.target)) return;

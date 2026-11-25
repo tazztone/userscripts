@@ -138,7 +138,7 @@ export function openBatchConfirmDialog(opts = {}) {
       previewEl.className = 'tp-batch-alarm-preview';
       const updatePreview = () => {
         const p = Math.max(5, Math.min(99, parseInt(pctInput.value, 10) || 60));
-        const lim = limitInput ? Math.max(1, Math.min(maxItems, parseInt(limitInput.value, 10) || maxItems)) : pricedItems.length;
+        const lim = limitInput ? (() => { const n = parseInt(limitInput.value, 10); return Number.isFinite(n) ? Math.max(1, Math.min(maxItems, n)) : maxItems; })() : pricedItems.length;
         const shown = pricedItems.slice(0, Math.min(3, lim));
         previewEl.replaceChildren();
         for (const it of shown) {
@@ -210,9 +210,11 @@ export function openBatchConfirmDialog(opts = {}) {
   confirmBtn.type = 'button';
   confirmBtn.id = 'tp-batch-confirm-go';
   confirmBtn.className = 'tp-popout-btn tp-batch-btn-primary';
-  const currentLimit = () => (limitInput
-    ? Math.max(1, Math.min(maxItems, parseInt(limitInput.value, 10) || maxItems))
-    : maxItems);
+  const currentLimit = () => {
+    if (!limitInput) return maxItems;
+    const parsed = parseInt(limitInput.value, 10);
+    return Number.isFinite(parsed) ? Math.max(1, Math.min(maxItems, parsed)) : maxItems;
+  };
   const updateConfirmLabel = () => {
     const n = currentLimit();
     confirmBtn.textContent = n > 0 ? `${actionLabel} (${n})` : actionLabel;

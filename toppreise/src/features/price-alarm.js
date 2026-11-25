@@ -95,7 +95,6 @@ const ALARM_BELL_SELECTORS = [
   'a[href*="NewInfoMail"]:not(.tp-review-search-btn):not(.tp-alarm-cog)',
   '.tp-card-alarm-btn',
 ];
-const BELL_STYLE_ID = 'tp-alarm-bell-style';
 
 const alarmBellState = () => {
   if (CONFIG.ALARM_ENABLED === false) return 'off';
@@ -109,21 +108,6 @@ const findAlarmBells = () => {
       if (!seen.has(el)) seen.add(el);
   return [...seen];
 };
-
-function ensureAlarmBellStyle() {
-  if (document.getElementById(BELL_STYLE_ID)) return;
-  const style = document.createElement('style');
-  style.id = BELL_STYLE_ID;
-  style.textContent = [
-    '.tp-alarm-off{opacity:.45 !important;}',
-    '.tp-alarm-fill,.tp-alarm-auto{position:relative !important;outline:2px solid #3b82f6 !important;outline-offset:2px;border-radius:4px;}',
-    '.tp-alarm-auto::after{content:"\\26A1";position:absolute;top:-10px;right:-10px;font-size:12px;line-height:1;}',
-    '.tp-alarm-cog{position:relative;display:inline-flex;align-items:center;justify-content:center;min-width:24px;min-height:24px;margin-left:6px;padding:2px 4px;border:none;border-radius:4px;background:transparent;color:inherit;font-size:14px;line-height:1;cursor:pointer;opacity:.75;}',
-    '.tp-alarm-cog:hover,.tp-alarm-cog:focus-visible{opacity:1;}',
-    '.tp-alarm-cog:focus-visible{outline:2px solid var(--tp-focus,#3b82f6);outline-offset:2px;}',
-  ].join('\n');
-  document.head.appendChild(style);
-}
 
 function ensureAlarmCog(bell) {
   // One cog per bell: the site may insert nodes between bell and cog on
@@ -162,7 +146,6 @@ function ensureAlarmCog(bell) {
 export function refreshAlarmBellDecor() {
   try {
     if (typeof document === 'undefined') return;
-    ensureAlarmBellStyle();
     const bells = findAlarmBells();
     if (!bells.length) return;
     for (const bell of bells) {
@@ -253,8 +236,8 @@ export function processPriceAlarmModal() {
   const durationLi = modalContainer.querySelector(`li[data-value="${duration}"]`);
   // Missing-controls: no submission, no attempt stamp — next DOM pass retries.
   if (!priceInput || (!durationHidden && !durationLi)) return failBatch('missing-controls');
-  // Refill must not clobber a focused manual edit.
-  if (document.activeElement === priceInput && priceInput.value !== snapshot.target) return;
+  // Refill must not clobber a focused manual edit (batch mode always overwrites).
+  if (!batchOpts && document.activeElement === priceInput && priceInput.value !== snapshot.target) return;
   priceInput.value = targetPrice;
   priceInput.dispatchEvent(new Event('input', { bubbles: true }));
   priceInput.dispatchEvent(new Event('change', { bubbles: true }));
@@ -408,7 +391,7 @@ export async function openFetchedAlarmDialog(html, batchOpts = null) {
   });
   if (!requestUrl) return false;
 
-  sanitizeImportedNode(dialogNode);
+  if (!sanitizeImportedNode(dialogNode)) return false;
 
   const dismissDialog = () => {
     activeAlarmDismissers.delete(dismissDialog);

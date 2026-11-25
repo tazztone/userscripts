@@ -72,6 +72,7 @@ export function openAiPopover(options = {}) {
 
   let statusTimers = [];
   let activeAbort = null;
+  let reqSeq = 0;
   const clearTimers = () => {
     statusTimers.forEach(t => clearTimeout(t));
     statusTimers = [];
@@ -209,6 +210,7 @@ export function openAiPopover(options = {}) {
   retryBtn.textContent = '🔄 Erneut versuchen';
 
   const fetchSummary = () => {
+    const seq = ++reqSeq;
     clearTimers();
     abortFetch();
     currentVerdict = '';
@@ -218,13 +220,13 @@ export function openAiPopover(options = {}) {
     contentEl.innerHTML = '<span class="tp-ai-status">🤖 Analysiere Testberichte & Preiseinschätzung...</span>';
 
     statusTimers.push(setTimeout(() => {
-      if (backdrop.isConnected && !currentVerdict) {
+      if (seq === reqSeq && backdrop.isConnected && !currentVerdict) {
         contentEl.innerHTML = '<span class="tp-ai-status tp-ai-status-delayed">🤖 Websuche läuft noch (Testberichte werden analysiert)...</span>';
       }
     }, 5000));
 
     statusTimers.push(setTimeout(() => {
-      if (backdrop.isConnected && !currentVerdict) {
+      if (seq === reqSeq && backdrop.isConnected && !currentVerdict) {
         contentEl.innerHTML = '<span class="tp-ai-status tp-ai-status-delayed">⏳ Synthese dauert etwas länger, läuft im Hintergrund weiter...<br><span class="tp-ai-status-sub">Antwort erscheint hier automatisch sobald fertig.</span></span>';
       }
     }, 12000));
@@ -240,13 +242,14 @@ export function openAiPopover(options = {}) {
     })
       .then(result => {
         if (activeAbort === controller) activeAbort = null;
+        if (seq !== reqSeq) return;
         if (backdrop.isConnected) {
           renderVerdict(result?.answer || '', result?.citations || []);
         }
       })
       .catch(err => {
         if (activeAbort === controller) activeAbort = null;
-        if (err?.cancelled) return;
+        if (seq !== reqSeq || err?.cancelled) return;
         if (backdrop.isConnected) {
           renderError(err?.message || 'Fehler beim Laden des Fazits');
         }
@@ -262,6 +265,7 @@ export function openAiPopover(options = {}) {
       model: activeModel
     });
     if (hit?.answer) {
+      reqSeq++;
       abortFetch();
       renderVerdict(hit.answer, hit.citations || []);
     } else {
@@ -321,7 +325,8 @@ export function openAiPopover(options = {}) {
   discordBtn.textContent = '📤 In Discord teilen';
 
   discordBtn.addEventListener('click', () => {
-    const shareBtn = card?.querySelector('.tp-share-btn');
+    const shareBtn = card?.querySelector?.('.tp-share-btn, .tp-detail-share-btn')
+      || (!card?.matches?.('.Plugin_Product, .mixedBrowsingListProduct') ? document.getElementById('tp-detail-share-btn') : null);
     if (shareBtn && typeof shareBtn.click === 'function') {
       close();
       shareBtn.click();

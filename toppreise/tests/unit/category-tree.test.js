@@ -1262,6 +1262,9 @@ test('indexCategoryData breaks cyclic parentID chains and toFeedUrl handles non-
   ]);
   assert.ok(tree.byId.get('c1').breadcrumb.includes('A'));
   assert.equal(toFeedUrl('/katalog/A-c1', '/de/new-best-prices'), '/neue-toppreise/A-c1');
+  assert.equal(toFeedUrl('https://evil.example/phish', '/neue-toppreise'), '/neue-toppreise');
+  assert.equal(toFeedUrl('//evil.example/phish', '/neue-toppreise'), '/neue-toppreise');
+  assert.equal(toFeedUrl('https://www.toppreise.ch/katalog/A-c1', '/neue-toppreise'), 'https://www.toppreise.ch/neue-toppreise/A-c1');
 });
 
 test('parseCategoryIdentsFromText with targetMap does not overwrite global localStorage', async () => {

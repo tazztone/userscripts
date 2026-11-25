@@ -195,4 +195,111 @@ describe('card-ai-popover: lifecycle and closeAiPopover', () => {
       globalThis.document = origDoc;
     }
   });
+
+  it('ignores stale model responses on rapid switch and clicks detail share button fallback', async () => {
+    const { CONFIG } = await import('../../src/state/config.js');
+    const prevKey = CONFIG.OPENROUTER_API_KEY;
+    const prevDoc = globalThis.document;
+    const prevFetch = globalThis.fetch;
+    const prevGM = globalThis.GM_xmlhttpRequest;
+    delete globalThis.GM_xmlhttpRequest;
+    CONFIG.OPENROUTER_API_KEY = 'sk-test-123';
+
+    const byId = new Map();
+    const created = [];
+    const makeEl = (tag) => {
+      const el = {
+        tagName: tag.toUpperCase(),
+        _id: '',
+        get id() { return this._id; },
+        set id(v) { this._id = v; if (v) byId.set(v, this); },
+        className: '',
+        style: {},
+        attributes: {},
+        children: [],
+        listeners: {},
+        _innerHTML: '',
+        set innerHTML(v) { this._innerHTML = v; },
+        get innerHTML() { return this._innerHTML; },
+        appendChild(ch) { this.children.push(ch); return ch; },
+        append(...args) { this.children.push(...args); },
+        replaceChildren(...args) { this.children = args; },
+        setAttribute(k, v) { this.attributes[k] = v; },
+        getAttribute(k) { return this.attributes[k] ?? null; },
+        addEventListener(type, fn) { (this.listeners[type] ||= []).push(fn); },
+        removeEventListener() {},
+        dispatch(type) { (this.listeners[type] || []).forEach(fn => fn({ target: this, preventDefault() {}, stopPropagation() {} })); },
+        remove() {
+          const idx = created.indexOf(this);
+          if (idx >= 0) created.splice(idx, 1);
+        }
+      };
+      return el;
+    };
+
+    let detailShareClicked = false;
+    const detailShareBtn = { click() { detailShareClicked = true; } };
+    byId.set('tp-detail-share-btn', detailShareBtn);
+
+    globalThis.document = {
+      body: {
+        appendChild(el) { el.isConnected = true; created.push(el); return el; }
+      },
+      addEventListener() {},
+      removeEventListener() {},
+      createElement: makeEl,
+      getElementById: id => byId.get(id) || null
+    };
+
+    const resolvers = [];
+    globalThis.fetch = () => new Promise(resolve => { resolvers.push(resolve); });
+
+    try {
+      const headingCard = { matches: () => false, querySelector: () => null };
+      openAiPopover({
+        title: 'Race Test Product',
+        priceText: 'CHF 99.00',
+        card: headingCard,
+        provider: 'openrouter',
+        model: 'model-a'
+      });
+
+      const modelSelect = byId.get('tp-ai-popout-model-select');
+      assert.ok(modelSelect);
+      // Add option for model-b and switch before model-a resolves
+      modelSelect.value = 'model-b';
+      modelSelect.dispatch('change');
+
+      assert.equal(resolvers.length, 2);
+      // Resolve model-b first, then stale model-a second
+      resolvers[1]({
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ choices: [{ message: { content: 'Ergebnis Modell B' } }] })
+      });
+      await new Promise(r => setTimeout(r, 10));
+      resolvers[0]({
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ choices: [{ message: { content: 'Veraltetes Modell A' } }] })
+      });
+      await new Promise(r => setTimeout(r, 10));
+
+      const popout = byId.get('tp-ai-popout');
+      const bodyEl = popout.children[0].children.find(c => c.className === 'tp-ai-body');
+      assert.ok(bodyEl.innerHTML.includes('Ergebnis Modell B'));
+      assert.ok(!bodyEl.innerHTML.includes('Veraltetes Modell A'));
+
+      const footer = popout.children[0].children.find(c => c.className === 'tp-popout-footer');
+      const discordBtn = footer.children.find(b => b.textContent === '📤 In Discord teilen');
+      discordBtn.dispatch('click');
+      assert.equal(detailShareClicked, true);
+    } finally {
+      closeAiPopover();
+      CONFIG.OPENROUTER_API_KEY = prevKey;
+      if (prevDoc === undefined) delete globalThis.document; else globalThis.document = prevDoc;
+      if (prevFetch === undefined) delete globalThis.fetch; else globalThis.fetch = prevFetch;
+      if (prevGM !== undefined) globalThis.GM_xmlhttpRequest = prevGM;
+    }
+  });
 });

@@ -185,14 +185,14 @@ export function initPageProfiles(forceType = null) {
   }
 }
 
-export const saveConfigKey = (key, val) => {
+export const saveConfigKey = (key, val, options = {}) => {
   if (SECRET_KEYS.has(key)) return;
   const clean = sanitizeConfigValue(key, val);
   if (clean === undefined) return;
   CONFIG[key] = clean;
   _setValue(key, clean);
 
-  if (CONFIG.FILTER_REMEMBER_PER_PAGE_TYPE && PAGE_SCOPED_KEYS.has(key)) {
+  if (!options.deferProfileSave && CONFIG.FILTER_REMEMBER_PER_PAGE_TYPE && PAGE_SCOPED_KEYS.has(key)) {
     const profileType = getActiveProfileType();
     const rawProfiles = _getValue('PAGE_PROFILES', null);
     const profiles = (rawProfiles && typeof rawProfiles === 'object' && !Array.isArray(rawProfiles))
@@ -251,7 +251,7 @@ export function updateConfig(key, val, options = {}) {
     const clean = sanitizeConfigValue(key, val);
     if (clean === undefined) return;
     val = clean;
-    saveConfigKey(key, val);
+    saveConfigKey(key, val, options);
   }
   if (!options.skipUiSync) {
     syncUiControl(key, val);
@@ -280,10 +280,33 @@ export function updateConfig(key, val, options = {}) {
 }
 
 export function updateConfigs(entries, options = {}) {
-  for (const [k, v] of Object.entries(entries)) {
-    updateConfig(k, v, { ...options, skipRender: true });
+  const ordered = Object.entries(entries);
+  const idx = ordered.findIndex(([k]) => k === 'FILTER_REMEMBER_PER_PAGE_TYPE');
+  if (idx > 0) {
+    const [pair] = ordered.splice(idx, 1);
+    ordered.unshift(pair);
   }
-  const needsRender = !options.skipRender && Object.keys(entries).some(k => !FAST_SYNC_KEYS.has(k));
+  for (const [k, v] of ordered) {
+    updateConfig(k, v, { ...options, skipRender: true, deferProfileSave: true });
+  }
+  if (CONFIG.FILTER_REMEMBER_PER_PAGE_TYPE) {
+    const touchedScoped = ordered.filter(([k]) => PAGE_SCOPED_KEYS.has(k) && !SECRET_KEYS.has(k));
+    if (touchedScoped.length > 0) {
+      const profileType = getActiveProfileType();
+      const rawProfiles = _getValue('PAGE_PROFILES', null);
+      const profiles = (rawProfiles && typeof rawProfiles === 'object' && !Array.isArray(rawProfiles))
+        ? rawProfiles
+        : { neue: {}, search: {} };
+      if (!profiles[profileType] || typeof profiles[profileType] !== 'object' || Array.isArray(profiles[profileType])) {
+        profiles[profileType] = {};
+      }
+      for (const [k] of touchedScoped) {
+        profiles[profileType][k] = CONFIG[k];
+      }
+      _setValue('PAGE_PROFILES', profiles);
+    }
+  }
+  const needsRender = !options.skipRender && ordered.some(([k]) => !FAST_SYNC_KEYS.has(k));
   if (needsRender) {
     triggerProcessListings();
   }

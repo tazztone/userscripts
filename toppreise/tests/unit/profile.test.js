@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { _getValue, _setValue, DEFAULTS, CONFIG, PAGE_SCOPED_KEYS, updateConfig, saveConfigKey, initPageProfiles } from '../../src/state/config.js';
+import { _getValue, _setValue, DEFAULTS, CONFIG, PAGE_SCOPED_KEYS, updateConfig, updateConfigs, saveConfigKey, initPageProfiles } from '../../src/state/config.js';
 import { getPageProfileType, getPageProfileLabel } from '../../src/page/adapter.js';
 
 describe('Page Profiles Engine', () => {
@@ -166,5 +166,40 @@ describe('Page Profiles Engine', () => {
     scanState.currentlyScanningPid = 'p2';
     assert.equal(isScanningPid('p2'), true);
     scanState.currentlyScanningPid = null;
+  });
+
+  it('updateConfigs toggling FILTER_REMEMBER_PER_PAGE_TYPE ON preserves sibling edits and flushes PAGE_PROFILES once', () => {
+    CONFIG.FILTER_REMEMBER_PER_PAGE_TYPE = false;
+    CONFIG.MARGIN_PERCENT = 0;
+    CONFIG.HEATMAP_INTENSITY = 1.0;
+    _setValue('PAGE_PROFILES', {
+      neue: { MARGIN_PERCENT: 3, HEATMAP_INTENSITY: 0.4, MIN_OFFERS: 5 },
+      search: { MARGIN_PERCENT: 1, HEATMAP_INTENSITY: 0.9, MIN_OFFERS: 0 }
+    });
+
+    let profileWrites = 0;
+    const origSet = globalThis.GM_setValue;
+    globalThis.GM_setValue = (k, v) => {
+      if (k === 'PAGE_PROFILES') profileWrites++;
+      origSet(k, v);
+    };
+    try {
+      updateConfigs({
+        MARGIN_PERCENT: 15,
+        HEATMAP_INTENSITY: 0.75,
+        FILTER_REMEMBER_PER_PAGE_TYPE: true
+      }, { skipRender: true, skipUiSync: true });
+    } finally {
+      globalThis.GM_setValue = origSet;
+    }
+
+    assert.equal(CONFIG.FILTER_REMEMBER_PER_PAGE_TYPE, true);
+    assert.equal(CONFIG.MARGIN_PERCENT, 15);
+    assert.equal(CONFIG.HEATMAP_INTENSITY, 0.75);
+    assert.equal(CONFIG.MIN_OFFERS, 5);
+    assert.equal(profileWrites, 1);
+    const saved = _getValue('PAGE_PROFILES', null);
+    assert.equal(saved.neue.MARGIN_PERCENT, 15);
+    assert.equal(saved.neue.HEATMAP_INTENSITY, 0.75);
   });
 });

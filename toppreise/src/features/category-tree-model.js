@@ -57,8 +57,21 @@ export function saveExpandedBranches(set) {
 export function toFeedUrl(catalogUrl, currentFeedPath = '') {
   if (!catalogUrl || typeof catalogUrl !== 'string') return '/neue-toppreise';
   const trimmed = catalogUrl.trim();
-  if (!/^\/(?!\/)/.test(trimmed) && !/^https?:\/\//i.test(trimmed)) {
-    return '/neue-toppreise';
+  const isRelPath = /^\/(?!\/)/.test(trimmed);
+  let normalizedPath = trimmed;
+  if (!isRelPath) {
+    if (!/^https?:\/\//i.test(trimmed)) return '/neue-toppreise';
+    try {
+      const u = new URL(trimmed);
+      const host = u.hostname.toLowerCase();
+      if (host !== 'toppreise.ch' && !host.endsWith('.toppreise.ch')) return '/neue-toppreise';
+      normalizedPath = u.pathname + u.search + u.hash;
+      const m = currentFeedPath?.match(/^\/(?:new-best-prices|nouveaux-meilleurs-prix)/i);
+      const prefix = m ? m[0] : '/neue-toppreise';
+      return u.origin + normalizedPath.replace(/^\/(?:produktsuche|katalog|productsearch|recherche-produits)/i, prefix);
+    } catch {
+      return '/neue-toppreise';
+    }
   }
   const m = currentFeedPath?.match(/^\/(?:new-best-prices|nouveaux-meilleurs-prix)/i);
   const prefix = m ? m[0] : '/neue-toppreise';

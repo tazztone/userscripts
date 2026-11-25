@@ -175,10 +175,14 @@ export function extractCardDiff(card) {
     }
     /* snapshot voided: fall through to host parse below */
   }
-  // Never parse our own injected badge text as the site Differenz: when only
-  // our badge exists there is no unverified site number to read.
-  const text = badgeEl ? badgeEl.textContent
-    : (card.querySelector?.('.tp-injected-badge') ? '' : (card.textContent || ''));
+  // Never parse our own injected badge text as the site Differenz, and never
+  // fall back to full card.textContent (specs like "40% Vol." or "99% sRGB"
+  // would become phantom discounts).
+  if (!badgeEl) {
+    if (card.dataset) card.dataset.tpDiff = '';
+    return null;
+  }
+  const text = badgeEl.textContent || '';
   const match = text.match(/([+-]?\d+(?:[.,]\d+)?)\s*%/);
   if (match) {
     let val = parseFloat(match[1].replace(',', '.'));

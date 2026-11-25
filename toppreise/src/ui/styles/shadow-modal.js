@@ -244,7 +244,7 @@ export const SHADOW_MODAL_STYLES = `
     gap: 4px;
     font-size: 11px;
     font-weight: 600;
-    color: var(--tp-accent, #6366f1);
+    color: var(--tp-acc2, #7c3aed);
     background: rgba(99, 102, 241, 0.1);
     border: 1px solid rgba(99, 102, 241, 0.25);
     border-radius: 9999px;
@@ -385,7 +385,7 @@ export const SHADOW_MODAL_STYLES = `
   #tp-diag-dialog::backdrop { background: rgba(15, 23, 42, 0.55); }
   .tp-diag-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 10px; flex-shrink: 0; }
   .tp-diag-tabs { display: flex; gap: 6px; margin-top: 10px; flex-shrink: 0; }
-  .tp-diag-tab.tp-diag-tab-active { background: var(--tp-accent); color: #fff; border-color: var(--tp-accent); }
+  .tp-diag-tab.tp-diag-tab-active { background: var(--tp-acc-deep, #047857); color: #fff; border-color: var(--tp-acc-deep, #047857); }
   .tp-diag-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 10px 0; font-size: 12px; flex-shrink: 0; }
   #tp-diag-snapshot { flex-shrink: 0; }
   #tp-diag-snapshot, #tp-diag-log-pre {
