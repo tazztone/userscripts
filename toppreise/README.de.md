@@ -4,7 +4,7 @@
 
 **[🇬🇧 English Version](README.md)** · **Deutsche Version**
 
-Umfassende Userscript-Suite (`v2.18.341`) für **Toppreise.ch**: Verifiziert echte historische Tiefstpreise gegen vollständige Preisverläufe, entlarvt Schein-Rabatte (*Aufschläge*), färbt Angebote mit einer kontinuierlichen Rabatt-Heatmap, bietet 4-stufige Begriffs-, Händler- und Angebotsfilter und automatisiert Preisalarme sowie das Teilen von Deals via Discord. Kategorie-Ausschlüsse verbleiben nativ bei Toppreise (`Plugin_IgnoredCategories`: Menü pro Karte, Seitenleiste, Kopfzeile).
+Umfassende Userscript-Suite für **Toppreise.ch**: Verifiziert echte historische Tiefstpreise gegen vollständige Preisverläufe, entlarvt Schein-Rabatte (*Aufschläge*), färbt Angebote mit einer kontinuierlichen Rabatt-Heatmap, bietet 4-stufige Begriffs-, Händler- und Angebotsfilter und automatisiert Preisalarme sowie das Teilen von Deals via Discord. Kategorie-Ausschlüsse verbleiben nativ bei Toppreise (`Plugin_IgnoredCategories`: Menü pro Karte, Seitenleiste, Kopfzeile).
 
 ![Deal-Karten im Überblick: Toolbar-Aktionen, Rabatt-Heatmap, Schein-Rabatt-Erkennung, Fallback-Tief und 1-Klick-Share](docs/shots/02-feed-cards.webp)
 
@@ -19,7 +19,7 @@ Umfassende Userscript-Suite (`v2.18.341`) für **Toppreise.ch**: Verifiziert ech
 | ⑦ | **Transparente Deal-Subline** | Zeigt den Vortief-Abstand in % sowie den 1-Jahres-Ø mit prozentualem Abstand. |
 | ⑧ | **Günstigster Händler (`🏬`)** | Direktsprung zum günstigsten Anbieter ohne zwischengeschaltete Tracking-Umwege. |
 | ⑨ | **Mini-Trend Sparkline** | Kompakte 30-Tage-Preiskurve; Klick öffnet den interaktiven Vollbild-Chart. |
-| ⑩ | **1-Klick Review-Suche (`🌐`)** | Erscheint bei Hover am Produkttitel; öffnet eine Google-Suche nach Testberichten in neuem Tab. |
+| ⑩ | **1-Klick Web- & KI-Launcher (`🌐`)** | Erscheint bei Hover am Produkttitel; öffnet den Launcher für Google-Suche / Google-KI-Modus (`&udm=50`), OpenRouter `openrouter:web_search` (mit Einmal-Modellwahl) oder Legacy-Tavily. |
 
 > [!NOTE]
 > **Deal-Score-Berechnung (Karte 1, Callout ③):** −65% = 50/50-Mix aus −60% (vs. Vortief) und −70% (vs. 1-Jahres-Ø).
@@ -48,7 +48,7 @@ Erfordert einen Userscript-Manager als Browser-Erweiterung:
 - [Violentmonkey](https://violentmonkey.github.io/) (empfohlen: [Firefox](https://addons.mozilla.org/en-US/firefox/addon/violentmonkey/) · [Chrome / Brave](https://chromewebstore.google.com/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag))
 - [Tampermonkey](https://www.tampermonkey.net/)
 
-### 👉 [**HIER KLICKEN ZUR INSTALLATION (v2.18.481)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
+### 👉 [**HIER KLICKEN ZUR INSTALLATION (v2.18.574)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
 
 > [!NOTE]
 > Das Skript enthält `@updateURL`- und `@downloadURL`-Metadaten. Dein Userscript-Manager prüft GitHub automatisch im Hintergrund und hält die Installation aktuell.
@@ -98,7 +98,7 @@ Erfordert einen Userscript-Manager als Browser-Erweiterung:
 * **Fallback-Tiefs:** Verifizierte Tiefstpreise ohne qualifizierten Median (zu wenige Datenpunkte `< minPoints`, HTML-Fallback ohne Zeitreihe oder flache Kurve `< 2%`). Zeigen den Vortief-Abstand statt des Blends (ohne `⚖️`) und lassen sich separat filtern (Normal/Dimmen/Verbergen). Qualifizierte Deals mit 0% Ersparnis tragen ein neutral-graues 0%-Badge.
 * **Neu-Geprüft-Glow (*Neu*-Puls):** Frisch verifizierte Tiefstpreise pulsieren mindestens 5s lang mit Kontur und `Neu`-Markierung bis zur nächsten Nutzerinteraktion.
 * **Interaktive SVG-Sparklines:** Kompakte Mini-Preiskurve direkt auf geprüften Karten. Klick auf die Sparkline öffnet den grossen interaktiven Chart-Dialog mit Preis- und Monatsachsen.
-* **1-Klick Review-Suche (`🌐`):** Such-Icon bei Hover am Produkttitel öffnet Google mit `<Produktname> Testbericht` (oder Wunschbegriff) in neuem Tab, optional mit **Google-KI-Modus (`&udm=50`)**.
+* **1-Klick Web- & KI-Launcher (`🌐`):** Such-Icon bei Hover am Produkttitel öffnet den einheitlichen Launcher für **Google-Suche** / **Google-KI-Modus (`&udm=50`)**, **OpenRouter** (`openrouter:web_search` mit Einmal-Modellwahl) oder Legacy-**Tavily**-Kurzfazit, inklusive konfigurierbarem Prompt und `{preis}`-Token.
 
 ### 🧹 Sticky Filterleiste
 
@@ -161,7 +161,7 @@ Erfordert einen Userscript-Manager als Browser-Erweiterung:
 | **Günstigster Händler (`🏬`)** | Neben Preis auf Karte | Direktlink zum Händlershop im neuen Tab; bei Hover Händler im Feed nachladen. |
 | **Mini-Sparkline** | Unten auf geprüfter Karte | Klick öffnet den grossen interaktiven Preishistorien-Chart. |
 | **Share-Button (`📤`)** | Unten links auf Deal-Karte | Öffnet Vorschau-Modal mit Text & PNG-Chart und teilt per Klick in den gewählten Discord-Kanal. |
-| **Web-Suche & KI-Fazit (`🌐`)** | Hover am Produkttitel | Klick öffnet KI-Kurzfazit auf der Karte (OpenRouter `openrouter:web_search` / Tavily) oder Google-Suche in neuem Tab. |
+| **Web-Suche & KI-Launcher (`🌐`)** | Hover am Produkttitel | Öffnet den Launcher für Google-Suche / Google-KI-Modus (`&udm=50`), OpenRouter `openrouter:web_search` (mit Einmal-Modellwahl) oder Legacy-Tavily. |
 | **Batch-Aktionen (`⚡ N ▴`)** | Floating-CTA unten links | Scope-Wahl (`Ohne Gedimmte` / `Alle` / `Deals`), Markdown/TSV/CSV-Export, KI-Vergleich, Google-AI/OpenRouter-Einzelsuche, sequenzielle Preisalarme, Händler laden (+ `Auto`), Tabs, Discord Batch-Share & Toppreise-Vergleich. |
 | **Einstellungen-Button (`⚙️`)** | Schwebend unten rechts | Öffnet das gekapselte Shadow-DOM-Einstellungsmenü. |
 

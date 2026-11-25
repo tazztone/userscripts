@@ -4,7 +4,7 @@
 
 **English Version** · **[🇩🇪 Deutsche Version](README.de.md)**
 
-An all-in-one userscript suite (`v2.18.341`) for **Toppreise.ch** that verifies authentic all-time low prices (*Tiefstpreise*) against complete historical price series, exposes deceptive markups (*Aufschläge*), applies a continuous discount heatmap, provides multi-mode negative/offer/dealer filtering, and automates price alarms and Discord deal sharing. Category blocking is left to Toppreise's native server-side exclusions (`Plugin_IgnoredCategories`: per-card menu, sidebar, top bar).
+An all-in-one userscript suite for **Toppreise.ch** that verifies authentic all-time low prices (*Tiefstpreise*) against complete historical price series, exposes deceptive markups (*Aufschläge*), applies a continuous discount heatmap, provides multi-mode negative/offer/dealer filtering, and automates price alarms and Discord deal sharing. Category blocking is left to Toppreise's native server-side exclusions (`Plugin_IgnoredCategories`: per-card menu, sidebar, top bar).
 
 ![Feed Cards Overview: Toolbar Actions, Deal Heatmap, Markup Exposure, Fallback Low, and 1-Click Share](docs/shots/02-feed-cards.webp)
 
@@ -19,7 +19,7 @@ An all-in-one userscript suite (`v2.18.341`) for **Toppreise.ch** that verifies 
 | ⑦ | **Transparent Deal Subline** | Displays previous low margin % and 1-year rolling median with margin %. |
 | ⑧ | **Cheapest Dealer (`🏬`)** | Direct link to the cheapest merchant offer. |
 | ⑨ | **Mini Trend Sparkline** | Compact 30-day price curve; click to expand interactive full-history chart modal. |
-| ⑩ | **1-Click Web Search (`🌐`)** | Appears on hover next to product title; opens a Google search for `<Product> <keyword>` in a new tab (keyword configurable, `{preis}` token for current price). |
+| ⑩ | **1-Click Web & AI Launcher (`🌐`)** | Appears on hover next to product title; opens the unified launcher popover for Google Search / Google AI Mode (`&udm=50`), OpenRouter `openrouter:web_search` with per-launch model picker, or legacy Tavily verdict (`{preis}` token for current price). |
 
 > [!NOTE]
 > **Deal score formula (Card 1, Callout ③):** −65% = 50/50 blend of −60% (vs. previous low) and −70% (vs. 1-year median).
@@ -98,7 +98,7 @@ Requires a userscript manager browser extension:
 * **Fallback Lows (*Fallback-Tiefs*):** Verified lows lacking a qualified median (insufficient data points `< minPoints`, HTML scrape without time series, or flat history `< 2%`). Display the Vortief-Abstand instead of a blend (no `⚖️`) and can be filtered independently (Normal/Dim/Hide). Qualified deals with 0% savings display a neutral-gray 0% badge.
 * **Newly Verified Glow (*Neu*-Puls):** Freshly verified deals pulse with an emerald outline and `Neu` indicator for ≥5s until the next user interaction (click, scroll, keypress).
 * **Interactive SVG Sparklines:** Renders a compact mini price-trend chart on verified product cards. Clicking the sparkline opens a full-resolution modal chart with price and date axes.
-* **1-Click Web Search (`🌐`):** Appends a quick-search icon on hover to product titles that opens a Google search for `<Product> <keyword>` in a new tab. Keyword is configurable (e.g. `Testbericht`, `Erfahrungen`) and may contain the `{preis}` token (current card price, CHF, verified history only), with optional **Google AI Mode (`&udm=50`)**.
+* **1-Click Web & AI Launcher (`🌐`):** Appends a quick-search icon on hover to product titles that opens the unified launcher popover for **Google Search** / **Google AI Mode (`&udm=50`)**, **OpenRouter** (`openrouter:web_search` with per-launch model selection), or legacy **Tavily** direct verdicts. Search prompt is configurable (e.g. `Testbericht`, `Erfahrungen`) and supports the `{preis}` token (current card price, CHF, verified history only).
 
 ### 🧹 Sticky Filter Bar
 
@@ -162,7 +162,7 @@ Requires a userscript manager browser extension:
 | **Cheapest Dealer (`🏬`)** | Next to price on verified card | Click to jump directly to the merchant offer in a new tab; hover to load dealer on feed cards. |
 | **Mini Sparkline** | Bottom of verified card | Click to open the large interactive price history chart modal. |
 | **Share Button (`📤`)** | Bottom-left of verified card | Opens preview modal with message and chart PNG, posting to your chosen Discord channel webhook. |
-| **Web Search & AI Verdict (`🌐`)** | Next to product title | Opens AI review verdict modal (with Tavily key) or Google search in a new tab. |
+| **Web Search & AI Launcher (`🌐`)** | Next to product title | Opens the unified launcher popover for Google / Google AI Mode (`&udm=50`), OpenRouter `openrouter:web_search` (with per-launch model picker), or legacy Tavily verdict. |
 | **Settings FAB (`⚙️`)** | Bottom-right floating button | Opens the encapsulated Shadow DOM settings modal. |
 
 ### ⌨️ Keyboard Shortcuts
