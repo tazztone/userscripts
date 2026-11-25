@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Universal pre-commit hook: Auto-bumps patch versions for any staged userscripts (*.user.js) and syncs their adjacent README.md files."""
+"""Universal pre-commit hook: Auto-bumps patch versions for any staged userscripts (*.user.js) and syncs their adjacent README.md / README.de.md files."""
 
 import glob
 import os
@@ -41,23 +41,24 @@ def process_script(script_relpath):
         f.write(new_content)
     subprocess.run(['git', 'add', script_abspath], check=True)
 
-    # Sync adjacent README.md in the same directory if it exists
+    # Sync adjacent README.md / README.de.md in the same directory if present
     script_dir = os.path.dirname(script_abspath)
-    readme_path = os.path.join(script_dir, 'README.md')
-    if os.path.exists(readme_path):
-        with open(readme_path, 'r', encoding='utf-8') as f:
-            readme_content = f.read()
+    for readme_name in ('README.md', 'README.de.md'):
+        readme_path = os.path.join(script_dir, readme_name)
+        if os.path.exists(readme_path):
+            with open(readme_path, 'r', encoding='utf-8') as f:
+                readme_content = f.read()
 
-        new_readme = re.sub(
-            r'\(v\d+\.\d+\.\d+\)',
-            f'(v{extracted_version})',
-            readme_content,
-            count=1
-        )
-        if new_readme != readme_content:
-            with open(readme_path, 'w', encoding='utf-8') as f:
-                f.write(new_readme)
-            subprocess.run(['git', 'add', readme_path], check=True)
+            new_readme = re.sub(
+                r'\(v\d+\.\d+\.\d+\)',
+                f'(v{extracted_version})',
+                readme_content,
+                count=1
+            )
+            if new_readme != readme_content:
+                with open(readme_path, 'w', encoding='utf-8') as f:
+                    f.write(new_readme)
+                subprocess.run(['git', 'add', readme_path], check=True)
 
     # Sync src/app.js if modular structure exists
     app_path = os.path.join(script_dir, 'src', 'app.js')
