@@ -40,6 +40,7 @@ export const FLOATING_CTA_ID = 'tp-floating-check-cta';
 let collapsedForSession = false;
 let lastCounts = { uncheckedDeals: 0 };
 let lastIsDealFeed = false;
+let lastBatchCounts = null;
 
 /**
  * Pure label state machine (no DOM): idle → scanning → refreshing → done (empty).
@@ -256,7 +257,7 @@ function ensureCta() {
   return el;
 }
 
-function syncFloatingCTA() {
+function syncFloatingCTA(precomputedBatchCounts = undefined) {
   if (typeof document === 'undefined') return;
   const el = document.getElementById(FLOATING_CTA_ID);
   if (!el) return;
@@ -331,7 +332,9 @@ function syncFloatingCTA() {
       ? `Nur Differenzen ≥ ${minDisc}% prüfen (ungeprüft ≠ Tiefstpreis)`
       : `Nur Produkte mit Differenz ≥ ${minDisc}% prüfen`;
   }
-  const counts = getBatchScopeCounts();
+  const counts = (precomputedBatchCounts && typeof precomputedBatchCounts['non-dimmed'] === 'number')
+    ? precomputedBatchCounts
+    : (lastBatchCounts || getBatchScopeCounts());
   const batchBtnEl = el.querySelector('#tp-floating-batch-btn');
   const batchCountEl = el.querySelector('#tp-floating-batch-count');
   const activeBatch = getActiveBatchJob();
@@ -353,10 +356,11 @@ function syncFloatingCTA() {
  * hideFloatingCTA is reserved for non-list contexts (product detail,
  * zero cards). Collapse state is sticky within the session.
  */
-export function renderFloatingCTA(counts = {}, isDealFeed = false) {
+export function renderFloatingCTA(counts = {}, isDealFeed = false, batchCounts = null) {
   if (typeof document === 'undefined') return;
   lastCounts = counts || { uncheckedDeals: 0 };
   lastIsDealFeed = !!isDealFeed;
+  lastBatchCounts = batchCounts || null;
   ensureCta();
-  syncFloatingCTA();
+  syncFloatingCTA(batchCounts);
 }

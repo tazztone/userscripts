@@ -370,21 +370,9 @@ export function renderDetailSparkline(pid, title, currentPrice, stats, priceBasi
 
   const series = withLivePrice(baseSeries, currentPrice);
   const useShipping = priceBasis ? priceBasis === 'shipping' : isShippingPriceActive();
-  const best = pickCheapestOffer(parseProductOffers(document), useShipping);
-  const pageUrl = typeof location !== 'undefined' ? location.href : '';
-  let resolvedDirectUrl = pageUrl;
-  if (best?.url) {
-    try {
-      resolvedDirectUrl = pageUrl ? new URL(best.url, pageUrl).href : best.url;
-    } catch {
-      resolvedDirectUrl = best.url;
-    }
-  }
   sparkContainer._tpSeries = series;
   sparkContainer._tpTitle = title;
   sparkContainer._tpPid = pid;
-  sparkContainer._tpDealer = best?.dealer || '';
-  sparkContainer._tpDirectUrl = resolvedDirectUrl;
 
   const baseLastTs = baseSeries.length ? (+baseSeries[baseSeries.length - 1][0] || 0) : 0;
   const lastPriceCents = priceToCents(currentPrice);
@@ -400,6 +388,19 @@ export function renderDetailSparkline(pid, title, currentPrice, stats, priceBasi
     return;
   }
   sparkContainer.dataset.tpSparkSig = sig;
+
+  const best = pickCheapestOffer(parseProductOffers(document), useShipping);
+  const pageUrl = typeof location !== 'undefined' ? location.href : '';
+  let resolvedDirectUrl = pageUrl;
+  if (best?.url) {
+    try {
+      resolvedDirectUrl = pageUrl ? new URL(best.url, pageUrl).href : best.url;
+    } catch {
+      resolvedDirectUrl = best.url;
+    }
+  }
+  sparkContainer._tpDealer = best?.dealer || '';
+  sparkContainer._tpDirectUrl = resolvedDirectUrl;
 
   if (!sparkContainer.dataset.tpPopoutBound) {
     sparkContainer.dataset.tpPopoutBound = 'true';

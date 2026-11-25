@@ -22,6 +22,9 @@ import {
   ensureFreshAnalysis,
   currentCacheGen,
   bumpCacheGeneration,
+  encodeTimeSeries,
+  decodeTimeSeries,
+  MAX_CACHE_BYTES,
 } from '../../src/scanner/cache.js';
 import { analyzePriceTimeSeries } from '../../src/domain/price.js';
 import { DAY, HOUR, withConfig } from './helpers.js';
@@ -651,6 +654,64 @@ describe('Bounded Cache Module', () => {
         if (prevLS === undefined) delete globalThis.localStorage; else globalThis.localStorage = prevLS;
         if (prevDel === undefined) delete globalThis.GM_deleteValue; else globalThis.GM_deleteValue = prevDel;
       }
+    });
+
+    it('encodeTimeSeries / decodeTimeSeries round-trips uniformly spaced and gapped series losslessly and shrinks disk payload', () => {
+      const base = Date.UTC(2025, 0, 1);
+      const pts = [];
+      for (let d = 0; d < 365; d++) {
+        pts.push([base + d * DAY, d < 200 ? 199.9 : (d < 300 ? 179.9 : 149.9)]);
+      }
+      // Inject an irregular sub-day point at the end
+      pts.push([pts[pts.length - 1][0] + 3600000, 145.5]);
+      const encoded = encodeTimeSeries(pts);
+      assert.equal(encoded.rle, 1);
+      assert.ok(JSON.stringify(encoded).length < JSON.stringify(pts).length * 0.15);
+      assert.deepEqual(decodeTimeSeries(encoded), pts);
+
+      const s = memStorage();
+      setCachedPriceStats('rle1', { tiefstpreis: 145.5, medianPrice: 199.9, timeSeries: pts }, false, s);
+      const diskObj = JSON.parse(s.getItem(statsKey('rle1')));
+      assert.equal(diskObj.timeSeries.rle, 1);
+      memoryCache.clear();
+      const got = getCachedPriceStats('rle1', false, s);
+      assert.deepEqual(got.timeSeries, pts);
+    });
+
+    it('prunePriceStatsCache enforces MAX_CACHE_BYTES by evicting >48h stats before tp_shared_v1_', () => {
+      const s = memStorage();
+      const now = Date.now();
+      const big = 'x'.repeat(300000); // ~600 KB UTF-16 per entry -> 5 entries = ~3 MB > 2.5 MB
+      s.setItem('tp_shared_v1_keep', JSON.stringify({ time: now - 5 * DAY, priceCents: 1000, pad: big.slice(0, 1000) }));
+      for (let i = 0; i < 4; i++) {
+        s.setItem(`tp_hist_v1_old_${i}`, JSON.stringify({ time: now - (3 + i) * DAY, tiefstpreis: 10 + i, pad: big }));
+      }
+      s.setItem('tp_hist_v1_new_0', JSON.stringify({ time: now - HOUR, tiefstpreis: 99, pad: big }));
+      prunePriceStatsCache(s);
+      assert.notEqual(s.getItem('tp_shared_v1_keep'), null);
+      assert.notEqual(s.getItem('tp_hist_v1_new_0'), null);
+      // Oldest >48h stats entry was evicted to bring cache under byte ceiling
+      assert.equal(s.getItem('tp_hist_v1_old_3'), null);
+      assert.ok(MAX_CACHE_BYTES > 2 * 1024 * 1024);
+    });
+
+    it('recomputeCachedMedians horizonOnly updates window median without clearing entry fields', () => {
+      const now = Date.now();
+      const series = [
+        [now - 400 * DAY, 2000],
+        [now - 300 * DAY, 1900],
+        [now - 60 * DAY, 800],
+        [now - 30 * DAY, 780],
+        [now, 750]
+      ];
+      const seed = analyzePriceTimeSeries(series, 750, 0);
+      setCachedPriceStats('ho1', seed, false, null);
+      const count = recomputeCachedMedians(90, null, { horizonOnly: true });
+      assert.equal(count, 1);
+      const updated = memoryCache.get(statsKey('ho1'));
+      assert.equal(updated.horizonDays, 90);
+      assert.equal(updated.medianPrice, 780);
+      assert.equal(updated.medianFallback, false);
     });
   });
 });

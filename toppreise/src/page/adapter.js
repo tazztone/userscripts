@@ -51,7 +51,7 @@ export function isShippingPriceActive(card = null) {
             card._tpUseShipping = false;
             return false;
           }
-          if (shpContainer.isConnected && typeof window !== 'undefined' && typeof window.getComputedStyle === 'function') {
+          if (shpContainer.offsetParent === null && shpContainer.isConnected && typeof window !== 'undefined' && typeof window.getComputedStyle === 'function') {
             try {
               if (window.getComputedStyle(shpContainer).display === 'none') {
                 card._tpUseShipping = false;

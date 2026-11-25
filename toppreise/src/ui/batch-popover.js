@@ -577,9 +577,11 @@ export function syncBatchPopover(precomputedCounts = null) {
   if (isOpen && hasValidWebhook) {
     const discordMeta = pop.querySelector('#tp-batch-discord-meta');
     if (discordMeta) {
-      const unsharedCount = collectScopedCards(scope).filter(
-        it => it.isVerifiedDeal && it.pid && it.cardPrice > 0 && !getSharedDeal(it.pid, priceToCents(it.cardPrice))
-      ).length;
+      const unsharedCount = (precomputedCounts?.unsharedByScope && Object.hasOwn(precomputedCounts.unsharedByScope, scope))
+        ? precomputedCounts.unsharedByScope[scope]
+        : collectScopedCards(scope).filter(
+            it => it.isVerifiedDeal && it.pid && it.cardPrice > 0 && !getSharedDeal(it.pid, priceToCents(it.cardPrice))
+          ).length;
       discordMeta.textContent = `${unsharedCount} neu ›`;
     }
   }

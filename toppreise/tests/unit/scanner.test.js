@@ -130,6 +130,24 @@ describe('fetchSingleProductPriceStats refresh semantics', () => {
     assert.equal(prodEntry.medianPrice, 99);
   });
 
+  it('opportunistically caches both product and shipping slots from dual-series response', async () => {
+    CONFIG.USE_SHIPPING_PRICE = true;
+    const pid = 'test-pid-dual-series';
+    const baseTs = Date.now() - 10 * 86400000;
+    const prod = [[baseTs, 100], [baseTs + 86400000, 95], [baseTs + 2 * 86400000, 90]];
+    const ship = [[baseTs, 110], [baseTs + 86400000, 105], [baseTs + 2 * 86400000, 99]];
+    globalThis.fetch = async (url, opts) => {
+      fetchCalls++;
+      if (opts?.method === 'POST') return { ok: true, json: async () => [prod, ship] };
+      return { ok: false, status: 404, headers: { get: () => null } };
+    };
+    const stats = await fetchSingleProductPriceStats(pid, 0, true);
+    assert.equal(stats.tiefstpreis, 99);
+    assert.equal(getCachedPriceStats(pid, false, null, true)?.tiefstpreis, 99);
+    assert.equal(getCachedPriceStats(pid, false, null, false)?.tiefstpreis, 90);
+    assert.equal(fetchCalls, 1);
+  });
+
   it('cancelled fetches return null and write no negative entry', async () => {
     const pid = 'test-pid-cancelled';
     const viaFlag = await fetchSingleProductPriceStats(pid, 1, true, () => true);

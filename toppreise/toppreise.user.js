@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.568
+// @version      2.18.569
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -5001,6 +5001,62 @@ const SHADOW_MODAL_STYLES = `
 
 
   const STATS_CACHE_PREFIX = 'tp_hist_v1_';
+  const STATS_DAY_MS = 86400000;
+  const MAX_CACHE_BYTES = Math.round(2.5 * 1024 * 1024);
+
+  function encodeTimeSeries(pts) {
+    if (!Array.isArray(pts) || pts.length < 4) return pts;
+    const t0 = pts[0]?.[0];
+    if (!Number.isFinite(t0)) return pts;
+    const s = [];
+    let prevTs = t0 - STATS_DAY_MS;
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i];
+      const ts = p?.[0];
+      const price = p?.[1];
+      if (!Number.isFinite(ts) || !Number.isFinite(price)) return pts;
+      const dt = ts - prevTs;
+      const last = s[s.length - 1];
+      if (dt === STATS_DAY_MS) {
+        if (typeof last === 'number' && last === price) {
+          s[s.length - 1] = [price, 2];
+        } else if (Array.isArray(last) && last.length === 2 && last[0] === price) {
+          last[1]++;
+        } else {
+          s.push(price);
+        }
+      } else {
+        s.push([price, 1, dt]);
+      }
+      prevTs = ts;
+    }
+    return { rle: 1, t0, s };
+  }
+
+  function decodeTimeSeries(stored) {
+    if (!stored || Array.isArray(stored)) return stored;
+    if (stored.rle !== 1 || !Number.isFinite(stored.t0) || !Array.isArray(stored.s)) return stored;
+    let ts = stored.t0 - STATS_DAY_MS;
+    const out = [];
+    for (const item of stored.s) {
+      if (typeof item === 'number') {
+        ts += STATS_DAY_MS;
+        out.push([ts, item]);
+      } else if (Array.isArray(item)) {
+        if (item.length === 2) {
+          for (let k = 0; k < item[1]; k++) { ts += STATS_DAY_MS; out.push([ts, item[0]]); }
+        } else if (item.length >= 3) {
+          ts += item[2];
+          out.push([ts, item[0]]);
+          for (let k = 1; k < item[1]; k++) { ts += STATS_DAY_MS; out.push([ts, item[0]]); }
+        } else if (item.length === 1) {
+          ts += STATS_DAY_MS;
+          out.push([ts, item[0]]);
+        }
+      }
+    }
+    return out;
+  }
   const statsKey = (productId, useShippingOverride) => {
     try { const s = typeof useShippingOverride === 'boolean' ? useShippingOverride : isShippingPriceActive(); return `${STATS_CACHE_PREFIX}${productId}_${s ? 's' : 'p'}`; }
     catch { return `${STATS_CACHE_PREFIX}${productId}_p`; }
@@ -5057,8 +5113,9 @@ const SHADOW_MODAL_STYLES = `
   function fullSeries(entry) {
     if (!entry) return null;
     if (Array.isArray(entry.rawTimeSeries)) return entry.rawTimeSeries;
-    const base = entry.timeSeries;
-    if (!Array.isArray(base)) return null;
+    const decoded = decodeTimeSeries(entry.timeSeries);
+    const base = Array.isArray(decoded) ? decoded : null;
+    if (!base) return null;
     const extra = Array.isArray(entry.filteredOutliers)
       ? entry.filteredOutliers
           .map(o => (Array.isArray(o) ? o : [o?.timestamp ?? o?.[0], o?.price ?? o?.[1]]))
@@ -5084,16 +5141,50 @@ const SHADOW_MODAL_STYLES = `
   }
   const hasUsablePriceStats = stats => !!stats && !stats.unavailable && (Number.isFinite(stats?.tiefstpreis) ? stats.tiefstpreis > 0 : Number.isFinite(stats?.medianPrice) && stats.medianPrice > 0);
 
+  let hasAnyLegacyStatsKey = null;
+  let recomputeFlushTimer = null;
+  const pendingRecomputeKeys = new Set();
+
+  function serializeStatsForDisk(entry) {
+    if (!entry || entry.unavailable) return entry;
+    const encodedSeries = Array.isArray(entry.timeSeries) ? encodeTimeSeries(entry.timeSeries) : entry.timeSeries;
+    return {
+      ...entry,
+      ...(encodedSeries !== undefined ? { timeSeries: encodedSeries } : {}),
+      rawTimeSeries: undefined
+    };
+  }
+
+  function safeStorageSet(storage, key, val) {
+    if (!storage) return false;
+    try {
+      storage.setItem(key, val);
+      return true;
+    } catch (e) {
+      if (e?.name === 'QuotaExceededError' || e?.code === 22) {
+        try {
+          prunePriceStatsCache(storage, true);
+          storage.setItem(key, val);
+          return true;
+        } catch {}
+      }
+      return false;
+    }
+  }
+
   function prunePriceStatsCache(storage = null, forceEvict = false) {
     storage = resolveStorage(storage);
     if (!storage) return;
     try {
       const now = Date.now();
       const maxAgeMs = 14 * 24 * 3600 * 1000;
+      const realTtlMs = (CONFIG?.REAL_DEAL_CACHE_HOURS || 48) * 3600 * 1000;
       const diskLimit = CONFIG?.CACHE_DISK_LIMIT ?? 300;
       const negTtlMs = (CONFIG?.NEGATIVE_CACHE_HOURS || 2) * 3600 * 1000;
       const entries = [];
       const keysToRemove = [];
+      let totalBytes = 0;
+      let foundLegacyStats = false;
 
       for (let i = 0; i < storage.length; i++) {
         const key = storage.key(i);
@@ -5107,39 +5198,65 @@ const SHADOW_MODAL_STYLES = `
             if (!itemTime || age > maxAgeMs || (isUnavailable && age > negTtlMs)) {
               keysToRemove.push(key);
             } else {
-              entries.push({ key, time: itemTime });
+              const bytes = (key.length + raw.length) * 2;
+              totalBytes += bytes;
+              const isStats = key.startsWith(STATS_CACHE_PREFIX);
+              if (isStats && !key.endsWith('_p') && !key.endsWith('_s')) foundLegacyStats = true;
+              entries.push({ key, time: itemTime, age, bytes, isShared: key.startsWith(SHARED_CACHE_PREFIX) });
             }
           } catch (e) {
             keysToRemove.push(key);
           }
         }
       }
+      if (storage === resolveStorage(null)) hasAnyLegacyStatsKey = foundLegacyStats;
 
       keysToRemove.forEach(k => storage.removeItem(k));
 
-      if (forceEvict && entries.length > 0) {
-        entries.sort((a, b) => a.time - b.time);
-        const evictCount = Math.max(1, Math.ceil(entries.length * 0.25));
-        entries.slice(0, evictCount).forEach(e => storage.removeItem(e.key));
-      } else if (entries.length > diskLimit) {
-        entries.sort((a, b) => a.time - b.time);
+      let active = entries;
+      if (totalBytes > MAX_CACHE_BYTES && active.length > 0) {
+        const targetBytes = Math.round(MAX_CACHE_BYTES * 0.8);
+        const evicted = new Set();
+        // 1) Evict non-shared entries past REAL_DEAL_CACHE_HOURS oldest-first
+        const stale = active.filter(e => !e.isShared && e.age > realTtlMs).sort((a, b) => a.time - b.time);
+        for (const e of stale) {
+          if (totalBytes <= targetBytes) break;
+          storage.removeItem(e.key);
+          evicted.add(e.key);
+          totalBytes -= e.bytes;
+        }
+        // 2) If still over ceiling, evict oldest entries regardless of age
+        if (totalBytes > targetBytes) {
+          const rest = active.filter(e => !evicted.has(e.key)).sort((a, b) => a.time - b.time);
+          for (const e of rest) {
+            if (totalBytes <= targetBytes) break;
+            storage.removeItem(e.key);
+            evicted.add(e.key);
+            totalBytes -= e.bytes;
+          }
+        }
+        if (evicted.size > 0) active = active.filter(e => !evicted.has(e.key));
+      }
+
+      if (forceEvict && active.length > 0) {
+        active.sort((a, b) => a.time - b.time);
+        const evictCount = Math.max(1, Math.ceil(active.length * 0.25));
+        active.slice(0, evictCount).forEach(e => storage.removeItem(e.key));
+      } else if (active.length > diskLimit) {
+        active.sort((a, b) => a.time - b.time);
         const target = Math.max(50, Math.round(diskLimit * 0.8));
-        entries.slice(0, Math.max(0, entries.length - target)).forEach(e => storage.removeItem(e.key));
+        active.slice(0, Math.max(0, active.length - target)).forEach(e => storage.removeItem(e.key));
       }
     } catch (e) {}
   }
 
   function getCachedPriceStats(productId, ignoreNegativeCache = false, storage = null, useShippingOverride = null) {
     if (!productId) return null;
+    const resolvedDefault = resolveStorage(null);
     storage = resolveStorage(storage);
     const targetShipping = typeof useShippingOverride === 'boolean'
       ? useShippingOverride
       : (typeof useShippingOverride === 'string' ? useShippingOverride === 'shipping' : isShippingPriceActive());
-    // Mode guard: the series is picked per shipping mode at fetch time and the
-    // key is bare, so a cross-mode entry would compare the wrong baseline
-    // (same wrong-"Bisher" class as a stale series anchor). Legacy entries
-    // without the flag pass through; explicit mismatches read as a miss and
-    // self-heal via refetch on the next scan.
     const isModeMatch = entry => {
       if (typeof entry?.isShippingPrice !== 'boolean') return true;
       try {
@@ -5155,7 +5272,6 @@ const SHADOW_MODAL_STYLES = `
             memoryCache.delete(key);
           } else {
             const fresh = ensureFreshAnalysis(memData);
-            // LRU update
             lruSet(memoryCache, key, fresh);
             return fresh;
           }
@@ -5165,36 +5281,40 @@ const SHADOW_MODAL_STYLES = `
       }
 
       let raw = storage?.getItem(key);
-      if (!raw) {
-        // Upgrade migration (one read, no refetch storm): pre-suffix entries
-        // adopt the current slot when fresh and mode-matching; stale ones go,
-        // mode-mismatched ones wait for their mode's next miss.
+      let migratedLegacy = false;
+      const isProdSite = typeof location !== 'undefined' && /(?:^|\.)toppreise\.ch$/i.test(location.hostname || '');
+      const allowLegacy = !isProdSite || storage !== resolvedDefault || hasAnyLegacyStatsKey !== false;
+      if (!raw && allowLegacy) {
         try {
           const legacyKey = STATS_CACHE_PREFIX + productId;
           const legacy = storage?.getItem(legacyKey);
           if (legacy) {
             let parsedLegacy = null;
             try { parsedLegacy = JSON.parse(legacy); } catch {}
-            if (parsedLegacy && isCacheEntryFresh(parsedLegacy, ignoreNegativeCache) && isModeMatch(parsedLegacy)) { raw = legacy; try { storage?.removeItem(legacyKey); } catch {} }
-            else if (!parsedLegacy || !isCacheEntryFresh(parsedLegacy, ignoreNegativeCache)) try { storage?.removeItem(legacyKey); } catch {}
+            if (parsedLegacy && isCacheEntryFresh(parsedLegacy, ignoreNegativeCache) && isModeMatch(parsedLegacy)) {
+              raw = legacy;
+              migratedLegacy = true;
+              try { storage?.removeItem(legacyKey); } catch {}
+            } else if (!parsedLegacy || !isCacheEntryFresh(parsedLegacy, ignoreNegativeCache)) {
+              try { storage?.removeItem(legacyKey); } catch {}
+            }
           }
         } catch {}
       }
       if (!raw) return null;
       let parsed = JSON.parse(raw);
+      if (parsed?.timeSeries && !Array.isArray(parsed.timeSeries)) {
+        parsed.timeSeries = decodeTimeSeries(parsed.timeSeries);
+      }
 
       if (isCacheEntryFresh(parsed, ignoreNegativeCache)) {
-        // Cross-mode stale entry: evict from storage too, else every render
-        // re-parses localStorage for an entry that always misses.
         if (!isModeMatch(parsed)) { try { storage?.removeItem(key); } catch (e) {} return null; }
-        // Lazy cold-entry recompute: horizon/outlier change stamps medianSig;
-        // stale-sig entries with a series recompute synchronously, no refetch.
+        const prevSig = parsed.medianSig;
         parsed = ensureFreshAnalysis(parsed);
         lruSet(memoryCache, key, parsed);
-        try {
-          const repersist = (parsed.timeSeries && parsed.rawTimeSeries) ? { ...parsed, rawTimeSeries: undefined } : parsed;
-          storage?.setItem(key, JSON.stringify(repersist));
-        } catch (e) {}
+        if (migratedLegacy || parsed.medianSig !== prevSig) {
+          safeStorageSet(storage, key, JSON.stringify(serializeStatsForDisk(parsed)));
+        }
         return parsed;
       }
     } catch (e) {}
@@ -5206,10 +5326,6 @@ const SHADOW_MODAL_STYLES = `
     if (expectedGen !== null && expectedGen !== cacheGeneration) return;
     storage = resolveStorage(storage);
     const key = statsKey(productId, useShippingOverride);
-    // Upgrade-only: never replace median-bearing stats with median-less
-    // fallback stats. A refresh that lands on the HTML fallback (tiefstpreis
-    // only) must not regress a full analysis — the badge would keep its old %
-    // while the heat goes neutral. Unavailable-markers keep current semantics.
     if (!isUnavailable && stats && !stats.medianPrice) {
       if (memoryCache.has(key)) {
         const prev = memoryCache.get(key);
@@ -5234,21 +5350,13 @@ const SHADOW_MODAL_STYLES = `
 
     lruSet(memoryCache, key, payload);
 
-    // Persist stripped: rawTimeSeries duplicates timeSeries bytes on disk;
-    // memory keeps the full object for recompute.
-    const persistPayload = (!isUnavailable && payload.timeSeries && payload.rawTimeSeries)
-      ? { ...payload, rawTimeSeries: undefined }
-      : payload;
-    try {
-      statsWriteCount++;
-      const diskLimit = CONFIG?.CACHE_DISK_LIMIT ?? 300;
-      if (statsWriteCount === 1 || (statsWriteCount % 100 === 0 && (storage?.length ?? 0) > diskLimit * 0.8)) prunePriceStatsCache(storage);
-      storage?.setItem(key, JSON.stringify(persistPayload));
-    } catch (e) {
-      if (e?.name === 'QuotaExceededError' || e?.code === 22) {
-        try { prunePriceStatsCache(storage, true); storage?.setItem(key, JSON.stringify(persistPayload)); } catch (_) {}
-      }
+    const persistPayload = serializeStatsForDisk(payload);
+    statsWriteCount++;
+    const diskLimit = CONFIG?.CACHE_DISK_LIMIT ?? 300;
+    if (statsWriteCount === 1 || (statsWriteCount % 25 === 0 && (storage?.length ?? 0) > Math.min(diskLimit * 0.8, 20))) {
+      prunePriceStatsCache(storage);
     }
+    safeStorageSet(storage, key, JSON.stringify(persistPayload));
   }
 
   function countCachedPriceStats(storage = null) {
@@ -5274,6 +5382,8 @@ const SHADOW_MODAL_STYLES = `
     if (prefixes.includes(STATS_CACHE_PREFIX)) {
       cacheGeneration++;
       memoryCache.clear();
+      if (recomputeFlushTimer) { clearTimeout(recomputeFlushTimer); recomputeFlushTimer = null; }
+      pendingRecomputeKeys.clear();
     }
     storage = resolveStorage(storage);
     let count = 0;
@@ -5297,28 +5407,70 @@ const SHADOW_MODAL_STYLES = `
   // (timeSeries) — der Median wird lokal für den neuen Horizont neu gerechnet.
   // `time` bleibt unangetastet, Einträge bleiben fresh, kein Refetch.
   // Serienlose Einträge (Fallback/negativ) werden übersprungen.
-  function recomputeCachedMedians(horizonDays, storage = null) {
+  function recomputeCachedMedians(horizonDays, storage = null, { horizonOnly = false, debounceMs = 0 } = {}) {
     let count = 0;
     storage = resolveStorage(storage);
     const sig = currentMedianSig(horizonDays);
+    const nowMs = Date.now();
+    const hDays = typeof horizonDays === 'number' ? horizonDays : (typeof CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS === 'number' ? CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS : 365);
+
+    const rewriteHorizonOnly = entry => {
+      const pts = decodeTimeSeries(entry?.timeSeries);
+      if (!Array.isArray(pts) || pts.length === 0) return null;
+      let windowPrices;
+      let medianFallback = false;
+      if (hDays > 0) {
+        const cutoff = nowMs - hDays * STATS_DAY_MS;
+        const wp = pts.filter(p => p[0] >= cutoff);
+        if (wp.length >= 3) {
+          windowPrices = wp.map(p => p[1]);
+        } else {
+          windowPrices = pts.map(p => p[1]);
+          medianFallback = true;
+        }
+      } else {
+        windowPrices = pts.map(p => p[1]);
+      }
+      const sorted = windowPrices.sort((a, b) => a - b);
+      const medianPrice = Math.round(medianOf(sorted) * 100) / 100;
+      const curr = (typeof entry.anchorPrice === 'number' && entry.anchorPrice > 0) ? entry.anchorPrice : pts[pts.length - 1][1];
+      const realDiscountVsMedian = (medianPrice > curr) ? pctDrop(medianPrice, curr) : 0;
+      return { ...entry, medianPrice, medianFallback, horizonDays: hDays, realDiscountVsMedian, time: entry.time, medianSig: sig };
+    };
+
     const rewrite = entry => {
+      if (horizonOnly) return rewriteHorizonOnly(entry);
       const src = fullSeries(entry);
       if (!Array.isArray(src)) return null;
-      const fresh = analyzePriceTimeSeries(src, entry?.anchorPrice ?? null, horizonDays);
+      const fresh = analyzePriceTimeSeries(src, entry?.anchorPrice ?? null, hDays);
       if (!fresh) return null;
       return { ...entry, ...fresh, time: entry.time, medianSig: sig, ...(entry.rawTimeSeries && fresh.rawTimeSeries === undefined ? { rawTimeSeries: entry.rawTimeSeries } : {}) };
     };
+
+    const flushKeys = [];
     for (const [cacheKey, entry] of memoryCache) {
       const next = rewrite(entry);
       if (!next) continue;
       memoryCache.set(cacheKey, next);
-      // Write-through for rewritten entries only (no storage sweep): reloads
-      // and other tabs see the new window without a refetch.
-      try {
-        const persist = (next.timeSeries && next.rawTimeSeries) ? { ...next, rawTimeSeries: undefined } : next;
-        storage?.setItem(cacheKey, JSON.stringify(persist));
-      } catch (e) {}
+      if (debounceMs > 0) pendingRecomputeKeys.add(cacheKey);
+      else flushKeys.push([cacheKey, next]);
       count++;
+    }
+    if (debounceMs > 0 && pendingRecomputeKeys.size > 0) {
+      if (recomputeFlushTimer) clearTimeout(recomputeFlushTimer);
+      recomputeFlushTimer = setTimeout(() => {
+        recomputeFlushTimer = null;
+        const targetStorage = storage || resolveStorage(null);
+        for (const cacheKey of pendingRecomputeKeys) {
+          const entry = memoryCache.get(cacheKey);
+          if (entry) safeStorageSet(targetStorage, cacheKey, JSON.stringify(serializeStatsForDisk(entry)));
+        }
+        pendingRecomputeKeys.clear();
+      }, debounceMs);
+    } else {
+      for (const [cacheKey, next] of flushKeys) {
+        safeStorageSet(storage, cacheKey, JSON.stringify(serializeStatsForDisk(next)));
+      }
     }
     return count;
   }
@@ -5353,7 +5505,7 @@ const SHADOW_MODAL_STYLES = `
       const prevSlot = (prev && typeof prev[slot] === 'object' && prev[slot] !== null) ? prev[slot] : {};
       const now = Date.now();
       const next = { ...prev, time: now, [slot]: { ...prevSlot, dealer, url: url || '', offers: Number.isFinite(+offers) ? Math.round(+offers) : 0, totalOffers: Number.isFinite(+totalOffers) ? Math.round(+totalOffers) : 0, time: now } };
-      storage?.setItem(DEALER_CACHE_PREFIX + productId, JSON.stringify(next));
+      safeStorageSet(storage, DEALER_CACHE_PREFIX + productId, JSON.stringify(next));
     } catch (e) {}
   }
 
@@ -5376,9 +5528,7 @@ const SHADOW_MODAL_STYLES = `
   function setSharedDeal(productId, priceCents, storage = null) {
     if (!productId || priceCents == null) return;
     storage = resolveStorage(storage);
-    try {
-      storage?.setItem(SHARED_CACHE_PREFIX + productId, JSON.stringify({ priceCents, time: Date.now() }));
-    } catch (e) {}
+    safeStorageSet(storage, SHARED_CACHE_PREFIX + productId, JSON.stringify({ priceCents, time: Date.now() }));
   }
 
   function getCachedAsin(productId, storage = null) {
@@ -5398,9 +5548,7 @@ const SHADOW_MODAL_STYLES = `
   function setCachedAsin(productId, asin, storage = null) {
     if (!productId || !asin) return;
     storage = resolveStorage(storage);
-    try {
-      storage?.setItem(ASIN_CACHE_PREFIX + productId, JSON.stringify({ asin: String(asin).toUpperCase(), time: Date.now() }));
-    } catch (e) {}
+    safeStorageSet(storage, ASIN_CACHE_PREFIX + productId, JSON.stringify({ asin: String(asin).toUpperCase(), time: Date.now() }));
   }
 
   // ─── MODULE: src/ui/mini-toggle.js ──────────────────────────────────────────
@@ -7310,7 +7458,7 @@ const SHADOW_MODAL_STYLES = `
               card._tpUseShipping = false;
               return false;
             }
-            if (shpContainer.isConnected && typeof window !== 'undefined' && typeof window.getComputedStyle === 'function') {
+            if (shpContainer.offsetParent === null && shpContainer.isConnected && typeof window !== 'undefined' && typeof window.getComputedStyle === 'function') {
               try {
                 if (window.getComputedStyle(shpContainer).display === 'none') {
                   card._tpUseShipping = false;
@@ -7867,12 +8015,22 @@ const SHADOW_MODAL_STYLES = `
 
   // usable stats verify, fresh unavailable markers wait out the negative TTL,
   // basis mismatches refetch (no new state), everything else is unchecked.
-  function scanEligibility(card) {
-    const pid = getCardProductId(card);
+  function scanEligibility(card, pre = null) {
+    const pid = pre?.pid ?? getCardProductId(card);
     if (!pid) return { state: 'verified', canScan: false, retryAt: null, reason: 'no-pid' };
-    const { price: cardPrice, basis: cardBasis } = extractCanonicalPrice(card);
+    const hasPrePrice = pre && 'cardPrice' in pre && 'cardPriceBasis' in pre;
+    const { price: cardPrice, basis: cardBasis } = hasPrePrice
+      ? { price: pre.cardPrice, basis: pre.cardPriceBasis }
+      : extractCanonicalPrice(card);
     if (!(cardPrice > 0) || !cardBasis) {
       return { state: 'verified', canScan: false, retryAt: null, reason: 'no-price' };
+    }
+    const preStats = pre?.stats;
+    if (preStats && !preStats.unavailable && basisMatchesFor(preStats, cardBasis) && hasUsablePriceStats(preStats)) {
+      return { state: 'verified', canScan: false, retryAt: null, reason: null };
+    }
+    if (preStats && preStats.unavailable && basisMatchesFor(preStats, cardBasis)) {
+      return { state: 'unavailable', canScan: false, retryAt: (preStats.time || Date.now()) + (CONFIG.NEGATIVE_CACHE_HOURS || 2) * 3600 * 1000, reason: 'negative-cache' };
     }
     const stats = getCardStats(pid, cardBasis, true);
     if (stats && !basisMatchesFor(stats, cardBasis)) {
@@ -7926,12 +8084,14 @@ const SHADOW_MODAL_STYLES = `
       dealScore,
       displayDelta,
       offerCount,
+      effDiscount,
       savingsChf
     };
   }
 
   function getCardEffectiveDiscount(cd) {
     if (!cd) return 0;
+    if (typeof cd.effDiscount === 'number') return cd.effDiscount;
     const sortBasisOk = cd.basisMatches ?? basisMatchesFor(cd.stats, cd.cardPriceBasis);
     const vStats = cd.verifiedStats ?? (sortBasisOk ? cd.stats : null);
     const dealData = (cd.dealScore === undefined && vStats && cd.cardPrice > 0) ? computeDealScore(vStats, cd.cardPrice) : (cd.dealScore ?? null);
@@ -8078,7 +8238,7 @@ const SHADOW_MODAL_STYLES = `
     if (!cd?.pid) return null;
     if (isFeed && (cd.discountVal === null || cd.discountVal < minDiscount)) return null;
     if (isCardFilteredOut(cd.card, cd.filters, { forScan: true })) return null;
-    return scanEligibility(cd.card);
+    return scanEligibility(cd.card, cd);
   }
 
   // ─── MODULE: src/page/product-offers.js ─────────────────────────────────────
@@ -13175,11 +13335,13 @@ const SHADOW_MODAL_STYLES = `
     const pickSeries = data => {
       const shippingActive = typeof useShipping === 'boolean' ? useShipping : isShippingPriceActive();
       if (Array.isArray(data)) {
-        if (shippingActive && data.length > 1 && Array.isArray(data[1]) && data[1].length > 0 && Array.isArray(data[1][0])) {
-          return { series: data[1], isShipping: true };
+        const hasShip = data.length > 1 && Array.isArray(data[1]) && data[1].length > 0 && Array.isArray(data[1][0]);
+        const hasProd = Array.isArray(data[0]) && data[0].length > 0 && Array.isArray(data[0][0]);
+        if (shippingActive && hasShip) {
+          return { series: data[1], isShipping: true, ...(hasProd ? { altSeries: data[0], altIsShipping: false } : {}) };
         }
-        if (Array.isArray(data[0]) && data[0].length > 0 && Array.isArray(data[0][0])) {
-          return { series: data[0], isShipping: false }; // Series 0: Produktpreis
+        if (hasProd) {
+          return { series: data[0], isShipping: false, ...(hasShip ? { altSeries: data[1], altIsShipping: true } : {}) };
         }
         if (Array.isArray(data[0]) && typeof data[0][0] === 'number') {
           return { series: data, isShipping: false }; // Raw points [[t1, p1], [t2, p2]]
@@ -13348,6 +13510,16 @@ const SHADOW_MODAL_STYLES = `
       // failures (cancelled/timeout/cooldown/transient/unauthorized) return
       // immediately — a retry there cannot conjure a series.
       if (pick?.series && Array.isArray(pick.series) && pick.series.length >= 1) {
+        if (Array.isArray(pick.altSeries) && pick.altSeries.length >= 1 && typeof pick.altIsShipping === 'boolean') {
+          const altExisting = getCachedPriceStats(productId, false, null, pick.altIsShipping);
+          if (!altExisting || !altExisting.medianPrice) {
+            const altAnalysis = analyzePriceTimeSeries(pick.altSeries, null);
+            if (altAnalysis && altAnalysis.tiefstpreis > 0) {
+              altAnalysis.isShippingPrice = pick.altIsShipping;
+              setCachedPriceStats(productId, altAnalysis, false, undefined, pick.altIsShipping, gen);
+            }
+          }
+        }
         // Basis guard: a product-shape series must never land in the shipping
         // slot — fall through to the HTML path (which refuses the shipping
         // slot too and writes a negative entry instead).
@@ -13478,6 +13650,7 @@ const SHADOW_MODAL_STYLES = `
     const effectiveCancel = () => abortedByCooldown || isCancelled(signal, shouldCancelFn);
     let cooldownToastShown = false;
     const pidInFlightCount = new Map();
+    let lastRenderAt = 0;
 
     async function worker() {
       while (!abortedByCooldown && !isCancelled(signal, shouldCancelFn)) {
@@ -13521,10 +13694,11 @@ const SHADOW_MODAL_STYLES = `
           // was reused for another product while queued (post-fetch guard stays).
           if (item.card.isConnected && getCardProductId(item.card) === item.pid) {
             cardValid = true;
-            const cardBasis = extractCanonicalPrice(item.card).basis;
-            const cardElig = scanEligibility(item.card);
+            const { price: cardPrice, basis: cardBasis } = extractCanonicalPrice(item.card);
+            const cardElig = scanEligibility(item.card, { pid: item.pid, cardPrice, cardPriceBasis: cardBasis });
             const forceFresh = cardElig.state === 'basis-mismatch';
-            stats = await fetchSingleProductPriceStats(item.pid, 2, forceFresh, effectiveCancel, (() => { try { const cp = extractCanonicalPrice(item.card).price; return Number.isFinite(cp) && cp > 0 ? cp : null; } catch { return null; } })(), signal, cardBasis);
+            const cp = Number.isFinite(cardPrice) && cardPrice > 0 ? cardPrice : null;
+            stats = await fetchSingleProductPriceStats(item.pid, 2, forceFresh, effectiveCancel, cp, signal, cardBasis);
             // Card-identity guard: reused/detached cards must not collect an
             // earlier request's verification.
             if (!(item.card.isConnected && getCardProductId(item.card) === item.pid)) {
@@ -13552,7 +13726,7 @@ const SHADOW_MODAL_STYLES = `
           triggerProcessListings();
           if (postCooldownMs > 15000) {
             abortedByCooldown = true;
-              if (!cooldownToastShown) {
+            if (!cooldownToastShown) {
               cooldownToastShown = true;
               showToast('⏳ Rate-Limit erreicht – Prüfung pausiert');
             }
@@ -13566,9 +13740,12 @@ const SHADOW_MODAL_STYLES = `
         completed++;
         Object.assign(scanState, { progress: { completed, total } });
         if (onProgress) onProgress(completed, total);
-        // Progressive paint per card: renders newly verified deals and ensures
-        // failed/null card fetches immediately restore non-loading badge state.
-        triggerProcessListings();
+        // Progressive paint throttled during batch scan; completion always flushes.
+        const now = Date.now();
+        if (now - lastRenderAt >= 250) {
+          lastRenderAt = now;
+          triggerProcessListings();
+        }
         const paceMs = (typeof document !== 'undefined' && document.visibilityState === 'hidden') ? 500 : 250;
         await interruptibleSleep(paceMs, () => abortedByCooldown || isCancelled(signal, shouldCancelFn), signal);
       }
@@ -13638,7 +13815,12 @@ const SHADOW_MODAL_STYLES = `
 
 
   let freshTimer = null;
+  let domGuard = fn => fn();
   const freshListeners = [];
+
+  function setFreshDomGuard(fn) {
+    domGuard = typeof fn === 'function' ? fn : (f => f());
+  }
 
   const FRESH_EVENTS = ['pointerdown', 'keydown', 'wheel', 'touchstart'];
 
@@ -13661,9 +13843,11 @@ const SHADOW_MODAL_STYLES = `
     }
     removeFreshListeners();
     if (typeof document !== 'undefined') {
-      for (const card of document.querySelectorAll('.tp-deal-fresh')) {
-        card.classList.remove('tp-deal-fresh');
-      }
+      domGuard(() => {
+        for (const card of document.querySelectorAll('.tp-deal-fresh')) {
+          card.classList.remove('tp-deal-fresh');
+        }
+      });
     }
   }
 
@@ -18681,15 +18865,54 @@ const SHADOW_MODAL_STYLES = `
     return ticks;
   }
 
+  function decimateIndices(pts, maxPoints) {
+    const n = pts.length;
+    if (!(maxPoints > 0) || n <= maxPoints) return null;
+    if (n <= 2) return pts.map((_, i) => i);
+    const buckets = Math.max(1, Math.floor((maxPoints - 2) / 2));
+    const out = [0];
+    const step = (n - 2) / buckets;
+    for (let b = 0; b < buckets; b++) {
+      const start = 1 + Math.floor(b * step);
+      const end = 1 + Math.floor((b + 1) * step);
+      if (start >= end) continue;
+      let minIdx = start;
+      let maxIdx = start;
+      let minVal = pts[start][1];
+      let maxVal = minVal;
+      for (let i = start + 1; i < end; i++) {
+        const v = pts[i][1];
+        if (v < minVal) { minVal = v; minIdx = i; }
+        if (v > maxVal) { maxVal = v; maxIdx = i; }
+      }
+      if (minIdx < maxIdx) {
+        if (out[out.length - 1] !== minIdx) out.push(minIdx);
+        out.push(maxIdx);
+      } else if (maxIdx < minIdx) {
+        if (out[out.length - 1] !== maxIdx) out.push(maxIdx);
+        out.push(minIdx);
+      } else if (out[out.length - 1] !== minIdx) {
+        out.push(minIdx);
+      }
+    }
+    if (out[out.length - 1] !== n - 1) out.push(n - 1);
+    return out;
+  }
+
   function previewCoords(clean, o = {}) {
     const w = o.w || 296;
     const h = o.h || 110;
     const m = PV_MARGIN;
     const innerW = w - m.left - m.right;
     const innerH = h - m.top - m.bottom;
-    const pts = clean || [];
+    const rawPts = clean || [];
+    const keepIdx = o.maxPoints > 0 ? decimateIndices(rawPts, o.maxPoints) : null;
+    const pts = keepIdx ? keepIdx.map(i => rawPts[i]) : rawPts;
+    const localMedians = (keepIdx && Array.isArray(o.localMedians) && o.localMedians.length === rawPts.length)
+      ? keepIdx.map(i => o.localMedians[i])
+      : o.localMedians;
     const n = pts.length;
-    const prices = pts.map(p => p[1]);
+    const prices = rawPts.map(p => p[1]);
     const vals = [...prices];
     for (const g of (o.dropped || [])) if (typeof g.price === 'number' && g.price > 0) vals.push(g.price);
     if (typeof o.cardPrice === 'number' && o.cardPrice > 0) vals.push(o.cardPrice);
@@ -18707,10 +18930,10 @@ const SHADOW_MODAL_STYLES = `
     const pointsAttr = pts.map(pt).join(' ');
     const recordY = (typeof o.recordLow === 'number' && o.recordLow > 0) ? y(o.recordLow) : null;
     let ribbonAttr = null, ribbonTopAttr = null, ribbonBotAttr = null;
-    if (o.band > 0 && Array.isArray(o.localMedians) && o.localMedians.length === n && n > 0 && o.localMedians.every(v => v > 0)) {
+    if (o.band > 0 && Array.isArray(localMedians) && localMedians.length === n && n > 0 && localMedians.every(v => v > 0)) {
       const tops = [], bots = [];
       for (let q = 0; q < n; q++) {
-        const med = o.localMedians[q];
+        const med = localMedians[q];
         tops.push(`${f1(fracX(pts[q][0]))},${f1(Math.max(m.top, Math.min(h - m.bottom, y(med * (1 + o.band)))))}`);
         bots.push(`${f1(fracX(pts[q][0]))},${f1(Math.max(m.top, Math.min(h - m.bottom, y(med * (1 - o.band)))))}`);
       }
@@ -18728,7 +18951,9 @@ const SHADOW_MODAL_STYLES = `
       const y1 = y(pts[n - 1][1]);
       if (Math.abs(y1 - anchor.y) >= 0.5) anchorLink = { x1: anchor.x, y1, x2: anchor.x, y2: anchor.y };
     }
-    const rawAttr = o.raw?.length ? o.raw.map(p => `${f1(fracX(p[0]))},${f1(y(p[1]))}`).join(' ') : null;
+    const rawIdx = (o.maxPoints > 0 && o.raw?.length > o.maxPoints) ? decimateIndices(o.raw, o.maxPoints) : null;
+    const rawPtsDraw = rawIdx ? rawIdx.map(i => o.raw[i]) : o.raw;
+    const rawAttr = rawPtsDraw?.length ? rawPtsDraw.map(p => `${f1(fracX(p[0]))},${f1(y(p[1]))}`).join(' ') : null;
     const ticks = [{ y: y(hi), label: fmtPreviewMedian(hi) }, { y: y(lo), label: fmtPreviewMedian(lo) }];
     if (o.median > 0) { const my = y(o.median); if (Math.abs(my - y(hi)) >= 10 && Math.abs(my - y(lo)) >= 10) ticks.splice(1, 0, { y: my, label: fmtPreviewMedian(o.median) }); }
     const xTicks = n >= 2 ? computeXAxisTicks(t0, t1, fracX) : [];
@@ -18779,27 +19004,32 @@ const SHADOW_MODAL_STYLES = `
     return out;
   }
 
-  function refreshCalcPreview() {
+  let cachedPageOpts = [];
+
+  function refreshCalcPreview(opts = {}) {
     const svg = document.getElementById('tp-preview-svg');
     const legend = document.getElementById('tp-preview-legend');
     const blend = document.getElementById('tp-preview-blend');
     const status = document.getElementById('tp-preview-status');
     if (!svg || !legend || !blend || !status) return;
     const sel = document.getElementById('tp-preview-preset-select');
-    const pageOpts = getPageProductOptions();
-    const prevVal = sel ? sel.value : activePresetId;
-    if (sel) {
-      sel.innerHTML = `<optgroup label="Beispiel-Historien">${Object.values(PRESETS).map(p => `<option value="${p.id}">${p.label}</option>`).join('')}</optgroup>`
-        + (pageOpts.length ? `<optgroup label="Geprüfte Produkte auf dieser Seite">${pageOpts.map(o => `<option value="page:${esc(o.pid)}">${o.label}</option>`).join('')}</optgroup>` : '');
-      const isValidSel = v => !!(PRESETS[v] || (typeof v === 'string' && v.startsWith('page:') && pageOpts.some(o => `page:${o.pid}` === v)));
-      if (!isValidSel(activePresetId)) activePresetId = 's26';
-      sel.value = isValidSel(prevVal) ? prevVal : activePresetId;
+    const shouldRefreshSelect = opts?.refreshSelect === true || (sel && sel.options.length === 0);
+    if (shouldRefreshSelect) {
+      cachedPageOpts = getPageProductOptions();
+      const prevVal = sel ? sel.value : activePresetId;
+      if (sel) {
+        sel.innerHTML = `<optgroup label="Beispiel-Historien">${Object.values(PRESETS).map(p => `<option value="${p.id}">${p.label}</option>`).join('')}</optgroup>`
+          + (cachedPageOpts.length ? `<optgroup label="Geprüfte Produkte auf dieser Seite">${cachedPageOpts.map(o => `<option value="page:${esc(o.pid)}">${o.label}</option>`).join('')}</optgroup>` : '');
+        const isValidSel = v => !!(PRESETS[v] || (typeof v === 'string' && v.startsWith('page:') && cachedPageOpts.some(o => `page:${o.pid}` === v)));
+        if (!isValidSel(activePresetId)) activePresetId = 's26';
+        sel.value = isValidSel(prevVal) ? prevVal : activePresetId;
+      }
     }
     const selVal = sel ? sel.value : activePresetId;
     const now = Date.now();
     let points;
     let cardPrice;
-    const pageHit = typeof selVal === 'string' && selVal.startsWith('page:') ? pageOpts.find(o => `page:${o.pid}` === selVal) : null;
+    const pageHit = typeof selVal === 'string' && selVal.startsWith('page:') ? cachedPageOpts.find(o => `page:${o.pid}` === selVal) : null;
     if (pageHit) {
       activePresetId = selVal;
       const canonical = extractCanonicalPrice(pageHit.card);
@@ -18832,7 +19062,7 @@ const SHADOW_MODAL_STYLES = `
     const st = previewStats(points, { band, hours, enabled, horizonDays, weightRecord, minPoints, cardPrice, now });
     const { visibleDropped } = cropPreviewWindow(st.clean, st.dropped, st.cutoffTs);
     const visibleRaw = (enabled && visibleDropped.length > 0) ? (st.cutoffTs ? points.filter(p => p[0] >= st.cutoffTs) : points) : null;
-    const co = previewCoords(st.clean, { median: st.median, localMedians: st.localMedians, band: enabled ? band : 0, cardPrice, dropped: visibleDropped, recordLow: st.recordLow, raw: visibleRaw });
+    const co = previewCoords(st.clean, { median: st.median, localMedians: st.localMedians, band: enabled ? band : 0, cardPrice, dropped: visibleDropped, recordLow: st.recordLow, raw: visibleRaw, maxPoints: 200 });
     const f1 = v => v.toFixed(1);
     const mainStroke = st.activeCount < minPoints ? '#94a3b8' : '#3b82f6';
     let s = '';
@@ -19019,7 +19249,7 @@ const SHADOW_MODAL_STYLES = `
         },
         focus: 'window',
         onCommit: (v, isChange) => {
-          recomputeCachedMedians(v);
+          recomputeCachedMedians(v, undefined, { horizonOnly: true, debounceMs: 300 });
           updateConfig('BESTPREISE_MEDIAN_HORIZON_DAYS', v);
           if (isChange) showToast(`Ø-Vergleichszeitraum: ${horizonText(v)} — live aktualisiert`);
         }
@@ -19738,7 +19968,7 @@ const SHADOW_MODAL_STYLES = `
           if (filterBtnEl) filterBtnEl.setAttribute('aria-expanded', 'false');
           const open = calcPopover.classList.toggle('tp-show');
           calcBtn.setAttribute('aria-expanded', String(open));
-          if (open) refreshCalcPreview();
+          if (open) refreshCalcPreview({ refreshSelect: true });
         };
         // Calc reset lives in toolbar-calc.js (wired by buildCalcControls).
       }
@@ -19784,7 +20014,7 @@ const SHADOW_MODAL_STYLES = `
       sep.style.display = between ? '' : 'none';
     }
 
-    if (document.getElementById('tp-bar-calc-popover')?.classList.contains('tp-show')) refreshCalcPreview();
+    if (document.getElementById('tp-bar-calc-popover')?.classList.contains('tp-show')) refreshCalcPreview({ refreshSelect: true });
   }
 
   // ─── MODULE: src/features/price-alarm.js ────────────────────────────────────
@@ -21724,9 +21954,11 @@ const SHADOW_MODAL_STYLES = `
     if (isOpen && hasValidWebhook) {
       const discordMeta = pop.querySelector('#tp-batch-discord-meta');
       if (discordMeta) {
-        const unsharedCount = collectScopedCards(scope).filter(
-          it => it.isVerifiedDeal && it.pid && it.cardPrice > 0 && !getSharedDeal(it.pid, priceToCents(it.cardPrice))
-        ).length;
+        const unsharedCount = (precomputedCounts?.unsharedByScope && Object.hasOwn(precomputedCounts.unsharedByScope, scope))
+          ? precomputedCounts.unsharedByScope[scope]
+          : collectScopedCards(scope).filter(
+              it => it.isVerifiedDeal && it.pid && it.cardPrice > 0 && !getSharedDeal(it.pid, priceToCents(it.cardPrice))
+            ).length;
         discordMeta.textContent = `${unsharedCount} neu ›`;
       }
     }
@@ -21804,6 +22036,7 @@ const SHADOW_MODAL_STYLES = `
   let collapsedForSession = false;
   let lastCounts = { uncheckedDeals: 0 };
   let lastIsDealFeed = false;
+  let lastBatchCounts = null;
 
   /**
    * Pure label state machine (no DOM): idle → scanning → refreshing → done (empty).
@@ -22020,7 +22253,7 @@ const SHADOW_MODAL_STYLES = `
     return el;
   }
 
-  function syncFloatingCTA() {
+  function syncFloatingCTA(precomputedBatchCounts = undefined) {
     if (typeof document === 'undefined') return;
     const el = document.getElementById(FLOATING_CTA_ID);
     if (!el) return;
@@ -22095,7 +22328,9 @@ const SHADOW_MODAL_STYLES = `
         ? `Nur Differenzen ≥ ${minDisc}% prüfen (ungeprüft ≠ Tiefstpreis)`
         : `Nur Produkte mit Differenz ≥ ${minDisc}% prüfen`;
     }
-    const counts = getBatchScopeCounts();
+    const counts = (precomputedBatchCounts && typeof precomputedBatchCounts['non-dimmed'] === 'number')
+      ? precomputedBatchCounts
+      : (lastBatchCounts || getBatchScopeCounts());
     const batchBtnEl = el.querySelector('#tp-floating-batch-btn');
     const batchCountEl = el.querySelector('#tp-floating-batch-count');
     const activeBatch = getActiveBatchJob();
@@ -22117,12 +22352,13 @@ const SHADOW_MODAL_STYLES = `
    * hideFloatingCTA is reserved for non-list contexts (product detail,
    * zero cards). Collapse state is sticky within the session.
    */
-  function renderFloatingCTA(counts = {}, isDealFeed = false) {
+  function renderFloatingCTA(counts = {}, isDealFeed = false, batchCounts = null) {
     if (typeof document === 'undefined') return;
     lastCounts = counts || { uncheckedDeals: 0 };
     lastIsDealFeed = !!isDealFeed;
+    lastBatchCounts = batchCounts || null;
     ensureCta();
-    syncFloatingCTA();
+    syncFloatingCTA(batchCounts);
   }
 
   // ─── MODULE: src/features/product-detail.js ─────────────────────────────────
@@ -22497,21 +22733,9 @@ const SHADOW_MODAL_STYLES = `
 
     const series = withLivePrice(baseSeries, currentPrice);
     const useShipping = priceBasis ? priceBasis === 'shipping' : isShippingPriceActive();
-    const best = pickCheapestOffer(parseProductOffers(document), useShipping);
-    const pageUrl = typeof location !== 'undefined' ? location.href : '';
-    let resolvedDirectUrl = pageUrl;
-    if (best?.url) {
-      try {
-        resolvedDirectUrl = pageUrl ? new URL(best.url, pageUrl).href : best.url;
-      } catch {
-        resolvedDirectUrl = best.url;
-      }
-    }
     sparkContainer._tpSeries = series;
     sparkContainer._tpTitle = title;
     sparkContainer._tpPid = pid;
-    sparkContainer._tpDealer = best?.dealer || '';
-    sparkContainer._tpDirectUrl = resolvedDirectUrl;
 
     const baseLastTs = baseSeries.length ? (+baseSeries[baseSeries.length - 1][0] || 0) : 0;
     const lastPriceCents = priceToCents(currentPrice);
@@ -22527,6 +22751,19 @@ const SHADOW_MODAL_STYLES = `
       return;
     }
     sparkContainer.dataset.tpSparkSig = sig;
+
+    const best = pickCheapestOffer(parseProductOffers(document), useShipping);
+    const pageUrl = typeof location !== 'undefined' ? location.href : '';
+    let resolvedDirectUrl = pageUrl;
+    if (best?.url) {
+      try {
+        resolvedDirectUrl = pageUrl ? new URL(best.url, pageUrl).href : best.url;
+      } catch {
+        resolvedDirectUrl = best.url;
+      }
+    }
+    sparkContainer._tpDealer = best?.dealer || '';
+    sparkContainer._tpDirectUrl = resolvedDirectUrl;
 
     if (!sparkContainer.dataset.tpPopoutBound) {
       sparkContainer.dataset.tpPopoutBound = 'true';
@@ -22674,6 +22911,8 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
     }
   }
 
+  setFreshDomGuard(withDomMutationLock);
+
   function processListings() {
     const dismissChrome = () => { const staleBar = document.getElementById('tp-suite-filter-bar'); if (staleBar) staleBar.remove(); hideFloatingCTA(); };
     if (isProductDetailPage()) { dismissChrome(); return; }
@@ -22728,13 +22967,30 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
         if (cd.filters.isDealerLoser) counts.dealer++;
       }
 
+      const batchCounts = { 'non-dimmed': 0, visible: 0, deals: 0, unsharedByScope: { 'non-dimmed': 0, visible: 0, deals: 0 } };
+      for (const cd of cardDataList) {
+        if (isCardFilteredOut(cd.card, cd.filters)) continue;
+        batchCounts.visible++;
+        const isDim = cd.filters.isDimmed;
+        if (!isDim) batchCounts['non-dimmed']++;
+        const isDeal = Boolean(cd.dealScore || cd.displayDelta?.kind === 'new-low' || cd.displayDelta?.kind === 'at-low');
+        if (isDeal) {
+          batchCounts.deals++;
+          if (cd.pid && cd.cardPrice > 0 && !getSharedDeal(cd.pid, priceToCents(cd.cardPrice))) {
+            batchCounts.unsharedByScope.visible++;
+            if (!isDim) batchCounts.unsharedByScope['non-dimmed']++;
+            batchCounts.unsharedByScope.deals++;
+          }
+        }
+      }
+
       // --- Sort (deferred mid-scan: final passes sort once with flag cleared) ---
       if (!scanState.isBatchChecking) applySorting(cards, pageHasOffers, cardDataList);
 
       // --- Empty state, filter bar & floating verify CTA ---
       renderEmptyState(cards, counts);
       renderSuiteFilterBar(counts, pageHasOffers, isNeueFeed, isSortPage);
-      renderFloatingCTA(counts, isNeueFeed);
+      renderFloatingCTA(counts, isNeueFeed, batchCounts);
       refreshAlarmBellDecor();
       if (isNeueFeed) enhanceCategorySidebar();
       const mig = migrateFilterSplit();
@@ -22975,7 +23231,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.568';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.569';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     const isFileFixture = typeof location !== 'undefined' && location.protocol === 'file:';
     if (isDebugHost) {

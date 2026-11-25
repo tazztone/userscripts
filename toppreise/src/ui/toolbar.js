@@ -226,7 +226,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
         if (filterBtnEl) filterBtnEl.setAttribute('aria-expanded', 'false');
         const open = calcPopover.classList.toggle('tp-show');
         calcBtn.setAttribute('aria-expanded', String(open));
-        if (open) refreshCalcPreview();
+        if (open) refreshCalcPreview({ refreshSelect: true });
       };
       // Calc reset lives in toolbar-calc.js (wired by buildCalcControls).
     }
@@ -272,5 +272,5 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
     sep.style.display = between ? '' : 'none';
   }
 
-  if (document.getElementById('tp-bar-calc-popover')?.classList.contains('tp-show')) refreshCalcPreview();
+  if (document.getElementById('tp-bar-calc-popover')?.classList.contains('tp-show')) refreshCalcPreview({ refreshSelect: true });
 }

@@ -23,7 +23,7 @@ export const computeSavingsChf = (cardPrice, effectiveDiscount) => {
 
 // True median: odd n takes the middle, even n averages the two middle
 // values (no upper-median bias from floor(n/2) indexing).
-const medianOf = sorted => {
+export const medianOf = sorted => {
   const n = sorted.length;
   if (n === 0) return 0;
   const mid = n >> 1;

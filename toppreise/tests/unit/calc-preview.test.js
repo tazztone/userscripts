@@ -119,4 +119,21 @@ describe('calc-preview getPageProductOptions', () => {
     assert.equal(st.dMedian, 0);
     assert.equal(st.dRecord, 0);
   });
+
+  it('previewCoords with maxPoints decimates 2200-point series while preserving bounds', () => {
+    const base = Date.UTC(2020, 0, 1);
+    const pts = [];
+    const medians = [];
+    for (let i = 0; i < 2200; i++) {
+      const price = 100 + Math.sin(i / 20) * 15 + (i === 1234 ? -40 : 0);
+      pts.push([base + i * 86400000, Math.round(price * 100) / 100]);
+      medians.push(100);
+    }
+    const coFull = previewCoords(pts, { localMedians: medians, band: 0.2 });
+    const coDec = previewCoords(pts, { localMedians: medians, band: 0.2, maxPoints: 200 });
+    assert.equal(coFull.pointsAttr.split(' ').length, 2200);
+    assert.ok(coDec.pointsAttr.split(' ').length <= 200);
+    assert.ok(coDec.ribbonAttr.split(' ').length <= 400);
+    assert.deepEqual(coDec.ticks.map(t => t.label), coFull.ticks.map(t => t.label));
+  });
 });

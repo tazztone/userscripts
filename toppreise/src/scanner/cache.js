@@ -4,11 +4,67 @@
  * backed by localStorage with configurable TTL and auto-pruning.
  */
 
-import { analyzePriceTimeSeries } from '../domain/price.js';
+import { analyzePriceTimeSeries, medianOf, pctDrop } from '../domain/price.js';
 import { CONFIG } from '../state/config.js';
 import { isShippingPriceActive } from '../page/adapter.js';
 
 export const STATS_CACHE_PREFIX = 'tp_hist_v1_';
+const STATS_DAY_MS = 86400000;
+export const MAX_CACHE_BYTES = Math.round(2.5 * 1024 * 1024);
+
+export function encodeTimeSeries(pts) {
+  if (!Array.isArray(pts) || pts.length < 4) return pts;
+  const t0 = pts[0]?.[0];
+  if (!Number.isFinite(t0)) return pts;
+  const s = [];
+  let prevTs = t0 - STATS_DAY_MS;
+  for (let i = 0; i < pts.length; i++) {
+    const p = pts[i];
+    const ts = p?.[0];
+    const price = p?.[1];
+    if (!Number.isFinite(ts) || !Number.isFinite(price)) return pts;
+    const dt = ts - prevTs;
+    const last = s[s.length - 1];
+    if (dt === STATS_DAY_MS) {
+      if (typeof last === 'number' && last === price) {
+        s[s.length - 1] = [price, 2];
+      } else if (Array.isArray(last) && last.length === 2 && last[0] === price) {
+        last[1]++;
+      } else {
+        s.push(price);
+      }
+    } else {
+      s.push([price, 1, dt]);
+    }
+    prevTs = ts;
+  }
+  return { rle: 1, t0, s };
+}
+
+export function decodeTimeSeries(stored) {
+  if (!stored || Array.isArray(stored)) return stored;
+  if (stored.rle !== 1 || !Number.isFinite(stored.t0) || !Array.isArray(stored.s)) return stored;
+  let ts = stored.t0 - STATS_DAY_MS;
+  const out = [];
+  for (const item of stored.s) {
+    if (typeof item === 'number') {
+      ts += STATS_DAY_MS;
+      out.push([ts, item]);
+    } else if (Array.isArray(item)) {
+      if (item.length === 2) {
+        for (let k = 0; k < item[1]; k++) { ts += STATS_DAY_MS; out.push([ts, item[0]]); }
+      } else if (item.length >= 3) {
+        ts += item[2];
+        out.push([ts, item[0]]);
+        for (let k = 1; k < item[1]; k++) { ts += STATS_DAY_MS; out.push([ts, item[0]]); }
+      } else if (item.length === 1) {
+        ts += STATS_DAY_MS;
+        out.push([ts, item[0]]);
+      }
+    }
+  }
+  return out;
+}
 export const statsKey = (productId, useShippingOverride) => {
   try { const s = typeof useShippingOverride === 'boolean' ? useShippingOverride : isShippingPriceActive(); return `${STATS_CACHE_PREFIX}${productId}_${s ? 's' : 'p'}`; }
   catch { return `${STATS_CACHE_PREFIX}${productId}_p`; }
@@ -65,8 +121,9 @@ export function ensureFreshAnalysis(entry) {
 export function fullSeries(entry) {
   if (!entry) return null;
   if (Array.isArray(entry.rawTimeSeries)) return entry.rawTimeSeries;
-  const base = entry.timeSeries;
-  if (!Array.isArray(base)) return null;
+  const decoded = decodeTimeSeries(entry.timeSeries);
+  const base = Array.isArray(decoded) ? decoded : null;
+  if (!base) return null;
   const extra = Array.isArray(entry.filteredOutliers)
     ? entry.filteredOutliers
         .map(o => (Array.isArray(o) ? o : [o?.timestamp ?? o?.[0], o?.price ?? o?.[1]]))
@@ -92,16 +149,50 @@ export function isCacheEntryFresh(parsed, ignoreNegativeCache = false) {
 }
 export const hasUsablePriceStats = stats => !!stats && !stats.unavailable && (Number.isFinite(stats?.tiefstpreis) ? stats.tiefstpreis > 0 : Number.isFinite(stats?.medianPrice) && stats.medianPrice > 0);
 
+let hasAnyLegacyStatsKey = null;
+let recomputeFlushTimer = null;
+const pendingRecomputeKeys = new Set();
+
+function serializeStatsForDisk(entry) {
+  if (!entry || entry.unavailable) return entry;
+  const encodedSeries = Array.isArray(entry.timeSeries) ? encodeTimeSeries(entry.timeSeries) : entry.timeSeries;
+  return {
+    ...entry,
+    ...(encodedSeries !== undefined ? { timeSeries: encodedSeries } : {}),
+    rawTimeSeries: undefined
+  };
+}
+
+export function safeStorageSet(storage, key, val) {
+  if (!storage) return false;
+  try {
+    storage.setItem(key, val);
+    return true;
+  } catch (e) {
+    if (e?.name === 'QuotaExceededError' || e?.code === 22) {
+      try {
+        prunePriceStatsCache(storage, true);
+        storage.setItem(key, val);
+        return true;
+      } catch {}
+    }
+    return false;
+  }
+}
+
 export function prunePriceStatsCache(storage = null, forceEvict = false) {
   storage = resolveStorage(storage);
   if (!storage) return;
   try {
     const now = Date.now();
     const maxAgeMs = 14 * 24 * 3600 * 1000;
+    const realTtlMs = (CONFIG?.REAL_DEAL_CACHE_HOURS || 48) * 3600 * 1000;
     const diskLimit = CONFIG?.CACHE_DISK_LIMIT ?? 300;
     const negTtlMs = (CONFIG?.NEGATIVE_CACHE_HOURS || 2) * 3600 * 1000;
     const entries = [];
     const keysToRemove = [];
+    let totalBytes = 0;
+    let foundLegacyStats = false;
 
     for (let i = 0; i < storage.length; i++) {
       const key = storage.key(i);
@@ -115,39 +206,65 @@ export function prunePriceStatsCache(storage = null, forceEvict = false) {
           if (!itemTime || age > maxAgeMs || (isUnavailable && age > negTtlMs)) {
             keysToRemove.push(key);
           } else {
-            entries.push({ key, time: itemTime });
+            const bytes = (key.length + raw.length) * 2;
+            totalBytes += bytes;
+            const isStats = key.startsWith(STATS_CACHE_PREFIX);
+            if (isStats && !key.endsWith('_p') && !key.endsWith('_s')) foundLegacyStats = true;
+            entries.push({ key, time: itemTime, age, bytes, isShared: key.startsWith(SHARED_CACHE_PREFIX) });
           }
         } catch (e) {
           keysToRemove.push(key);
         }
       }
     }
+    if (storage === resolveStorage(null)) hasAnyLegacyStatsKey = foundLegacyStats;
 
     keysToRemove.forEach(k => storage.removeItem(k));
 
-    if (forceEvict && entries.length > 0) {
-      entries.sort((a, b) => a.time - b.time);
-      const evictCount = Math.max(1, Math.ceil(entries.length * 0.25));
-      entries.slice(0, evictCount).forEach(e => storage.removeItem(e.key));
-    } else if (entries.length > diskLimit) {
-      entries.sort((a, b) => a.time - b.time);
+    let active = entries;
+    if (totalBytes > MAX_CACHE_BYTES && active.length > 0) {
+      const targetBytes = Math.round(MAX_CACHE_BYTES * 0.8);
+      const evicted = new Set();
+      // 1) Evict non-shared entries past REAL_DEAL_CACHE_HOURS oldest-first
+      const stale = active.filter(e => !e.isShared && e.age > realTtlMs).sort((a, b) => a.time - b.time);
+      for (const e of stale) {
+        if (totalBytes <= targetBytes) break;
+        storage.removeItem(e.key);
+        evicted.add(e.key);
+        totalBytes -= e.bytes;
+      }
+      // 2) If still over ceiling, evict oldest entries regardless of age
+      if (totalBytes > targetBytes) {
+        const rest = active.filter(e => !evicted.has(e.key)).sort((a, b) => a.time - b.time);
+        for (const e of rest) {
+          if (totalBytes <= targetBytes) break;
+          storage.removeItem(e.key);
+          evicted.add(e.key);
+          totalBytes -= e.bytes;
+        }
+      }
+      if (evicted.size > 0) active = active.filter(e => !evicted.has(e.key));
+    }
+
+    if (forceEvict && active.length > 0) {
+      active.sort((a, b) => a.time - b.time);
+      const evictCount = Math.max(1, Math.ceil(active.length * 0.25));
+      active.slice(0, evictCount).forEach(e => storage.removeItem(e.key));
+    } else if (active.length > diskLimit) {
+      active.sort((a, b) => a.time - b.time);
       const target = Math.max(50, Math.round(diskLimit * 0.8));
-      entries.slice(0, Math.max(0, entries.length - target)).forEach(e => storage.removeItem(e.key));
+      active.slice(0, Math.max(0, active.length - target)).forEach(e => storage.removeItem(e.key));
     }
   } catch (e) {}
 }
 
 export function getCachedPriceStats(productId, ignoreNegativeCache = false, storage = null, useShippingOverride = null) {
   if (!productId) return null;
+  const resolvedDefault = resolveStorage(null);
   storage = resolveStorage(storage);
   const targetShipping = typeof useShippingOverride === 'boolean'
     ? useShippingOverride
     : (typeof useShippingOverride === 'string' ? useShippingOverride === 'shipping' : isShippingPriceActive());
-  // Mode guard: the series is picked per shipping mode at fetch time and the
-  // key is bare, so a cross-mode entry would compare the wrong baseline
-  // (same wrong-"Bisher" class as a stale series anchor). Legacy entries
-  // without the flag pass through; explicit mismatches read as a miss and
-  // self-heal via refetch on the next scan.
   const isModeMatch = entry => {
     if (typeof entry?.isShippingPrice !== 'boolean') return true;
     try {
@@ -163,7 +280,6 @@ export function getCachedPriceStats(productId, ignoreNegativeCache = false, stor
           memoryCache.delete(key);
         } else {
           const fresh = ensureFreshAnalysis(memData);
-          // LRU update
           lruSet(memoryCache, key, fresh);
           return fresh;
         }
@@ -173,36 +289,40 @@ export function getCachedPriceStats(productId, ignoreNegativeCache = false, stor
     }
 
     let raw = storage?.getItem(key);
-    if (!raw) {
-      // Upgrade migration (one read, no refetch storm): pre-suffix entries
-      // adopt the current slot when fresh and mode-matching; stale ones go,
-      // mode-mismatched ones wait for their mode's next miss.
+    let migratedLegacy = false;
+    const isProdSite = typeof location !== 'undefined' && /(?:^|\.)toppreise\.ch$/i.test(location.hostname || '');
+    const allowLegacy = !isProdSite || storage !== resolvedDefault || hasAnyLegacyStatsKey !== false;
+    if (!raw && allowLegacy) {
       try {
         const legacyKey = STATS_CACHE_PREFIX + productId;
         const legacy = storage?.getItem(legacyKey);
         if (legacy) {
           let parsedLegacy = null;
           try { parsedLegacy = JSON.parse(legacy); } catch {}
-          if (parsedLegacy && isCacheEntryFresh(parsedLegacy, ignoreNegativeCache) && isModeMatch(parsedLegacy)) { raw = legacy; try { storage?.removeItem(legacyKey); } catch {} }
-          else if (!parsedLegacy || !isCacheEntryFresh(parsedLegacy, ignoreNegativeCache)) try { storage?.removeItem(legacyKey); } catch {}
+          if (parsedLegacy && isCacheEntryFresh(parsedLegacy, ignoreNegativeCache) && isModeMatch(parsedLegacy)) {
+            raw = legacy;
+            migratedLegacy = true;
+            try { storage?.removeItem(legacyKey); } catch {}
+          } else if (!parsedLegacy || !isCacheEntryFresh(parsedLegacy, ignoreNegativeCache)) {
+            try { storage?.removeItem(legacyKey); } catch {}
+          }
         }
       } catch {}
     }
     if (!raw) return null;
     let parsed = JSON.parse(raw);
+    if (parsed?.timeSeries && !Array.isArray(parsed.timeSeries)) {
+      parsed.timeSeries = decodeTimeSeries(parsed.timeSeries);
+    }
 
     if (isCacheEntryFresh(parsed, ignoreNegativeCache)) {
-      // Cross-mode stale entry: evict from storage too, else every render
-      // re-parses localStorage for an entry that always misses.
       if (!isModeMatch(parsed)) { try { storage?.removeItem(key); } catch (e) {} return null; }
-      // Lazy cold-entry recompute: horizon/outlier change stamps medianSig;
-      // stale-sig entries with a series recompute synchronously, no refetch.
+      const prevSig = parsed.medianSig;
       parsed = ensureFreshAnalysis(parsed);
       lruSet(memoryCache, key, parsed);
-      try {
-        const repersist = (parsed.timeSeries && parsed.rawTimeSeries) ? { ...parsed, rawTimeSeries: undefined } : parsed;
-        storage?.setItem(key, JSON.stringify(repersist));
-      } catch (e) {}
+      if (migratedLegacy || parsed.medianSig !== prevSig) {
+        safeStorageSet(storage, key, JSON.stringify(serializeStatsForDisk(parsed)));
+      }
       return parsed;
     }
   } catch (e) {}
@@ -214,10 +334,6 @@ export function setCachedPriceStats(productId, stats, isUnavailable = false, sto
   if (expectedGen !== null && expectedGen !== cacheGeneration) return;
   storage = resolveStorage(storage);
   const key = statsKey(productId, useShippingOverride);
-  // Upgrade-only: never replace median-bearing stats with median-less
-  // fallback stats. A refresh that lands on the HTML fallback (tiefstpreis
-  // only) must not regress a full analysis — the badge would keep its old %
-  // while the heat goes neutral. Unavailable-markers keep current semantics.
   if (!isUnavailable && stats && !stats.medianPrice) {
     if (memoryCache.has(key)) {
       const prev = memoryCache.get(key);
@@ -242,21 +358,13 @@ export function setCachedPriceStats(productId, stats, isUnavailable = false, sto
 
   lruSet(memoryCache, key, payload);
 
-  // Persist stripped: rawTimeSeries duplicates timeSeries bytes on disk;
-  // memory keeps the full object for recompute.
-  const persistPayload = (!isUnavailable && payload.timeSeries && payload.rawTimeSeries)
-    ? { ...payload, rawTimeSeries: undefined }
-    : payload;
-  try {
-    statsWriteCount++;
-    const diskLimit = CONFIG?.CACHE_DISK_LIMIT ?? 300;
-    if (statsWriteCount === 1 || (statsWriteCount % 100 === 0 && (storage?.length ?? 0) > diskLimit * 0.8)) prunePriceStatsCache(storage);
-    storage?.setItem(key, JSON.stringify(persistPayload));
-  } catch (e) {
-    if (e?.name === 'QuotaExceededError' || e?.code === 22) {
-      try { prunePriceStatsCache(storage, true); storage?.setItem(key, JSON.stringify(persistPayload)); } catch (_) {}
-    }
+  const persistPayload = serializeStatsForDisk(payload);
+  statsWriteCount++;
+  const diskLimit = CONFIG?.CACHE_DISK_LIMIT ?? 300;
+  if (statsWriteCount === 1 || (statsWriteCount % 25 === 0 && (storage?.length ?? 0) > Math.min(diskLimit * 0.8, 20))) {
+    prunePriceStatsCache(storage);
   }
+  safeStorageSet(storage, key, JSON.stringify(persistPayload));
 }
 
 export function countCachedPriceStats(storage = null) {
@@ -282,6 +390,8 @@ export function clearPriceStatsCache(storage = null, onlyPrefixes = null) {
   if (prefixes.includes(STATS_CACHE_PREFIX)) {
     cacheGeneration++;
     memoryCache.clear();
+    if (recomputeFlushTimer) { clearTimeout(recomputeFlushTimer); recomputeFlushTimer = null; }
+    pendingRecomputeKeys.clear();
   }
   storage = resolveStorage(storage);
   let count = 0;
@@ -305,28 +415,70 @@ export function clearPriceStatsCache(storage = null, onlyPrefixes = null) {
 // (timeSeries) — der Median wird lokal für den neuen Horizont neu gerechnet.
 // `time` bleibt unangetastet, Einträge bleiben fresh, kein Refetch.
 // Serienlose Einträge (Fallback/negativ) werden übersprungen.
-export function recomputeCachedMedians(horizonDays, storage = null) {
+export function recomputeCachedMedians(horizonDays, storage = null, { horizonOnly = false, debounceMs = 0 } = {}) {
   let count = 0;
   storage = resolveStorage(storage);
   const sig = currentMedianSig(horizonDays);
+  const nowMs = Date.now();
+  const hDays = typeof horizonDays === 'number' ? horizonDays : (typeof CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS === 'number' ? CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS : 365);
+
+  const rewriteHorizonOnly = entry => {
+    const pts = decodeTimeSeries(entry?.timeSeries);
+    if (!Array.isArray(pts) || pts.length === 0) return null;
+    let windowPrices;
+    let medianFallback = false;
+    if (hDays > 0) {
+      const cutoff = nowMs - hDays * STATS_DAY_MS;
+      const wp = pts.filter(p => p[0] >= cutoff);
+      if (wp.length >= 3) {
+        windowPrices = wp.map(p => p[1]);
+      } else {
+        windowPrices = pts.map(p => p[1]);
+        medianFallback = true;
+      }
+    } else {
+      windowPrices = pts.map(p => p[1]);
+    }
+    const sorted = windowPrices.sort((a, b) => a - b);
+    const medianPrice = Math.round(medianOf(sorted) * 100) / 100;
+    const curr = (typeof entry.anchorPrice === 'number' && entry.anchorPrice > 0) ? entry.anchorPrice : pts[pts.length - 1][1];
+    const realDiscountVsMedian = (medianPrice > curr) ? pctDrop(medianPrice, curr) : 0;
+    return { ...entry, medianPrice, medianFallback, horizonDays: hDays, realDiscountVsMedian, time: entry.time, medianSig: sig };
+  };
+
   const rewrite = entry => {
+    if (horizonOnly) return rewriteHorizonOnly(entry);
     const src = fullSeries(entry);
     if (!Array.isArray(src)) return null;
-    const fresh = analyzePriceTimeSeries(src, entry?.anchorPrice ?? null, horizonDays);
+    const fresh = analyzePriceTimeSeries(src, entry?.anchorPrice ?? null, hDays);
     if (!fresh) return null;
     return { ...entry, ...fresh, time: entry.time, medianSig: sig, ...(entry.rawTimeSeries && fresh.rawTimeSeries === undefined ? { rawTimeSeries: entry.rawTimeSeries } : {}) };
   };
+
+  const flushKeys = [];
   for (const [cacheKey, entry] of memoryCache) {
     const next = rewrite(entry);
     if (!next) continue;
     memoryCache.set(cacheKey, next);
-    // Write-through for rewritten entries only (no storage sweep): reloads
-    // and other tabs see the new window without a refetch.
-    try {
-      const persist = (next.timeSeries && next.rawTimeSeries) ? { ...next, rawTimeSeries: undefined } : next;
-      storage?.setItem(cacheKey, JSON.stringify(persist));
-    } catch (e) {}
+    if (debounceMs > 0) pendingRecomputeKeys.add(cacheKey);
+    else flushKeys.push([cacheKey, next]);
     count++;
+  }
+  if (debounceMs > 0 && pendingRecomputeKeys.size > 0) {
+    if (recomputeFlushTimer) clearTimeout(recomputeFlushTimer);
+    recomputeFlushTimer = setTimeout(() => {
+      recomputeFlushTimer = null;
+      const targetStorage = storage || resolveStorage(null);
+      for (const cacheKey of pendingRecomputeKeys) {
+        const entry = memoryCache.get(cacheKey);
+        if (entry) safeStorageSet(targetStorage, cacheKey, JSON.stringify(serializeStatsForDisk(entry)));
+      }
+      pendingRecomputeKeys.clear();
+    }, debounceMs);
+  } else {
+    for (const [cacheKey, next] of flushKeys) {
+      safeStorageSet(storage, cacheKey, JSON.stringify(serializeStatsForDisk(next)));
+    }
   }
   return count;
 }
@@ -361,7 +513,7 @@ export function setCachedDealer(productId, useShipping, dealer, url, storage = n
     const prevSlot = (prev && typeof prev[slot] === 'object' && prev[slot] !== null) ? prev[slot] : {};
     const now = Date.now();
     const next = { ...prev, time: now, [slot]: { ...prevSlot, dealer, url: url || '', offers: Number.isFinite(+offers) ? Math.round(+offers) : 0, totalOffers: Number.isFinite(+totalOffers) ? Math.round(+totalOffers) : 0, time: now } };
-    storage?.setItem(DEALER_CACHE_PREFIX + productId, JSON.stringify(next));
+    safeStorageSet(storage, DEALER_CACHE_PREFIX + productId, JSON.stringify(next));
   } catch (e) {}
 }
 
@@ -384,9 +536,7 @@ export function getSharedDeal(productId, priceCents, storage = null) {
 export function setSharedDeal(productId, priceCents, storage = null) {
   if (!productId || priceCents == null) return;
   storage = resolveStorage(storage);
-  try {
-    storage?.setItem(SHARED_CACHE_PREFIX + productId, JSON.stringify({ priceCents, time: Date.now() }));
-  } catch (e) {}
+  safeStorageSet(storage, SHARED_CACHE_PREFIX + productId, JSON.stringify({ priceCents, time: Date.now() }));
 }
 
 export function getCachedAsin(productId, storage = null) {
@@ -406,7 +556,5 @@ export function getCachedAsin(productId, storage = null) {
 export function setCachedAsin(productId, asin, storage = null) {
   if (!productId || !asin) return;
   storage = resolveStorage(storage);
-  try {
-    storage?.setItem(ASIN_CACHE_PREFIX + productId, JSON.stringify({ asin: String(asin).toUpperCase(), time: Date.now() }));
-  } catch (e) {}
+  safeStorageSet(storage, ASIN_CACHE_PREFIX + productId, JSON.stringify({ asin: String(asin).toUpperCase(), time: Date.now() }));
 }

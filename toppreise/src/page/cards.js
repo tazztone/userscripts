@@ -314,12 +314,22 @@ export function getCardStats(pid, cardBasis, allowCrossBasis = false) {
 
 // usable stats verify, fresh unavailable markers wait out the negative TTL,
 // basis mismatches refetch (no new state), everything else is unchecked.
-export function scanEligibility(card) {
-  const pid = getCardProductId(card);
+export function scanEligibility(card, pre = null) {
+  const pid = pre?.pid ?? getCardProductId(card);
   if (!pid) return { state: 'verified', canScan: false, retryAt: null, reason: 'no-pid' };
-  const { price: cardPrice, basis: cardBasis } = extractCanonicalPrice(card);
+  const hasPrePrice = pre && 'cardPrice' in pre && 'cardPriceBasis' in pre;
+  const { price: cardPrice, basis: cardBasis } = hasPrePrice
+    ? { price: pre.cardPrice, basis: pre.cardPriceBasis }
+    : extractCanonicalPrice(card);
   if (!(cardPrice > 0) || !cardBasis) {
     return { state: 'verified', canScan: false, retryAt: null, reason: 'no-price' };
+  }
+  const preStats = pre?.stats;
+  if (preStats && !preStats.unavailable && basisMatchesFor(preStats, cardBasis) && hasUsablePriceStats(preStats)) {
+    return { state: 'verified', canScan: false, retryAt: null, reason: null };
+  }
+  if (preStats && preStats.unavailable && basisMatchesFor(preStats, cardBasis)) {
+    return { state: 'unavailable', canScan: false, retryAt: (preStats.time || Date.now()) + (CONFIG.NEGATIVE_CACHE_HOURS || 2) * 3600 * 1000, reason: 'negative-cache' };
   }
   const stats = getCardStats(pid, cardBasis, true);
   if (stats && !basisMatchesFor(stats, cardBasis)) {
@@ -373,12 +383,14 @@ export function extractCardData(card) {
     dealScore,
     displayDelta,
     offerCount,
+    effDiscount,
     savingsChf
   };
 }
 
 export function getCardEffectiveDiscount(cd) {
   if (!cd) return 0;
+  if (typeof cd.effDiscount === 'number') return cd.effDiscount;
   const sortBasisOk = cd.basisMatches ?? basisMatchesFor(cd.stats, cd.cardPriceBasis);
   const vStats = cd.verifiedStats ?? (sortBasisOk ? cd.stats : null);
   const dealData = (cd.dealScore === undefined && vStats && cd.cardPrice > 0) ? computeDealScore(vStats, cd.cardPrice) : (cd.dealScore ?? null);
@@ -525,5 +537,5 @@ export function scanCandidateState(cd, { isFeed = false, minDiscount = 30 } = {}
   if (!cd?.pid) return null;
   if (isFeed && (cd.discountVal === null || cd.discountVal < minDiscount)) return null;
   if (isCardFilteredOut(cd.card, cd.filters, { forScan: true })) return null;
-  return scanEligibility(cd.card);
+  return scanEligibility(cd.card, cd);
 }

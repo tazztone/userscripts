@@ -125,7 +125,7 @@ function buildHorizonWrapper() {
       },
       focus: 'window',
       onCommit: (v, isChange) => {
-        recomputeCachedMedians(v);
+        recomputeCachedMedians(v, undefined, { horizonOnly: true, debounceMs: 300 });
         updateConfig('BESTPREISE_MEDIAN_HORIZON_DAYS', v);
         if (isChange) showToast(`Ø-Vergleichszeitraum: ${horizonText(v)} — live aktualisiert`);
       }

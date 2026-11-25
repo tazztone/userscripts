@@ -136,11 +136,13 @@ export async function fetchPriceTimeSeries(productId, retries = 1, shouldCancelF
   const pickSeries = data => {
     const shippingActive = typeof useShipping === 'boolean' ? useShipping : isShippingPriceActive();
     if (Array.isArray(data)) {
-      if (shippingActive && data.length > 1 && Array.isArray(data[1]) && data[1].length > 0 && Array.isArray(data[1][0])) {
-        return { series: data[1], isShipping: true };
+      const hasShip = data.length > 1 && Array.isArray(data[1]) && data[1].length > 0 && Array.isArray(data[1][0]);
+      const hasProd = Array.isArray(data[0]) && data[0].length > 0 && Array.isArray(data[0][0]);
+      if (shippingActive && hasShip) {
+        return { series: data[1], isShipping: true, ...(hasProd ? { altSeries: data[0], altIsShipping: false } : {}) };
       }
-      if (Array.isArray(data[0]) && data[0].length > 0 && Array.isArray(data[0][0])) {
-        return { series: data[0], isShipping: false }; // Series 0: Produktpreis
+      if (hasProd) {
+        return { series: data[0], isShipping: false, ...(hasShip ? { altSeries: data[1], altIsShipping: true } : {}) };
       }
       if (Array.isArray(data[0]) && typeof data[0][0] === 'number') {
         return { series: data, isShipping: false }; // Raw points [[t1, p1], [t2, p2]]

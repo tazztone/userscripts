@@ -6,7 +6,12 @@
 import { scanState } from '../state/store.js';
 
 let freshTimer = null;
+let domGuard = fn => fn();
 const freshListeners = [];
+
+export function setFreshDomGuard(fn) {
+  domGuard = typeof fn === 'function' ? fn : (f => f());
+}
 
 const FRESH_EVENTS = ['pointerdown', 'keydown', 'wheel', 'touchstart'];
 
@@ -29,9 +34,11 @@ export function clearFresh() {
   }
   removeFreshListeners();
   if (typeof document !== 'undefined') {
-    for (const card of document.querySelectorAll('.tp-deal-fresh')) {
-      card.classList.remove('tp-deal-fresh');
-    }
+    domGuard(() => {
+      for (const card of document.querySelectorAll('.tp-deal-fresh')) {
+        card.classList.remove('tp-deal-fresh');
+      }
+    });
   }
 }
 

@@ -192,7 +192,7 @@ def test_batch_discord_share_skips_duplicates_and_posts(page: Page):
     posted = []
 
     def handle_discord(route):
-        raw = route.request.post_data or ''
+        raw = (route.request.post_data_buffer or b'').decode('utf-8', errors='replace')
         payload = None
         if 'payload_json' in raw:
             import re

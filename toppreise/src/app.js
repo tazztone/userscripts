@@ -3,10 +3,11 @@ import { SELECTORS } from './page/selectors.js';
 import { closeSharePreviewModal } from './ui/modal-share-preview.js';
 import {
   parsePrice,
+  priceToCents,
   analyzePriceTimeSeries
 } from './domain/price.js';
 import { computeDealScore } from './domain/deal-score.js';
-import { memoryCache, statsKey, trimMemoryCache } from './scanner/cache.js';
+import { memoryCache, statsKey, trimMemoryCache, getSharedDeal } from './scanner/cache.js';
 import {
   getProductCards,
   parseNegativeTerms,
@@ -37,6 +38,7 @@ import {
 } from './ui/badges.js';
 import { renderSuiteFilterBar } from './ui/toolbar.js';
 import { renderFloatingCTA, hideFloatingCTA, startBatchCheck } from './ui/floating-cta.js';
+import { setFreshDomGuard } from './ui/fresh-dismiss.js';
 import { closeBatchPopover } from './ui/batch-popover.js';
 import { closeBatchDialogs } from './ui/batch-dialogs.js';
 import { cancelActiveBatchJob } from './features/batch-runners.js';
@@ -74,7 +76,7 @@ import { enhanceCategorySidebar, disconnectCategoryObservers } from './features/
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.568
+// @version      2.18.569
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -138,6 +140,8 @@ import { enhanceCategorySidebar, disconnectCategoryObservers } from './features/
     }
   }
 
+  setFreshDomGuard(withDomMutationLock);
+
   function processListings() {
     const dismissChrome = () => { const staleBar = document.getElementById('tp-suite-filter-bar'); if (staleBar) staleBar.remove(); hideFloatingCTA(); };
     if (isProductDetailPage()) { dismissChrome(); return; }
@@ -192,13 +196,30 @@ import { enhanceCategorySidebar, disconnectCategoryObservers } from './features/
         if (cd.filters.isDealerLoser) counts.dealer++;
       }
 
+      const batchCounts = { 'non-dimmed': 0, visible: 0, deals: 0, unsharedByScope: { 'non-dimmed': 0, visible: 0, deals: 0 } };
+      for (const cd of cardDataList) {
+        if (isCardFilteredOut(cd.card, cd.filters)) continue;
+        batchCounts.visible++;
+        const isDim = cd.filters.isDimmed;
+        if (!isDim) batchCounts['non-dimmed']++;
+        const isDeal = Boolean(cd.dealScore || cd.displayDelta?.kind === 'new-low' || cd.displayDelta?.kind === 'at-low');
+        if (isDeal) {
+          batchCounts.deals++;
+          if (cd.pid && cd.cardPrice > 0 && !getSharedDeal(cd.pid, priceToCents(cd.cardPrice))) {
+            batchCounts.unsharedByScope.visible++;
+            if (!isDim) batchCounts.unsharedByScope['non-dimmed']++;
+            batchCounts.unsharedByScope.deals++;
+          }
+        }
+      }
+
       // --- Sort (deferred mid-scan: final passes sort once with flag cleared) ---
       if (!scanState.isBatchChecking) applySorting(cards, pageHasOffers, cardDataList);
 
       // --- Empty state, filter bar & floating verify CTA ---
       renderEmptyState(cards, counts);
       renderSuiteFilterBar(counts, pageHasOffers, isNeueFeed, isSortPage);
-      renderFloatingCTA(counts, isNeueFeed);
+      renderFloatingCTA(counts, isNeueFeed, batchCounts);
       refreshAlarmBellDecor();
       if (isNeueFeed) enhanceCategorySidebar();
       const mig = migrateFilterSplit();
@@ -439,7 +460,7 @@ import { enhanceCategorySidebar, disconnectCategoryObservers } from './features/
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.568';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.569';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     const isFileFixture = typeof location !== 'undefined' && location.protocol === 'file:';
     if (isDebugHost) {

@@ -110,15 +110,54 @@ export function computeXAxisTicks(t0, t1, fracX) {
   return ticks;
 }
 
+function decimateIndices(pts, maxPoints) {
+  const n = pts.length;
+  if (!(maxPoints > 0) || n <= maxPoints) return null;
+  if (n <= 2) return pts.map((_, i) => i);
+  const buckets = Math.max(1, Math.floor((maxPoints - 2) / 2));
+  const out = [0];
+  const step = (n - 2) / buckets;
+  for (let b = 0; b < buckets; b++) {
+    const start = 1 + Math.floor(b * step);
+    const end = 1 + Math.floor((b + 1) * step);
+    if (start >= end) continue;
+    let minIdx = start;
+    let maxIdx = start;
+    let minVal = pts[start][1];
+    let maxVal = minVal;
+    for (let i = start + 1; i < end; i++) {
+      const v = pts[i][1];
+      if (v < minVal) { minVal = v; minIdx = i; }
+      if (v > maxVal) { maxVal = v; maxIdx = i; }
+    }
+    if (minIdx < maxIdx) {
+      if (out[out.length - 1] !== minIdx) out.push(minIdx);
+      out.push(maxIdx);
+    } else if (maxIdx < minIdx) {
+      if (out[out.length - 1] !== maxIdx) out.push(maxIdx);
+      out.push(minIdx);
+    } else if (out[out.length - 1] !== minIdx) {
+      out.push(minIdx);
+    }
+  }
+  if (out[out.length - 1] !== n - 1) out.push(n - 1);
+  return out;
+}
+
 export function previewCoords(clean, o = {}) {
   const w = o.w || 296;
   const h = o.h || 110;
   const m = PV_MARGIN;
   const innerW = w - m.left - m.right;
   const innerH = h - m.top - m.bottom;
-  const pts = clean || [];
+  const rawPts = clean || [];
+  const keepIdx = o.maxPoints > 0 ? decimateIndices(rawPts, o.maxPoints) : null;
+  const pts = keepIdx ? keepIdx.map(i => rawPts[i]) : rawPts;
+  const localMedians = (keepIdx && Array.isArray(o.localMedians) && o.localMedians.length === rawPts.length)
+    ? keepIdx.map(i => o.localMedians[i])
+    : o.localMedians;
   const n = pts.length;
-  const prices = pts.map(p => p[1]);
+  const prices = rawPts.map(p => p[1]);
   const vals = [...prices];
   for (const g of (o.dropped || [])) if (typeof g.price === 'number' && g.price > 0) vals.push(g.price);
   if (typeof o.cardPrice === 'number' && o.cardPrice > 0) vals.push(o.cardPrice);
@@ -136,10 +175,10 @@ export function previewCoords(clean, o = {}) {
   const pointsAttr = pts.map(pt).join(' ');
   const recordY = (typeof o.recordLow === 'number' && o.recordLow > 0) ? y(o.recordLow) : null;
   let ribbonAttr = null, ribbonTopAttr = null, ribbonBotAttr = null;
-  if (o.band > 0 && Array.isArray(o.localMedians) && o.localMedians.length === n && n > 0 && o.localMedians.every(v => v > 0)) {
+  if (o.band > 0 && Array.isArray(localMedians) && localMedians.length === n && n > 0 && localMedians.every(v => v > 0)) {
     const tops = [], bots = [];
     for (let q = 0; q < n; q++) {
-      const med = o.localMedians[q];
+      const med = localMedians[q];
       tops.push(`${f1(fracX(pts[q][0]))},${f1(Math.max(m.top, Math.min(h - m.bottom, y(med * (1 + o.band)))))}`);
       bots.push(`${f1(fracX(pts[q][0]))},${f1(Math.max(m.top, Math.min(h - m.bottom, y(med * (1 - o.band)))))}`);
     }
@@ -157,7 +196,9 @@ export function previewCoords(clean, o = {}) {
     const y1 = y(pts[n - 1][1]);
     if (Math.abs(y1 - anchor.y) >= 0.5) anchorLink = { x1: anchor.x, y1, x2: anchor.x, y2: anchor.y };
   }
-  const rawAttr = o.raw?.length ? o.raw.map(p => `${f1(fracX(p[0]))},${f1(y(p[1]))}`).join(' ') : null;
+  const rawIdx = (o.maxPoints > 0 && o.raw?.length > o.maxPoints) ? decimateIndices(o.raw, o.maxPoints) : null;
+  const rawPtsDraw = rawIdx ? rawIdx.map(i => o.raw[i]) : o.raw;
+  const rawAttr = rawPtsDraw?.length ? rawPtsDraw.map(p => `${f1(fracX(p[0]))},${f1(y(p[1]))}`).join(' ') : null;
   const ticks = [{ y: y(hi), label: fmtPreviewMedian(hi) }, { y: y(lo), label: fmtPreviewMedian(lo) }];
   if (o.median > 0) { const my = y(o.median); if (Math.abs(my - y(hi)) >= 10 && Math.abs(my - y(lo)) >= 10) ticks.splice(1, 0, { y: my, label: fmtPreviewMedian(o.median) }); }
   const xTicks = n >= 2 ? computeXAxisTicks(t0, t1, fracX) : [];
@@ -208,27 +249,32 @@ export function getPageProductOptions(limit = 30) {
   return out;
 }
 
-export function refreshCalcPreview() {
+let cachedPageOpts = [];
+
+export function refreshCalcPreview(opts = {}) {
   const svg = document.getElementById('tp-preview-svg');
   const legend = document.getElementById('tp-preview-legend');
   const blend = document.getElementById('tp-preview-blend');
   const status = document.getElementById('tp-preview-status');
   if (!svg || !legend || !blend || !status) return;
   const sel = document.getElementById('tp-preview-preset-select');
-  const pageOpts = getPageProductOptions();
-  const prevVal = sel ? sel.value : activePresetId;
-  if (sel) {
-    sel.innerHTML = `<optgroup label="Beispiel-Historien">${Object.values(PRESETS).map(p => `<option value="${p.id}">${p.label}</option>`).join('')}</optgroup>`
-      + (pageOpts.length ? `<optgroup label="Geprüfte Produkte auf dieser Seite">${pageOpts.map(o => `<option value="page:${esc(o.pid)}">${o.label}</option>`).join('')}</optgroup>` : '');
-    const isValidSel = v => !!(PRESETS[v] || (typeof v === 'string' && v.startsWith('page:') && pageOpts.some(o => `page:${o.pid}` === v)));
-    if (!isValidSel(activePresetId)) activePresetId = 's26';
-    sel.value = isValidSel(prevVal) ? prevVal : activePresetId;
+  const shouldRefreshSelect = opts?.refreshSelect === true || (sel && sel.options.length === 0);
+  if (shouldRefreshSelect) {
+    cachedPageOpts = getPageProductOptions();
+    const prevVal = sel ? sel.value : activePresetId;
+    if (sel) {
+      sel.innerHTML = `<optgroup label="Beispiel-Historien">${Object.values(PRESETS).map(p => `<option value="${p.id}">${p.label}</option>`).join('')}</optgroup>`
+        + (cachedPageOpts.length ? `<optgroup label="Geprüfte Produkte auf dieser Seite">${cachedPageOpts.map(o => `<option value="page:${esc(o.pid)}">${o.label}</option>`).join('')}</optgroup>` : '');
+      const isValidSel = v => !!(PRESETS[v] || (typeof v === 'string' && v.startsWith('page:') && cachedPageOpts.some(o => `page:${o.pid}` === v)));
+      if (!isValidSel(activePresetId)) activePresetId = 's26';
+      sel.value = isValidSel(prevVal) ? prevVal : activePresetId;
+    }
   }
   const selVal = sel ? sel.value : activePresetId;
   const now = Date.now();
   let points;
   let cardPrice;
-  const pageHit = typeof selVal === 'string' && selVal.startsWith('page:') ? pageOpts.find(o => `page:${o.pid}` === selVal) : null;
+  const pageHit = typeof selVal === 'string' && selVal.startsWith('page:') ? cachedPageOpts.find(o => `page:${o.pid}` === selVal) : null;
   if (pageHit) {
     activePresetId = selVal;
     const canonical = extractCanonicalPrice(pageHit.card);
@@ -261,7 +307,7 @@ export function refreshCalcPreview() {
   const st = previewStats(points, { band, hours, enabled, horizonDays, weightRecord, minPoints, cardPrice, now });
   const { visibleDropped } = cropPreviewWindow(st.clean, st.dropped, st.cutoffTs);
   const visibleRaw = (enabled && visibleDropped.length > 0) ? (st.cutoffTs ? points.filter(p => p[0] >= st.cutoffTs) : points) : null;
-  const co = previewCoords(st.clean, { median: st.median, localMedians: st.localMedians, band: enabled ? band : 0, cardPrice, dropped: visibleDropped, recordLow: st.recordLow, raw: visibleRaw });
+  const co = previewCoords(st.clean, { median: st.median, localMedians: st.localMedians, band: enabled ? band : 0, cardPrice, dropped: visibleDropped, recordLow: st.recordLow, raw: visibleRaw, maxPoints: 200 });
   const f1 = v => v.toFixed(1);
   const mainStroke = st.activeCount < minPoints ? '#94a3b8' : '#3b82f6';
   let s = '';

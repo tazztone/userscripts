@@ -122,6 +122,16 @@ export async function fetchSingleProductPriceStats(productId, retries = 1, force
     // failures (cancelled/timeout/cooldown/transient/unauthorized) return
     // immediately — a retry there cannot conjure a series.
     if (pick?.series && Array.isArray(pick.series) && pick.series.length >= 1) {
+      if (Array.isArray(pick.altSeries) && pick.altSeries.length >= 1 && typeof pick.altIsShipping === 'boolean') {
+        const altExisting = getCachedPriceStats(productId, false, null, pick.altIsShipping);
+        if (!altExisting || !altExisting.medianPrice) {
+          const altAnalysis = analyzePriceTimeSeries(pick.altSeries, null);
+          if (altAnalysis && altAnalysis.tiefstpreis > 0) {
+            altAnalysis.isShippingPrice = pick.altIsShipping;
+            setCachedPriceStats(productId, altAnalysis, false, undefined, pick.altIsShipping, gen);
+          }
+        }
+      }
       // Basis guard: a product-shape series must never land in the shipping
       // slot — fall through to the HTML path (which refuses the shipping
       // slot too and writes a negative entry instead).
@@ -252,6 +262,7 @@ export async function runProductScanner(options = {}) {
   const effectiveCancel = () => abortedByCooldown || isCancelled(signal, shouldCancelFn);
   let cooldownToastShown = false;
   const pidInFlightCount = new Map();
+  let lastRenderAt = 0;
 
   async function worker() {
     while (!abortedByCooldown && !isCancelled(signal, shouldCancelFn)) {
@@ -295,10 +306,11 @@ export async function runProductScanner(options = {}) {
         // was reused for another product while queued (post-fetch guard stays).
         if (item.card.isConnected && getCardProductId(item.card) === item.pid) {
           cardValid = true;
-          const cardBasis = extractCanonicalPrice(item.card).basis;
-          const cardElig = scanEligibility(item.card);
+          const { price: cardPrice, basis: cardBasis } = extractCanonicalPrice(item.card);
+          const cardElig = scanEligibility(item.card, { pid: item.pid, cardPrice, cardPriceBasis: cardBasis });
           const forceFresh = cardElig.state === 'basis-mismatch';
-          stats = await fetchSingleProductPriceStats(item.pid, 2, forceFresh, effectiveCancel, (() => { try { const cp = extractCanonicalPrice(item.card).price; return Number.isFinite(cp) && cp > 0 ? cp : null; } catch { return null; } })(), signal, cardBasis);
+          const cp = Number.isFinite(cardPrice) && cardPrice > 0 ? cardPrice : null;
+          stats = await fetchSingleProductPriceStats(item.pid, 2, forceFresh, effectiveCancel, cp, signal, cardBasis);
           // Card-identity guard: reused/detached cards must not collect an
           // earlier request's verification.
           if (!(item.card.isConnected && getCardProductId(item.card) === item.pid)) {
@@ -326,7 +338,7 @@ export async function runProductScanner(options = {}) {
         triggerProcessListings();
         if (postCooldownMs > 15000) {
           abortedByCooldown = true;
-            if (!cooldownToastShown) {
+          if (!cooldownToastShown) {
             cooldownToastShown = true;
             showToast('⏳ Rate-Limit erreicht – Prüfung pausiert');
           }
@@ -340,9 +352,12 @@ export async function runProductScanner(options = {}) {
       completed++;
       Object.assign(scanState, { progress: { completed, total } });
       if (onProgress) onProgress(completed, total);
-      // Progressive paint per card: renders newly verified deals and ensures
-      // failed/null card fetches immediately restore non-loading badge state.
-      triggerProcessListings();
+      // Progressive paint throttled during batch scan; completion always flushes.
+      const now = Date.now();
+      if (now - lastRenderAt >= 250) {
+        lastRenderAt = now;
+        triggerProcessListings();
+      }
       const paceMs = (typeof document !== 'undefined' && document.visibilityState === 'hidden') ? 500 : 250;
       await interruptibleSleep(paceMs, () => abortedByCooldown || isCancelled(signal, shouldCancelFn), signal);
     }
