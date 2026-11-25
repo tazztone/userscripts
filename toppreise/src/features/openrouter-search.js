@@ -226,15 +226,13 @@ export function fetchOpenRouterWebSearch(apiKey, prompt, options = {}) {
       }
     });
 
-    entry = { promise: transportPromise, timeoutMs, abortCtrl, consumers: new Set() };
+    entry = { promise: transportPromise, timeoutMs, abortCtrl, refs: 0 };
     orInFlight.set(flightKey, entry);
   }
 
-  const consumer = {};
-  entry.consumers.add(consumer);
+  entry.refs++;
   const cleanupConsumer = () => {
-    entry.consumers.delete(consumer);
-    if (entry.consumers.size === 0) {
+    if (--entry.refs === 0) {
       try { entry.abortCtrl?.abort(); } catch {}
       if (orInFlight.get(flightKey) === entry) orInFlight.delete(flightKey);
     }

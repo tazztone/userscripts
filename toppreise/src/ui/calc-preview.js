@@ -113,7 +113,6 @@ export function computeXAxisTicks(t0, t1, fracX) {
 function decimateIndices(pts, maxPoints) {
   const n = pts.length;
   if (!(maxPoints > 0) || n <= maxPoints) return null;
-  if (n <= 2) return pts.map((_, i) => i);
   const buckets = Math.max(1, Math.floor((maxPoints - 2) / 2));
   const out = [0];
   const step = (n - 2) / buckets;
@@ -130,15 +129,9 @@ function decimateIndices(pts, maxPoints) {
       if (v < minVal) { minVal = v; minIdx = i; }
       if (v > maxVal) { maxVal = v; maxIdx = i; }
     }
-    if (minIdx < maxIdx) {
-      if (out[out.length - 1] !== minIdx) out.push(minIdx);
-      out.push(maxIdx);
-    } else if (maxIdx < minIdx) {
-      if (out[out.length - 1] !== maxIdx) out.push(maxIdx);
-      out.push(minIdx);
-    } else if (out[out.length - 1] !== minIdx) {
-      out.push(minIdx);
-    }
+    const [a, bIdx] = minIdx < maxIdx ? [minIdx, maxIdx] : [maxIdx, minIdx];
+    if (out[out.length - 1] !== a) out.push(a);
+    if (bIdx !== a) out.push(bIdx);
   }
   if (out[out.length - 1] !== n - 1) out.push(n - 1);
   return out;

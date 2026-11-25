@@ -14,8 +14,7 @@ export const TAVILY_CACHE_TTL_MS = 48 * 60 * 60 * 1000; // 48h
 
 const tavilyCache = createPersistentAiCache({
   prefix: TAVILY_CACHE_KEY_PREFIX,
-  ttlMs: TAVILY_CACHE_TTL_MS,
-  normalizeEntry: p => ({ answer: p.answer, timestamp: p.timestamp })
+  ttlMs: TAVILY_CACHE_TTL_MS
 });
 const inFlight = new Map();
 

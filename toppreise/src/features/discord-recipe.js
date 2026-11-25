@@ -284,25 +284,21 @@ const safeSliceDiscord = (str, max) => {
 };
 
 function fitDealMessage(fields = {}, recipe = DEFAULT_LAYOUT) {
-  const full = renderLayout(fields, recipe);
-  if (full.length <= 2000) return full;
-  const baseFields = { ...(fields || {}) };
-  const cleanTitle = cleanTitleOf(baseFields.title);
-  let shrunkTitle = safeSliceDiscord(cleanTitle, Math.max(20, cleanTitle.length - (full.length - 2000)));
-  let rendered = renderLayout({ ...baseFields, title: shrunkTitle }, recipe);
-  if (rendered.length > 2000 && shrunkTitle.length > 20) {
-    shrunkTitle = safeSliceDiscord(shrunkTitle, Math.max(20, shrunkTitle.length - (rendered.length - 2000)));
-    rendered = renderLayout({ ...baseFields, title: shrunkTitle }, recipe);
-  }
-  if (rendered.length > 2000 && baseFields.aiText) {
-    const ai = String(baseFields.aiText);
-    const keepAi = Math.max(40, ai.length - (rendered.length - 2000) - 1);
-    const trimmedAi = keepAi < ai.length ? `${safeSliceDiscord(ai, keepAi).trimEnd()}…` : ai;
-    rendered = renderLayout({ ...baseFields, title: shrunkTitle, aiText: trimmedAi }, recipe);
-    if (rendered.length > 2000 && trimmedAi.length > 41) {
-      const keepAi2 = Math.max(40, trimmedAi.length - (rendered.length - 2000) - 2);
-      const trimmedAi2 = `${safeSliceDiscord(ai, keepAi2).trimEnd()}…`;
-      rendered = renderLayout({ ...baseFields, title: shrunkTitle, aiText: trimmedAi2 }, recipe);
+  let rendered = renderLayout(fields, recipe);
+  if (rendered.length <= 2000) return rendered;
+  const cur = { ...(fields || {}) };
+  for (const [key, floor, suffix] of [['title', 20, ''], ['aiText', 40, '…']]) {
+    if (rendered.length <= 2000 || (key === 'aiText' && !cur.aiText)) continue;
+    const orig = key === 'title' ? cleanTitleOf(cur.title) : String(cur.aiText);
+    let val = orig;
+    for (let pass = 0; pass < 2 && rendered.length > 2000; pass++) {
+      const keep = Math.max(floor, val.length - (rendered.length - 2000) - suffix.length * (pass + 1));
+      val = keep < orig.length
+        ? (suffix ? `${safeSliceDiscord(orig, keep).trimEnd()}${suffix}` : safeSliceDiscord(orig, keep))
+        : orig;
+      cur[key] = val;
+      rendered = renderLayout(cur, recipe);
+      if (val.length <= floor + suffix.length) break;
     }
   }
   return rendered;

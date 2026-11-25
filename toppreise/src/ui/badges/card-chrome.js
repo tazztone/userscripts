@@ -4,7 +4,7 @@
  * renderCardEffects orchestrator (signature frozen, app.js untouched).
  */
 
-import { CONFIG, effectiveAiProvider, updateConfig, updateConfigs, sanitizeReviewKeyword, realDealMinDiscount } from '../../state/config.js';
+import { CONFIG, updateConfig, updateConfigs, sanitizeReviewKeyword, realDealMinDiscount } from '../../state/config.js';
 import { getDisplayDelta, getHeatInput, computeDealScore } from '../../domain/deal-score.js';
 import { basisMatchesFor, FILTER_CAUSE_DEFS } from '../../page/cards.js';
 import { getCachedDealer, setCachedDealer, lruSet, hasUsablePriceStats, currentCacheGen, fullSeries } from '../../scanner/cache.js';
@@ -23,7 +23,6 @@ import { renderShareButton } from './card-share.js';
 import { openAiPopover } from './card-ai-popover.js';
 import { openAiLauncherPopover, openSearchTab } from '../ai-launcher-popover.js';
 import { expandKeywordWithPrice, formatSearchQuery, formatReviewTooltip } from '../../features/tavily-search.js';
-import { isConfiguredAiActive } from '../../features/openrouter-search.js';
 import { ensureDealerInfo, renderDealerName } from './card-dealer.js';
 import { renderAlarmBell } from './card-alarm.js';
 
@@ -164,8 +163,6 @@ export function renderReviewButton(ctx) {
     const priceText = (ctx.cardPrice > 0 && hasUsablePriceStats(ctx.stats)) ? `CHF ${ctx.cardPrice.toFixed(2)}` : '';
     const fullQuery = formatSearchQuery(reviewName, rawKw, priceText);
     const aiMode = CONFIG.REVIEW_SEARCH_AI_MODE === true;
-    const activeProvider = effectiveAiProvider(CONFIG);
-    const hasAiSummary = isConfiguredAiActive(CONFIG);
     let reviewBtn = card.querySelector('.tp-review-search-btn');
     if (!reviewBtn) {
       reviewBtn = document.createElement('a');

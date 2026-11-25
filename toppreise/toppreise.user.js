@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.572
+// @version      2.18.573
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -4286,7 +4286,7 @@ const SHADOW_MODAL_STYLES = `
   // ─── MODULE: src/utils/common.js ────────────────────────────────────────────
   /**
    * Shared Pure Helpers
-   * HTML escaping and bounded Map/Set utilities shared across UI and badge modules.
+   * HTML escaping and bounded Set utilities shared across UI and badge modules.
    */
 
   const escapeHtml = s => String(s ?? '')
@@ -4300,13 +4300,6 @@ const SHADOW_MODAL_STYLES = `
     set.add(key);
     while (set.size > limit) {
       set.delete(set.values().next().value);
-    }
-  }
-
-  function boundedMapSet(map, key, val, limit = 500) {
-    map.set(key, val);
-    while (map.size > limit) {
-      map.delete(map.keys().next().value);
     }
   }
 
@@ -5075,10 +5068,6 @@ const SHADOW_MODAL_STYLES = `
         } else if (item.length >= 3) {
           ts += item[2];
           out.push([ts, item[0]]);
-          for (let k = 1; k < item[1]; k++) { ts += STATS_DAY_MS; out.push([ts, item[0]]); }
-        } else if (item.length === 1) {
-          ts += STATS_DAY_MS;
-          out.push([ts, item[0]]);
         }
       }
     }
@@ -5168,10 +5157,6 @@ const SHADOW_MODAL_STYLES = `
   }
   const hasUsablePriceStats = stats => !!stats && !stats.unavailable && (Number.isFinite(stats?.tiefstpreis) ? stats.tiefstpreis > 0 : Number.isFinite(stats?.medianPrice) && stats.medianPrice > 0);
 
-  let hasAnyLegacyStatsKey = null;
-  let recomputeFlushTimer = null;
-  const pendingRecomputeKeys = new Set();
-
   function serializeStatsForDisk(entry) {
     if (!entry || entry.unavailable) return entry;
     const encodedSeries = Array.isArray(entry.timeSeries) ? encodeTimeSeries(entry.timeSeries) : entry.timeSeries;
@@ -5211,7 +5196,6 @@ const SHADOW_MODAL_STYLES = `
       const entries = [];
       const keysToRemove = [];
       let totalBytes = 0;
-      let foundLegacyStats = false;
 
       for (let i = 0; i < storage.length; i++) {
         const key = storage.key(i);
@@ -5227,8 +5211,6 @@ const SHADOW_MODAL_STYLES = `
             } else {
               const bytes = (key.length + raw.length) * 2;
               totalBytes += bytes;
-              const isStats = key.startsWith(STATS_CACHE_PREFIX);
-              if (isStats && !key.endsWith('_p') && !key.endsWith('_s')) foundLegacyStats = true;
               entries.push({ key, time: itemTime, age, bytes, isShared: key.startsWith(SHARED_CACHE_PREFIX) });
             }
           } catch (e) {
@@ -5236,7 +5218,6 @@ const SHADOW_MODAL_STYLES = `
           }
         }
       }
-      if (storage === resolveStorage(null)) hasAnyLegacyStatsKey = foundLegacyStats;
 
       keysToRemove.forEach(k => storage.removeItem(k));
 
@@ -5279,7 +5260,6 @@ const SHADOW_MODAL_STYLES = `
 
   function getCachedPriceStats(productId, ignoreNegativeCache = false, storage = null, useShippingOverride = null) {
     if (!productId) return null;
-    const resolvedDefault = resolveStorage(null);
     storage = resolveStorage(storage);
     const targetShipping = typeof useShippingOverride === 'boolean'
       ? useShippingOverride
@@ -5309,9 +5289,7 @@ const SHADOW_MODAL_STYLES = `
 
       let raw = storage?.getItem(key);
       let migratedLegacy = false;
-      const isProdSite = typeof location !== 'undefined' && /(?:^|\.)toppreise\.ch$/i.test(location.hostname || '');
-      const allowLegacy = !isProdSite || storage !== resolvedDefault || hasAnyLegacyStatsKey !== false;
-      if (!raw && allowLegacy) {
+      if (!raw) {
         try {
           const legacyKey = STATS_CACHE_PREFIX + productId;
           const legacy = storage?.getItem(legacyKey);
@@ -5409,8 +5387,6 @@ const SHADOW_MODAL_STYLES = `
     if (prefixes.includes(STATS_CACHE_PREFIX)) {
       cacheGeneration++;
       memoryCache.clear();
-      if (recomputeFlushTimer) { clearTimeout(recomputeFlushTimer); recomputeFlushTimer = null; }
-      pendingRecomputeKeys.clear();
     }
     storage = resolveStorage(storage);
     let count = 0;
@@ -5434,7 +5410,7 @@ const SHADOW_MODAL_STYLES = `
   // (timeSeries) — der Median wird lokal für den neuen Horizont neu gerechnet.
   // `time` bleibt unangetastet, Einträge bleiben fresh, kein Refetch.
   // Serienlose Einträge (Fallback/negativ) werden übersprungen.
-  function recomputeCachedMedians(horizonDays, storage = null, { horizonOnly = false, debounceMs = 0 } = {}) {
+  function recomputeCachedMedians(horizonDays, storage = null, { horizonOnly = false } = {}) {
     let count = 0;
     storage = resolveStorage(storage);
     const sig = currentMedianSig(horizonDays);
@@ -5474,30 +5450,12 @@ const SHADOW_MODAL_STYLES = `
       return { ...entry, ...fresh, time: entry.time, medianSig: sig, ...(entry.rawTimeSeries && fresh.rawTimeSeries === undefined ? { rawTimeSeries: entry.rawTimeSeries } : {}) };
     };
 
-    const flushKeys = [];
     for (const [cacheKey, entry] of memoryCache) {
       const next = rewrite(entry);
       if (!next) continue;
       memoryCache.set(cacheKey, next);
-      if (debounceMs > 0) pendingRecomputeKeys.add(cacheKey);
-      else flushKeys.push([cacheKey, next]);
+      safeStorageSet(storage, cacheKey, JSON.stringify(serializeStatsForDisk(next)));
       count++;
-    }
-    if (debounceMs > 0 && pendingRecomputeKeys.size > 0) {
-      if (recomputeFlushTimer) clearTimeout(recomputeFlushTimer);
-      recomputeFlushTimer = setTimeout(() => {
-        recomputeFlushTimer = null;
-        const targetStorage = storage || resolveStorage(null);
-        for (const cacheKey of pendingRecomputeKeys) {
-          const entry = memoryCache.get(cacheKey);
-          if (entry) safeStorageSet(targetStorage, cacheKey, JSON.stringify(serializeStatsForDisk(entry)));
-        }
-        pendingRecomputeKeys.clear();
-      }, debounceMs);
-    } else {
-      for (const [cacheKey, next] of flushKeys) {
-        safeStorageSet(storage, cacheKey, JSON.stringify(serializeStatsForDisk(next)));
-      }
     }
     return count;
   }
@@ -8850,25 +8808,23 @@ const SHADOW_MODAL_STYLES = `
   function toFeedUrl(catalogUrl, currentFeedPath = '') {
     if (!catalogUrl || typeof catalogUrl !== 'string') return '/neue-toppreise';
     const trimmed = catalogUrl.trim();
-    const isRelPath = /^\/(?!\/)/.test(trimmed);
-    let normalizedPath = trimmed;
-    if (!isRelPath) {
+    let origin = '';
+    let path = trimmed;
+    if (!/^\/(?!\/)/.test(trimmed)) {
       if (!/^https?:\/\//i.test(trimmed)) return '/neue-toppreise';
       try {
         const u = new URL(trimmed);
         const host = u.hostname.toLowerCase();
         if (host !== 'toppreise.ch' && !host.endsWith('.toppreise.ch')) return '/neue-toppreise';
-        normalizedPath = u.pathname + u.search + u.hash;
-        const m = currentFeedPath?.match(/^\/(?:new-best-prices|nouveaux-meilleurs-prix)/i);
-        const prefix = m ? m[0] : '/neue-toppreise';
-        return u.origin + normalizedPath.replace(/^\/(?:produktsuche|katalog|productsearch|recherche-produits)/i, prefix);
+        origin = u.origin;
+        path = u.pathname + u.search + u.hash;
       } catch {
         return '/neue-toppreise';
       }
     }
     const m = currentFeedPath?.match(/^\/(?:new-best-prices|nouveaux-meilleurs-prix)/i);
     const prefix = m ? m[0] : '/neue-toppreise';
-    return trimmed.replace(/^\/(?:produktsuche|katalog|productsearch|recherche-produits)/i, prefix);
+    return origin + path.replace(/^\/(?:produktsuche|katalog|productsearch|recherche-produits)/i, prefix);
   }
 
   const ENTITY_MAP = {
@@ -11082,25 +11038,21 @@ const SHADOW_MODAL_STYLES = `
   };
 
   function fitDealMessage(fields = {}, recipe = DEFAULT_LAYOUT) {
-    const full = renderLayout(fields, recipe);
-    if (full.length <= 2000) return full;
-    const baseFields = { ...(fields || {}) };
-    const cleanTitle = cleanTitleOf(baseFields.title);
-    let shrunkTitle = safeSliceDiscord(cleanTitle, Math.max(20, cleanTitle.length - (full.length - 2000)));
-    let rendered = renderLayout({ ...baseFields, title: shrunkTitle }, recipe);
-    if (rendered.length > 2000 && shrunkTitle.length > 20) {
-      shrunkTitle = safeSliceDiscord(shrunkTitle, Math.max(20, shrunkTitle.length - (rendered.length - 2000)));
-      rendered = renderLayout({ ...baseFields, title: shrunkTitle }, recipe);
-    }
-    if (rendered.length > 2000 && baseFields.aiText) {
-      const ai = String(baseFields.aiText);
-      const keepAi = Math.max(40, ai.length - (rendered.length - 2000) - 1);
-      const trimmedAi = keepAi < ai.length ? `${safeSliceDiscord(ai, keepAi).trimEnd()}…` : ai;
-      rendered = renderLayout({ ...baseFields, title: shrunkTitle, aiText: trimmedAi }, recipe);
-      if (rendered.length > 2000 && trimmedAi.length > 41) {
-        const keepAi2 = Math.max(40, trimmedAi.length - (rendered.length - 2000) - 2);
-        const trimmedAi2 = `${safeSliceDiscord(ai, keepAi2).trimEnd()}…`;
-        rendered = renderLayout({ ...baseFields, title: shrunkTitle, aiText: trimmedAi2 }, recipe);
+    let rendered = renderLayout(fields, recipe);
+    if (rendered.length <= 2000) return rendered;
+    const cur = { ...(fields || {}) };
+    for (const [key, floor, suffix] of [['title', 20, ''], ['aiText', 40, '…']]) {
+      if (rendered.length <= 2000 || (key === 'aiText' && !cur.aiText)) continue;
+      const orig = key === 'title' ? cleanTitleOf(cur.title) : String(cur.aiText);
+      let val = orig;
+      for (let pass = 0; pass < 2 && rendered.length > 2000; pass++) {
+        const keep = Math.max(floor, val.length - (rendered.length - 2000) - suffix.length * (pass + 1));
+        val = keep < orig.length
+          ? (suffix ? `${safeSliceDiscord(orig, keep).trimEnd()}${suffix}` : safeSliceDiscord(orig, keep))
+          : orig;
+        cur[key] = val;
+        rendered = renderLayout(cur, recipe);
+        if (val.length <= floor + suffix.length) break;
       }
     }
     return rendered;
@@ -11153,6 +11105,14 @@ const SHADOW_MODAL_STYLES = `
     normalizeEntry = parsed => parsed
   }) {
     const memCache = new Map();
+    const keysWithPrefix = store => {
+      const keys = [];
+      for (let i = 0; i < store.length; i++) {
+        const k = store.key(i);
+        if (k && k.startsWith(prefix)) keys.push(k);
+      }
+      return keys;
+    };
 
     const get = (key) => {
       if (!key) return null;
@@ -11185,12 +11145,7 @@ const SHADOW_MODAL_STYLES = `
       try {
         const now = Date.now();
         const valid = [];
-        const keys = [];
-        for (let i = 0; i < store.length; i++) {
-          const k = store.key(i);
-          if (k && k.startsWith(prefix)) keys.push(k);
-        }
-        for (const k of keys) {
+        for (const k of keysWithPrefix(store)) {
           try {
             const raw = store.getItem(k);
             const parsed = raw ? JSON.parse(raw) : null;
@@ -11244,17 +11199,12 @@ const SHADOW_MODAL_STYLES = `
       memCache.clear();
       if (typeof localStorage !== 'undefined') {
         try {
-          const keys = [];
-          for (let i = 0; i < localStorage.length; i++) {
-            const k = localStorage.key(i);
-            if (k && k.startsWith(prefix)) keys.push(k);
-          }
-          for (const k of keys) localStorage.removeItem(k);
+          for (const k of keysWithPrefix(localStorage)) localStorage.removeItem(k);
         } catch { /* ignore storage access error */ }
       }
     };
 
-    return { memCache, get, set, prune, clear };
+    return { get, set, prune, clear };
   }
 
   // ─── MODULE: src/features/tavily-search.js ──────────────────────────────────
@@ -11273,8 +11223,7 @@ const SHADOW_MODAL_STYLES = `
 
   const tavilyCache = createPersistentAiCache({
     prefix: TAVILY_CACHE_KEY_PREFIX,
-    ttlMs: TAVILY_CACHE_TTL_MS,
-    normalizeEntry: p => ({ answer: p.answer, timestamp: p.timestamp })
+    ttlMs: TAVILY_CACHE_TTL_MS
   });
   const inFlight = new Map();
 
@@ -11699,15 +11648,13 @@ const SHADOW_MODAL_STYLES = `
         }
       });
 
-      entry = { promise: transportPromise, timeoutMs, abortCtrl, consumers: new Set() };
+      entry = { promise: transportPromise, timeoutMs, abortCtrl, refs: 0 };
       orInFlight.set(flightKey, entry);
     }
 
-    const consumer = {};
-    entry.consumers.add(consumer);
+    entry.refs++;
     const cleanupConsumer = () => {
-      entry.consumers.delete(consumer);
-      if (entry.consumers.size === 0) {
+      if (--entry.refs === 0) {
         try { entry.abortCtrl?.abort(); } catch {}
         if (orInFlight.get(flightKey) === entry) orInFlight.delete(flightKey);
       }
@@ -12305,18 +12252,11 @@ const SHADOW_MODAL_STYLES = `
   const buildThreadName = title => ((title || '').replace(/\s+/g, ' ').trim() || 'Toppreise-Deal').slice(0, 100);
   function isForumThreadError(err) {
     if (!err) return false;
-    if (err.status === 405 || /^Discord 405$/.test(err.message || '')) return true;
-    if (err.status === 400 || /^Discord 400$/.test(err.message || '')) {
+    const msg = err.message || '';
+    if (err.status === 405 || msg === 'Discord 405') return true;
+    if (err.status === 400 || msg === 'Discord 400') {
       const body = typeof err.body === 'string' ? err.body.trim() : '';
-      if (!body) return true;
-      try {
-        const parsed = JSON.parse(body);
-        if (parsed && typeof parsed.code === 'number') {
-          if (parsed.code === 220001 || parsed.code === 220003) return true;
-          return /thread_name|forum/i.test(body);
-        }
-      } catch {}
-      return /thread_name|forum/i.test(body);
+      return !body || /"code"\s*:\s*22000[13]\b|thread_name|forum/i.test(body);
     }
     return false;
   }
@@ -13991,8 +13931,6 @@ const SHADOW_MODAL_STYLES = `
    * {card, pid, cardPrice, cardPriceEl, stats, diffVal, dealData, displayDelta,
    * heatInfo, effectiveDiff} — neither half recomputes (ADR-0005 single-source rule).
    */
-
-
 
 
 
@@ -15686,6 +15624,7 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   const dealerPromises = new Map();
 
   async function ensureDealerInfo(card, pid, useShipping) {
@@ -15892,7 +15831,7 @@ const SHADOW_MODAL_STYLES = `
         const tryState = dealerAutoTries.get(dKey);
         const canAutoTry = !tryState || (!tryState.exhausted && tryState.count < 2 && Date.now() >= (tryState.nextTryAt || 0));
         if (!filters?.isFiltered && CONFIG.DEALER_AUTOFETCH === true && !scanState.isBatchChecking && Date.now() >= getOriginCooldownUntil() && meetsDealThreshold && canAutoTry && !dealerPending.has(dKey) && dealerPending.size < 3) {
-          boundedMapSet(dealerAutoTries, dKey, { count: (tryState?.count || 0) + 1, nextTryAt: 0, exhausted: false }, 500);
+          lruSet(dealerAutoTries, dKey, { count: (tryState?.count || 0) + 1, nextTryAt: 0, exhausted: false }, 500);
           btn.disabled = true;
           loadDealer();
         }
@@ -15964,7 +15903,6 @@ const SHADOW_MODAL_STYLES = `
    * button, dealer name, review button, fresh glow, empty state — plus the
    * renderCardEffects orchestrator (signature frozen, app.js untouched).
    */
-
 
 
 
@@ -16123,8 +16061,6 @@ const SHADOW_MODAL_STYLES = `
       const priceText = (ctx.cardPrice > 0 && hasUsablePriceStats(ctx.stats)) ? `CHF ${ctx.cardPrice.toFixed(2)}` : '';
       const fullQuery = formatSearchQuery(reviewName, rawKw, priceText);
       const aiMode = CONFIG.REVIEW_SEARCH_AI_MODE === true;
-      const activeProvider = effectiveAiProvider(CONFIG);
-      const hasAiSummary = isConfiguredAiActive(CONFIG);
       let reviewBtn = card.querySelector('.tp-review-search-btn');
       if (!reviewBtn) {
         reviewBtn = document.createElement('a');
@@ -18906,7 +18842,6 @@ const SHADOW_MODAL_STYLES = `
   function decimateIndices(pts, maxPoints) {
     const n = pts.length;
     if (!(maxPoints > 0) || n <= maxPoints) return null;
-    if (n <= 2) return pts.map((_, i) => i);
     const buckets = Math.max(1, Math.floor((maxPoints - 2) / 2));
     const out = [0];
     const step = (n - 2) / buckets;
@@ -18923,15 +18858,9 @@ const SHADOW_MODAL_STYLES = `
         if (v < minVal) { minVal = v; minIdx = i; }
         if (v > maxVal) { maxVal = v; maxIdx = i; }
       }
-      if (minIdx < maxIdx) {
-        if (out[out.length - 1] !== minIdx) out.push(minIdx);
-        out.push(maxIdx);
-      } else if (maxIdx < minIdx) {
-        if (out[out.length - 1] !== maxIdx) out.push(maxIdx);
-        out.push(minIdx);
-      } else if (out[out.length - 1] !== minIdx) {
-        out.push(minIdx);
-      }
+      const [a, bIdx] = minIdx < maxIdx ? [minIdx, maxIdx] : [maxIdx, minIdx];
+      if (out[out.length - 1] !== a) out.push(a);
+      if (bIdx !== a) out.push(bIdx);
     }
     if (out[out.length - 1] !== n - 1) out.push(n - 1);
     return out;
@@ -21135,6 +21064,12 @@ const SHADOW_MODAL_STYLES = `
       body.appendChild(limitRow);
     }
 
+    const currentLimit = () => {
+      if (!limitInput) return maxItems;
+      const parsed = parseInt(limitInput.value, 10);
+      return Number.isFinite(parsed) ? Math.max(1, Math.min(maxItems, parsed)) : maxItems;
+    };
+
     let pctInput = null;
     let selectedDuration = String(CONFIG.ALARM_DURATION_DAYS || '730');
     if (mode === 'alarms') {
@@ -21185,7 +21120,7 @@ const SHADOW_MODAL_STYLES = `
         previewEl.className = 'tp-batch-alarm-preview';
         const updatePreview = () => {
           const p = Math.max(5, Math.min(99, parseInt(pctInput.value, 10) || 60));
-          const lim = limitInput ? (() => { const n = parseInt(limitInput.value, 10); return Number.isFinite(n) ? Math.max(1, Math.min(maxItems, n)) : maxItems; })() : pricedItems.length;
+          const lim = currentLimit();
           const shown = pricedItems.slice(0, Math.min(3, lim));
           previewEl.replaceChildren();
           for (const it of shown) {
@@ -21257,11 +21192,6 @@ const SHADOW_MODAL_STYLES = `
     confirmBtn.type = 'button';
     confirmBtn.id = 'tp-batch-confirm-go';
     confirmBtn.className = 'tp-popout-btn tp-batch-btn-primary';
-    const currentLimit = () => {
-      if (!limitInput) return maxItems;
-      const parsed = parseInt(limitInput.value, 10);
-      return Number.isFinite(parsed) ? Math.max(1, Math.min(maxItems, parsed)) : maxItems;
-    };
     const updateConfirmLabel = () => {
       const n = currentLimit();
       confirmBtn.textContent = n > 0 ? `${actionLabel} (${n})` : actionLabel;
@@ -23281,7 +23211,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.572';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.573';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     const isFileFixture = typeof location !== 'undefined' && location.protocol === 'file:';
     if (isDebugHost) {

@@ -10,7 +10,8 @@ import { getCachedDealer, setCachedDealer, lruSet, hasUsablePriceStats, currentC
 import { extractShareData, extractDealer, extractDealerUrl, fetchProductInfoDetailed } from '../../page/product-offers.js';
 import { isShippingPriceActive, scheduleProcessListings } from '../../page/adapter.js';
 import { setTextIfChanged, setTitleIfChanged } from './dom-helpers.js';
-import { dealerCache, dealerPending, dealerHydrated, dealerAutoTries, boundedSetAdd, boundedMapSet } from './deal-badge.js';
+import { boundedSetAdd } from '../../utils/common.js';
+import { dealerCache, dealerPending, dealerHydrated, dealerAutoTries } from './deal-badge.js';
 
 const dealerPromises = new Map();
 
@@ -218,7 +219,7 @@ export function renderDealerName(ctx, filters) {
       const tryState = dealerAutoTries.get(dKey);
       const canAutoTry = !tryState || (!tryState.exhausted && tryState.count < 2 && Date.now() >= (tryState.nextTryAt || 0));
       if (!filters?.isFiltered && CONFIG.DEALER_AUTOFETCH === true && !scanState.isBatchChecking && Date.now() >= getOriginCooldownUntil() && meetsDealThreshold && canAutoTry && !dealerPending.has(dKey) && dealerPending.size < 3) {
-        boundedMapSet(dealerAutoTries, dKey, { count: (tryState?.count || 0) + 1, nextTryAt: 0, exhausted: false }, 500);
+        lruSet(dealerAutoTries, dKey, { count: (tryState?.count || 0) + 1, nextTryAt: 0, exhausted: false }, 500);
         btn.disabled = true;
         loadDealer();
       }

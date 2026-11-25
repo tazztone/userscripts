@@ -17,18 +17,11 @@ export const isDiscordWebhookUrl = url =>
 export const buildThreadName = title => ((title || '').replace(/\s+/g, ' ').trim() || 'Toppreise-Deal').slice(0, 100);
 export function isForumThreadError(err) {
   if (!err) return false;
-  if (err.status === 405 || /^Discord 405$/.test(err.message || '')) return true;
-  if (err.status === 400 || /^Discord 400$/.test(err.message || '')) {
+  const msg = err.message || '';
+  if (err.status === 405 || msg === 'Discord 405') return true;
+  if (err.status === 400 || msg === 'Discord 400') {
     const body = typeof err.body === 'string' ? err.body.trim() : '';
-    if (!body) return true;
-    try {
-      const parsed = JSON.parse(body);
-      if (parsed && typeof parsed.code === 'number') {
-        if (parsed.code === 220001 || parsed.code === 220003) return true;
-        return /thread_name|forum/i.test(body);
-      }
-    } catch {}
-    return /thread_name|forum/i.test(body);
+    return !body || /"code"\s*:\s*22000[13]\b|thread_name|forum/i.test(body);
   }
   return false;
 }

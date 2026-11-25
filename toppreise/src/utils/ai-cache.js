@@ -13,6 +13,14 @@ export function createPersistentAiCache({
   normalizeEntry = parsed => parsed
 }) {
   const memCache = new Map();
+  const keysWithPrefix = store => {
+    const keys = [];
+    for (let i = 0; i < store.length; i++) {
+      const k = store.key(i);
+      if (k && k.startsWith(prefix)) keys.push(k);
+    }
+    return keys;
+  };
 
   const get = (key) => {
     if (!key) return null;
@@ -45,12 +53,7 @@ export function createPersistentAiCache({
     try {
       const now = Date.now();
       const valid = [];
-      const keys = [];
-      for (let i = 0; i < store.length; i++) {
-        const k = store.key(i);
-        if (k && k.startsWith(prefix)) keys.push(k);
-      }
-      for (const k of keys) {
+      for (const k of keysWithPrefix(store)) {
         try {
           const raw = store.getItem(k);
           const parsed = raw ? JSON.parse(raw) : null;
@@ -104,15 +107,10 @@ export function createPersistentAiCache({
     memCache.clear();
     if (typeof localStorage !== 'undefined') {
       try {
-        const keys = [];
-        for (let i = 0; i < localStorage.length; i++) {
-          const k = localStorage.key(i);
-          if (k && k.startsWith(prefix)) keys.push(k);
-        }
-        for (const k of keys) localStorage.removeItem(k);
+        for (const k of keysWithPrefix(localStorage)) localStorage.removeItem(k);
       } catch { /* ignore storage access error */ }
     }
   };
 
-  return { memCache, get, set, prune, clear };
+  return { get, set, prune, clear };
 }

@@ -17,8 +17,6 @@ import { markFreshVerified, armFreshDismiss } from '../fresh-dismiss.js';
 import { scanState, isScanningPid } from '../../state/store.js';
 import { logActivity } from '../../state/activity-log.js';
 import { setHtmlIfChanged } from './dom-helpers.js';
-import { boundedSetAdd, boundedMapSet } from '../../utils/common.js';
-export { boundedSetAdd, boundedMapSet };
 
 // Single-product verify flow. Reads price at click time and re-verifies it
 // after fetch so a stale or swapped card never paints another product's stats.

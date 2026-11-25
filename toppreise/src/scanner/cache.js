@@ -56,10 +56,6 @@ export function decodeTimeSeries(stored) {
       } else if (item.length >= 3) {
         ts += item[2];
         out.push([ts, item[0]]);
-        for (let k = 1; k < item[1]; k++) { ts += STATS_DAY_MS; out.push([ts, item[0]]); }
-      } else if (item.length === 1) {
-        ts += STATS_DAY_MS;
-        out.push([ts, item[0]]);
       }
     }
   }
@@ -149,10 +145,6 @@ export function isCacheEntryFresh(parsed, ignoreNegativeCache = false) {
 }
 export const hasUsablePriceStats = stats => !!stats && !stats.unavailable && (Number.isFinite(stats?.tiefstpreis) ? stats.tiefstpreis > 0 : Number.isFinite(stats?.medianPrice) && stats.medianPrice > 0);
 
-let hasAnyLegacyStatsKey = null;
-let recomputeFlushTimer = null;
-const pendingRecomputeKeys = new Set();
-
 function serializeStatsForDisk(entry) {
   if (!entry || entry.unavailable) return entry;
   const encodedSeries = Array.isArray(entry.timeSeries) ? encodeTimeSeries(entry.timeSeries) : entry.timeSeries;
@@ -192,7 +184,6 @@ export function prunePriceStatsCache(storage = null, forceEvict = false) {
     const entries = [];
     const keysToRemove = [];
     let totalBytes = 0;
-    let foundLegacyStats = false;
 
     for (let i = 0; i < storage.length; i++) {
       const key = storage.key(i);
@@ -208,8 +199,6 @@ export function prunePriceStatsCache(storage = null, forceEvict = false) {
           } else {
             const bytes = (key.length + raw.length) * 2;
             totalBytes += bytes;
-            const isStats = key.startsWith(STATS_CACHE_PREFIX);
-            if (isStats && !key.endsWith('_p') && !key.endsWith('_s')) foundLegacyStats = true;
             entries.push({ key, time: itemTime, age, bytes, isShared: key.startsWith(SHARED_CACHE_PREFIX) });
           }
         } catch (e) {
@@ -217,7 +206,6 @@ export function prunePriceStatsCache(storage = null, forceEvict = false) {
         }
       }
     }
-    if (storage === resolveStorage(null)) hasAnyLegacyStatsKey = foundLegacyStats;
 
     keysToRemove.forEach(k => storage.removeItem(k));
 
@@ -260,7 +248,6 @@ export function prunePriceStatsCache(storage = null, forceEvict = false) {
 
 export function getCachedPriceStats(productId, ignoreNegativeCache = false, storage = null, useShippingOverride = null) {
   if (!productId) return null;
-  const resolvedDefault = resolveStorage(null);
   storage = resolveStorage(storage);
   const targetShipping = typeof useShippingOverride === 'boolean'
     ? useShippingOverride
@@ -290,9 +277,7 @@ export function getCachedPriceStats(productId, ignoreNegativeCache = false, stor
 
     let raw = storage?.getItem(key);
     let migratedLegacy = false;
-    const isProdSite = typeof location !== 'undefined' && /(?:^|\.)toppreise\.ch$/i.test(location.hostname || '');
-    const allowLegacy = !isProdSite || storage !== resolvedDefault || hasAnyLegacyStatsKey !== false;
-    if (!raw && allowLegacy) {
+    if (!raw) {
       try {
         const legacyKey = STATS_CACHE_PREFIX + productId;
         const legacy = storage?.getItem(legacyKey);
@@ -390,8 +375,6 @@ export function clearPriceStatsCache(storage = null, onlyPrefixes = null) {
   if (prefixes.includes(STATS_CACHE_PREFIX)) {
     cacheGeneration++;
     memoryCache.clear();
-    if (recomputeFlushTimer) { clearTimeout(recomputeFlushTimer); recomputeFlushTimer = null; }
-    pendingRecomputeKeys.clear();
   }
   storage = resolveStorage(storage);
   let count = 0;
@@ -415,7 +398,7 @@ export function clearPriceStatsCache(storage = null, onlyPrefixes = null) {
 // (timeSeries) — der Median wird lokal für den neuen Horizont neu gerechnet.
 // `time` bleibt unangetastet, Einträge bleiben fresh, kein Refetch.
 // Serienlose Einträge (Fallback/negativ) werden übersprungen.
-export function recomputeCachedMedians(horizonDays, storage = null, { horizonOnly = false, debounceMs = 0 } = {}) {
+export function recomputeCachedMedians(horizonDays, storage = null, { horizonOnly = false } = {}) {
   let count = 0;
   storage = resolveStorage(storage);
   const sig = currentMedianSig(horizonDays);
@@ -455,30 +438,12 @@ export function recomputeCachedMedians(horizonDays, storage = null, { horizonOnl
     return { ...entry, ...fresh, time: entry.time, medianSig: sig, ...(entry.rawTimeSeries && fresh.rawTimeSeries === undefined ? { rawTimeSeries: entry.rawTimeSeries } : {}) };
   };
 
-  const flushKeys = [];
   for (const [cacheKey, entry] of memoryCache) {
     const next = rewrite(entry);
     if (!next) continue;
     memoryCache.set(cacheKey, next);
-    if (debounceMs > 0) pendingRecomputeKeys.add(cacheKey);
-    else flushKeys.push([cacheKey, next]);
+    safeStorageSet(storage, cacheKey, JSON.stringify(serializeStatsForDisk(next)));
     count++;
-  }
-  if (debounceMs > 0 && pendingRecomputeKeys.size > 0) {
-    if (recomputeFlushTimer) clearTimeout(recomputeFlushTimer);
-    recomputeFlushTimer = setTimeout(() => {
-      recomputeFlushTimer = null;
-      const targetStorage = storage || resolveStorage(null);
-      for (const cacheKey of pendingRecomputeKeys) {
-        const entry = memoryCache.get(cacheKey);
-        if (entry) safeStorageSet(targetStorage, cacheKey, JSON.stringify(serializeStatsForDisk(entry)));
-      }
-      pendingRecomputeKeys.clear();
-    }, debounceMs);
-  } else {
-    for (const [cacheKey, next] of flushKeys) {
-      safeStorageSet(storage, cacheKey, JSON.stringify(serializeStatsForDisk(next)));
-    }
   }
   return count;
 }
