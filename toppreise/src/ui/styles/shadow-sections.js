@@ -30,10 +30,6 @@ export const SHADOW_SECTION_STYLES = `
     flex: 1;
     min-width: 140px;
   }
-  .tp-ai-split-col-wide {
-    flex: 1;
-    min-width: 150px;
-  }
   .tp-token-chips {
     display: flex;
     flex-wrap: wrap;

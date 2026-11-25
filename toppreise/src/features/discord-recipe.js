@@ -5,6 +5,7 @@
 
 import { priceToCents, recordRefForPrice } from '../domain/price.js';
 import { getDisplayDelta, getLevelPct, medianHorizonLabel } from '../domain/deal-score.js';
+import { escapeHtml } from '../utils/common.js';
 
 // Baukasten-Layout: je Zeile ein Baustein, Grösse via # / ## / -# am
 // Zeilenanfang. · blendet leere Nachbarn aus, +{offers} rendert kompakt +N (leer bei 0). {link} nur bei aktivem Embed.
@@ -31,7 +32,6 @@ export function layoutOverLimitSuffix(renderedLength, recipe) {
   return String(recipe ?? '').includes('{title}') ? ' — über Limit, Titel wird gekürzt' : ' — über Limit, wird hart auf 2000 gekürzt';
 }
 
-const escapePreviewHtml = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const mdInlineText = text => text
   .replace(/(?<!&lt;)https?:\/\/[^\s<]+?(?=&gt;|[\s<]|$)/g, '<span class="tp-md-url">$&</span>')
   .replace(/&lt;(https?:\/\/\S+?)&gt;/g, '<span class="tp-md-url">$1</span>')
@@ -52,7 +52,7 @@ export function renderDiscordMarkdownPreview(markdown) {
         line = line.slice(quote[0].length);
       }
     }
-    const parts = escapePreviewHtml(line).split(/\[([^\]]*)\]\(([^)]+)\)/g);
+    const parts = escapeHtml(line).split(/\[([^\]]*)\]\(([^)]+)\)/g);
     let html = '';
     for (let i = 0; i < parts.length; i += 3) {
       html += mdInlineText(parts[i]);
@@ -240,7 +240,6 @@ export function renderLayout(fields = {}, recipe = DEFAULT_LAYOUT) {
       recipe = `${recipe.trimEnd()}\n{comment}`;
     }
   }
-  const escapeUrlParens = u => String(u || '').replace(/\(/g, '%28').replace(/\)/g, '%29');
   const link = escapeUrlParens(((fields || {}).url || '').trim());
   const dealerUrl = escapeUrlParens((fields || {}).dealerUrl || '');
   const ctx = {

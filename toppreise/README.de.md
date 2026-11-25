@@ -48,7 +48,7 @@ Erfordert einen Userscript-Manager als Browser-Erweiterung:
 - [Violentmonkey](https://violentmonkey.github.io/) (empfohlen: [Firefox](https://addons.mozilla.org/en-US/firefox/addon/violentmonkey/) · [Chrome / Brave](https://chromewebstore.google.com/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag))
 - [Tampermonkey](https://www.tampermonkey.net/)
 
-### 👉 [**HIER KLICKEN ZUR INSTALLATION (v2.18.574)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
+### 👉 [**HIER KLICKEN ZUR INSTALLATION (v2.18.575)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
 
 > [!NOTE]
 > Das Skript enthält `@updateURL`- und `@downloadURL`-Metadaten. Dein Userscript-Manager prüft GitHub automatisch im Hintergrund und hält die Installation aktuell.
@@ -244,7 +244,7 @@ Klick auf das **Zahnrad-Symbol (`⚙️`)** unten rechts öffnet das Einstellung
 
 ## 🛠️ Architektur & Entwicklung
 
-Der Quellcode ist modular in 73 ESM-Dateien unter `src/` gegliedert (jede `<25 KB`) und wird durch `tools/build.js` in exakter Ladereihenfolge gebündelt:
+Der Quellcode ist modular in 77 ESM-Dateien unter `src/` gegliedert (jede `<30 KB`) und wird durch `tools/build.js` in exakter Ladereihenfolge gebündelt:
 
 ```text
 src/
@@ -266,7 +266,7 @@ node toppreise/tools/build.js
 # Prüft Bundle-Integrität gegen Drift (CI-Gate)
 node toppreise/tools/build.js --check
 
-# Prüft Modulgrössen (25 KB Richtwert)
+# Prüft Modulgrössen (30 KB Richtwert)
 node toppreise/tools/check-modules.js
 
 # Überprüft die JavaScript-Syntax des Bundles

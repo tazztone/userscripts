@@ -3,7 +3,7 @@
  * Anchored to #tp-floating-check-cta.
  */
 
-import { CONFIG, updateConfig, getDiscordChannels, effectiveAiProvider } from '../state/config.js';
+import { CONFIG, updateConfig, getDiscordChannels } from '../state/config.js';
 import { priceToCents } from '../domain/price.js';
 import { getSharedDeal } from '../scanner/cache.js';
 import { isDiscordWebhookUrl } from '../features/share-discord.js';

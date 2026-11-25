@@ -10,14 +10,11 @@ import { getCachedConfiguredAiSummary, fetchConfiguredAiSummary } from '../../fe
 import { buildLauncherModelOptions, CUSTOM_MODEL_SENTINEL } from '../ai-launcher-popover.js';
 import { createPopoutDialog } from '../popout-dialog.js';
 import { showToast } from '../toast.js';
+import { escapeHtml } from '../../utils/common.js';
 
 export function formatVerdictHtml(text) {
   if (!text) return '';
-  const escaped = String(text)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+  const escaped = escapeHtml(text);
 
   return escaped
     .replace(/^#{1,3}[ \t]+(.+)$/gm, '<strong class="tp-ai-h">$1</strong>')

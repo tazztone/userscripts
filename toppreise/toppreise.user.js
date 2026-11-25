@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.574
+// @version      2.18.575
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -3470,10 +3470,6 @@ const SHADOW_SECTION_STYLES = `
   .tp-ai-split-col {
     flex: 1;
     min-width: 140px;
-  }
-  .tp-ai-split-col-wide {
-    flex: 1;
-    min-width: 150px;
   }
   .tp-token-chips {
     display: flex;
@@ -10774,6 +10770,7 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   // Baukasten-Layout: je Zeile ein Baustein, Grösse via # / ## / -# am
   // Zeilenanfang. · blendet leere Nachbarn aus, +{offers} rendert kompakt +N (leer bei 0). {link} nur bei aktivem Embed.
   const DEFAULT_LAYOUT = '## {title}\n# {price}\n# {dealer} +{offers}\n{prevlow}\n{median}\n{ai}\n{comment}\n{link}';
@@ -10799,7 +10796,6 @@ const SHADOW_MODAL_STYLES = `
     return String(recipe ?? '').includes('{title}') ? ' — über Limit, Titel wird gekürzt' : ' — über Limit, wird hart auf 2000 gekürzt';
   }
 
-  const escapePreviewHtml = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const mdInlineText = text => text
     .replace(/(?<!&lt;)https?:\/\/[^\s<]+?(?=&gt;|[\s<]|$)/g, '<span class="tp-md-url">$&</span>')
     .replace(/&lt;(https?:\/\/\S+?)&gt;/g, '<span class="tp-md-url">$1</span>')
@@ -10820,7 +10816,7 @@ const SHADOW_MODAL_STYLES = `
           line = line.slice(quote[0].length);
         }
       }
-      const parts = escapePreviewHtml(line).split(/\[([^\]]*)\]\(([^)]+)\)/g);
+      const parts = escapeHtml(line).split(/\[([^\]]*)\]\(([^)]+)\)/g);
       let html = '';
       for (let i = 0; i < parts.length; i += 3) {
         html += mdInlineText(parts[i]);
@@ -11008,7 +11004,6 @@ const SHADOW_MODAL_STYLES = `
         recipe = `${recipe.trimEnd()}\n{comment}`;
       }
     }
-    const escapeUrlParens = u => String(u || '').replace(/\(/g, '%28').replace(/\)/g, '%29');
     const link = escapeUrlParens(((fields || {}).url || '').trim());
     const dealerUrl = escapeUrlParens((fields || {}).dealerUrl || '');
     const ctx = {
@@ -14874,13 +14869,10 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   function formatVerdictHtml(text) {
     if (!text) return '';
-    const escaped = String(text)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
+    const escaped = escapeHtml(text);
 
     return escaped
       .replace(/^#{1,3}[ \t]+(.+)$/gm, '<strong class="tp-ai-h">$1</strong>')
@@ -23045,7 +23037,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   let debounceTimer = null;
   let lastKnownHref = typeof location !== 'undefined' ? location.href : '';
   const OBSERVE_OPTS = { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'href', 'data-entity-id', 'data-tp-product-id', 'data-current_url', 'data-current-url'] };
-  const TP_OWNED_SEL = '#tp-root,#tp-suite-filter-bar,#tp-floating-check-cta,#tp-batch-popover,#tp-batch-confirm-popout,#tp-batch-ai-popout,#tp-sparkline-popout,#tp-empty-state-notice,.tp-injected-badge,.tp-card-subline-row,.tp-card-dealer-row,.tp-sparkline-container,.tp-card-historical-price,.tp-share-btn,.tp-dealer-name,.tp-review-search-btn,#tp-detail-subline,.tp-detail-subline,#tp-detail-share-btn,#tp-detail-sparkline,.tp-detail-review-btn,.tp-alarm-cog,.tp-card-alarm-group,.tp-card-alarm-btn,.tp-alarm-status,[data-tp-alarm-state]';
+  const TP_OWNED_SEL = '#tp-root,#tp-suite-filter-bar,#tp-floating-check-cta,#tp-batch-popover,#tp-batch-confirm-popout,#tp-batch-ai-popout,#tp-sparkline-popout,#tp-ai-launcher-popover,#tp-ai-popout,.tp-popout-backdrop,#tp-empty-state-notice,.tp-injected-badge,.tp-card-subline-row,.tp-card-dealer-row,.tp-sparkline-container,.tp-card-historical-price,.tp-share-btn,.tp-dealer-name,.tp-review-search-btn,#tp-detail-subline,.tp-detail-subline,#tp-detail-share-btn,#tp-detail-sparkline,.tp-detail-review-btn,.tp-alarm-cog,.tp-card-alarm-group,.tp-card-alarm-btn,.tp-alarm-status,[data-tp-alarm-state]';
   const TP_CARD_SEL = '.Plugin_Product,.mixedBrowsingListProduct';
   const isOwnedNode = n => n?.nodeType === 1 && !!n.closest?.(TP_OWNED_SEL);
   const cardOf = n => {
@@ -23229,7 +23221,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.574';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.575';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     const isFileFixture = typeof location !== 'undefined' && location.protocol === 'file:';
     if (isDebugHost) {

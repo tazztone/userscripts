@@ -48,7 +48,7 @@ Requires a userscript manager browser extension:
 - [Violentmonkey](https://violentmonkey.github.io/) (recommended: [Firefox](https://addons.mozilla.org/en-US/firefox/addon/violentmonkey/) · [Chrome / Brave](https://chromewebstore.google.com/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag))
 - [Tampermonkey](https://www.tampermonkey.net/)
 
-### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.574)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
+### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.575)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
 
 > [!NOTE]
 > The userscript includes embedded `@updateURL` and `@downloadURL` metadata headers. Your userscript manager will automatically check GitHub in the background and keep your installation up to date.
@@ -244,7 +244,7 @@ Click the floating **gear icon (`⚙️`)** in the bottom-right corner to open t
 
 ## 🛠️ Architecture & Development
 
-The source code is modularized into 73 ESM modules under `src/` (each `<25 KB`), bundled in strict load-bearing order by `tools/build.js`:
+The source code is modularized into 77 ESM modules under `src/` (each `<30 KB`), bundled in strict load-bearing order by `tools/build.js`:
 
 ```text
 src/
@@ -266,7 +266,7 @@ node toppreise/tools/build.js
 # Verify bundle integrity and detect drift (CI gate)
 node toppreise/tools/build.js --check
 
-# Check module size boundaries (25 KB advisory)
+# Check module size boundaries (30 KB advisory)
 node toppreise/tools/check-modules.js
 
 # Verify JavaScript syntax of the generated bundle
