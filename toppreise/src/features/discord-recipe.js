@@ -277,30 +277,51 @@ export function forumRecipeFor(recipe = DEFAULT_LAYOUT) {
   return /\{link\}/.test(stripped) ? stripped : `${stripped.replace(/\s+$/, '')}\n{link}`;
 }
 
+const safeSliceDiscord = (str, max) => {
+  if (str.length <= max) return str;
+  const code = str.charCodeAt(max - 1);
+  return (code >= 0xD800 && code <= 0xDBFF) ? str.slice(0, max - 1) : str.slice(0, max);
+};
+
+function fitDealMessage(fields = {}, recipe = DEFAULT_LAYOUT) {
+  const full = renderLayout(fields, recipe);
+  if (full.length <= 2000) return full;
+  const baseFields = { ...(fields || {}) };
+  const cleanTitle = cleanTitleOf(baseFields.title);
+  let shrunkTitle = safeSliceDiscord(cleanTitle, Math.max(20, cleanTitle.length - (full.length - 2000)));
+  let rendered = renderLayout({ ...baseFields, title: shrunkTitle }, recipe);
+  if (rendered.length > 2000 && shrunkTitle.length > 20) {
+    shrunkTitle = safeSliceDiscord(shrunkTitle, Math.max(20, shrunkTitle.length - (rendered.length - 2000)));
+    rendered = renderLayout({ ...baseFields, title: shrunkTitle }, recipe);
+  }
+  if (rendered.length > 2000 && baseFields.aiText) {
+    const ai = String(baseFields.aiText);
+    const keepAi = Math.max(40, ai.length - (rendered.length - 2000) - 1);
+    const trimmedAi = keepAi < ai.length ? `${safeSliceDiscord(ai, keepAi).trimEnd()}…` : ai;
+    rendered = renderLayout({ ...baseFields, title: shrunkTitle, aiText: trimmedAi }, recipe);
+    if (rendered.length > 2000 && trimmedAi.length > 41) {
+      const keepAi2 = Math.max(40, trimmedAi.length - (rendered.length - 2000) - 2);
+      const trimmedAi2 = `${safeSliceDiscord(ai, keepAi2).trimEnd()}…`;
+      rendered = renderLayout({ ...baseFields, title: shrunkTitle, aiText: trimmedAi2 }, recipe);
+    }
+  }
+  return rendered;
+}
+
 export function commentOverflows(fields = {}, recipe = DEFAULT_LAYOUT) {
+  if (!String(fields?.commentText || '').trim()) return false;
   const withComment = renderLayout(fields, recipe);
   if (withComment.length <= 2000) return false;
   const without = renderLayout({ ...fields, commentText: '' }, recipe);
-  return without.length <= 2000 && !!String(fields?.commentText || '').trim();
+  if (without.length <= 2000) return true;
+  if (fields?.aiText || fitDealMessage(fields, recipe).length > 2000) {
+    return fitDealMessage({ ...fields, commentText: '' }, recipe).length <= 2000;
+  }
+  return false;
 }
 
 export function formatDealMessage(fields = {}, recipe = DEFAULT_LAYOUT) {
-  const safeSlice = (str, max) => {
-    if (str.length <= max) return str;
-    const code = str.charCodeAt(max - 1);
-    return (code >= 0xD800 && code <= 0xDBFF) ? str.slice(0, max - 1) : str.slice(0, max);
-  };
-  const full = renderLayout(fields, recipe);
-  if (full.length <= 2000) return full;
-  const cleanTitle = cleanTitleOf((fields || {}).title);
-  const over = full.length - 2000;
-  let shrunk = safeSlice(cleanTitle, Math.max(20, cleanTitle.length - over));
-  let rendered = renderLayout({ ...(fields || {}), title: shrunk }, recipe);
-  if (rendered.length > 2000) {
-    shrunk = safeSlice(shrunk, Math.max(20, shrunk.length - (rendered.length - 2000)));
-    rendered = renderLayout({ ...(fields || {}), title: shrunk }, recipe);
-  }
-  return safeSlice(rendered, 2000);
+  return safeSliceDiscord(fitDealMessage(fields, recipe), 2000);
 }
 
 // Reine Abbildung Kartenpreis + Stats → Discord-Referenzzeilen (Bisher / Ø-Preis

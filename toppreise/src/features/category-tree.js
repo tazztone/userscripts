@@ -175,13 +175,9 @@ function bindTreeBranchToggle(toggle, catId, li, currentPath, expandedBranches, 
 }
 
 export function renderChildList(children, parentEl, currentPath, expandedBranches) {
-  let sublist = parentEl.querySelector(':scope > .tp-cat-sublist');
-  if (sublist) {
-    sublist.remove();
-    return;
-  }
+  parentEl.querySelector(':scope > .tp-cat-sublist')?.remove();
 
-  sublist = document.createElement('ul');
+  const sublist = document.createElement('ul');
   sublist.className = 'tp-cat-sublist';
   const storedIdents = getStoredIdents();
   const doc = parentEl?.ownerDocument || (typeof document !== 'undefined' ? document : null);
@@ -239,10 +235,10 @@ export function renderChildList(children, parentEl, currentPath, expandedBranche
       setTimeout(async () => {
         if (typeof document === 'undefined') return;
         const tree = await loadNativeCategoryTree();
-        if (!li.isConnected || !expandedBranches.has(child.id) || li.querySelector(':scope > .tp-cat-sublist')) return;
+        if (!li.isConnected || !expandedBranches.has(child.id)) return;
         const subChildren = tree.childrenOf.get(child.id) || [];
         const toggle = row.querySelector('.tp-cat-toggle');
-        if (toggle) {
+        if (toggle && toggle.getAttribute('aria-expanded') !== 'true') {
           toggle.setAttribute('aria-expanded', 'true');
           toggle.textContent = '▾';
           renderChildList(subChildren, li, currentPath, expandedBranches);

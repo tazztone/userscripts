@@ -10,7 +10,7 @@
 import { CONFIG, setAlarmConfigListener } from '../state/config.js';
 import { openSettingsAt } from '../ui/modal.js';
 import { parsePrice } from '../domain/price.js';
-import { isShippingPriceActive } from '../page/adapter.js';
+import { isShippingPriceActive, getPageLang } from '../page/adapter.js';
 import { SELECTORS } from '../page/selectors.js';
 import { showToast } from '../ui/toast.js';
 import { fetchWithTimeout } from '../state/net.js';
@@ -387,7 +387,7 @@ export async function openFetchedAlarmDialog(html, batchOpts = null) {
   const dialogHash = dialogNode.getAttribute('data-instance-hash') || '1';
   const requestUrl = resolveAlarmFormUrl(formUrl, location.href, {
     contextHash: dialogHash,
-    lang: 'de'
+    lang: getPageLang()
   });
   if (!requestUrl) return false;
 
@@ -513,7 +513,7 @@ export async function openPriceAlarmForProduct(pid, card = null) {
         im_nimb_ch: '1',
         im_nimb_pid: pidKey,
         im_nimb_tmpl: 'btn',
-        lang: 'de'
+        lang: getPageLang()
       });
       const { res, body: html } = await fetchWithTimeout('/plugins/infomails/NewInfoMailButton', {
         method: 'POST',

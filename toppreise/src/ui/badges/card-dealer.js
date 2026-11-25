@@ -4,6 +4,7 @@
  */
 
 import { CONFIG, realDealMinDiscount } from '../../state/config.js';
+import { scanState } from '../../state/store.js';
 import { getOriginCooldownUntil } from '../../state/net.js';
 import { getCachedDealer, setCachedDealer, lruSet, hasUsablePriceStats, currentCacheGen } from '../../scanner/cache.js';
 import { extractShareData, extractDealer, extractDealerUrl, fetchProductInfoDetailed } from '../../page/product-offers.js';
@@ -216,7 +217,7 @@ export function renderDealerName(ctx, filters) {
       const meetsDealThreshold = effectivePct >= realDealMinDiscount();
       const tryState = dealerAutoTries.get(dKey);
       const canAutoTry = !tryState || (!tryState.exhausted && tryState.count < 2 && Date.now() >= (tryState.nextTryAt || 0));
-      if (!filters?.isFiltered && CONFIG.DEALER_AUTOFETCH === true && meetsDealThreshold && canAutoTry && !dealerPending.has(dKey) && dealerPending.size < 3) {
+      if (!filters?.isFiltered && CONFIG.DEALER_AUTOFETCH === true && !scanState.isBatchChecking && Date.now() >= getOriginCooldownUntil() && meetsDealThreshold && canAutoTry && !dealerPending.has(dKey) && dealerPending.size < 3) {
         boundedMapSet(dealerAutoTries, dKey, { count: (tryState?.count || 0) + 1, nextTryAt: 0, exhausted: false }, 500);
         btn.disabled = true;
         loadDealer();

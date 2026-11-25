@@ -168,6 +168,24 @@ function mapOpenRouterHttpError(status) {
   return `OpenRouter HTTP-Fehler ${status}`;
 }
 
+function raceOpenRouterSignal(promise, signal) {
+  if (!signal) return promise;
+  if (signal.aborted) return Promise.reject(Object.assign(new Error('Abgebrochen'), { cancelled: true }));
+  return new Promise((resolve, reject) => {
+    let done = false;
+    const onAbort = () => {
+      if (done) return;
+      done = true;
+      reject(Object.assign(new Error('Abgebrochen'), { cancelled: true }));
+    };
+    signal.addEventListener('abort', onAbort, { once: true });
+    promise.then(
+      v => { if (!done) { done = true; signal.removeEventListener('abort', onAbort); resolve(v); } },
+      e => { if (!done) { done = true; signal.removeEventListener('abort', onAbort); reject(e); } }
+    );
+  });
+}
+
 export function fetchOpenRouterWebSearch(apiKey, prompt, options = {}) {
   const trimmedKey = String(apiKey || '').trim();
   if (!trimmedKey) return Promise.reject(new Error('OpenRouter API-Key fehlt'));
@@ -175,7 +193,8 @@ export function fetchOpenRouterWebSearch(apiKey, prompt, options = {}) {
   const normalized = normalizeOpenRouterPrompt(prompt);
   if (!normalized) return Promise.reject(new Error('Suchanfrage ist leer'));
 
-  if (options.signal?.aborted) {
+  const callerSignal = options?.signal;
+  if (callerSignal?.aborted) {
     return Promise.reject(Object.assign(new Error('Abgebrochen'), { cancelled: true }));
   }
 
@@ -194,99 +213,108 @@ export function fetchOpenRouterWebSearch(apiKey, prompt, options = {}) {
   }
 
   const flightKey = `${trimmedKey}:${cacheKey}`;
-  const existing = orInFlight.get(flightKey);
-  if (existing && existing.timeoutMs >= timeoutMs && !options.signal) {
-    return existing.promise;
-  }
+  let entry = orInFlight.get(flightKey);
+  if (!entry || entry.timeoutMs < timeoutMs) {
+    const abortCtrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const transportPromise = new Promise((resolve, reject) => {
+      const payload = JSON.stringify({
+        model,
+        messages: [{ role: 'user', content: normalized }],
+        tools: [{
+          type: 'openrouter:web_search',
+          parameters: {
+            engine,
+            max_results: maxResults,
+            search_context_size: searchContextSize
+          }
+        }]
+      });
 
-  const promise = new Promise((resolve, reject) => {
-    const payload = JSON.stringify({
-      model,
-      messages: [{ role: 'user', content: normalized }],
-      tools: [{
-        type: 'openrouter:web_search',
-        parameters: {
-          engine,
-          max_results: maxResults,
-          search_context_size: searchContextSize
+      const handleSuccess = (rawText) => {
+        try {
+          const data = JSON.parse(rawText || '{}');
+          const msg = data?.choices?.[0]?.message;
+          const rawContent = msg?.content;
+          const answer = (typeof rawContent === 'string'
+            ? rawContent
+            : Array.isArray(rawContent)
+              ? rawContent.map(p => (typeof p === 'string' ? p : p?.text || '')).join('')
+              : ''
+          ).trim();
+          if (!answer) {
+            reject(new Error('Kein Fazit von OpenRouter erhalten'));
+            return;
+          }
+          const citations = extractOpenRouterCitations(msg?.annotations);
+          const result = { answer, citations };
+          setCachedOpenRouter(cacheKey, result);
+          resolve(result);
+        } catch {
+          reject(new Error('Antwort von OpenRouter konnte nicht gelesen werden'));
         }
-      }]
+      };
+
+      const headers = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${trimmedKey}`,
+        'HTTP-Referer': 'https://www.toppreise.ch',
+        'X-Title': 'Toppreise.ch Suite'
+      };
+      const transportSignal = abortCtrl?.signal;
+
+      if (typeof GM_xmlhttpRequest !== 'undefined') {
+        gmRequestWithTimeout({
+          method: 'POST',
+          url: OPENROUTER_API_ENDPOINT,
+          headers,
+          data: payload,
+        }, { timeoutMs, signal: transportSignal, source: 'openrouter', label: 'web_search' })
+          .then((res) => {
+            if (res.status >= 200 && res.status < 300) handleSuccess(res.responseText);
+            else reject(new Error(mapOpenRouterHttpError(res.status)));
+          })
+          .catch((err) => {
+            if (err?.cancelled) reject(Object.assign(new Error('Abgebrochen'), { cancelled: true }));
+            else reject(new Error(err?.timeout ? 'Zeitüberschreitung bei OpenRouter' : 'Netzwerkfehler bei Verbindung zu OpenRouter'));
+          });
+      } else if (typeof fetch !== 'undefined') {
+        fetchWithTimeout(OPENROUTER_API_ENDPOINT, {
+          method: 'POST',
+          headers,
+          body: payload,
+        }, { timeoutMs, signal: transportSignal, source: 'openrouter', label: 'web_search', readAs: 'text' })
+          .then(({ res, body }) => {
+            if (res.ok) handleSuccess(body);
+            else reject(new Error(mapOpenRouterHttpError(res.status)));
+          })
+          .catch((err) => {
+            if (err?.cancelled) reject(Object.assign(new Error('Abgebrochen'), { cancelled: true }));
+            else reject(new Error(err?.timeout ? 'Zeitüberschreitung bei OpenRouter' : 'Netzwerkfehler bei Verbindung zu OpenRouter'));
+          });
+      } else {
+        reject(new Error('Kein HTTP-Transport für OpenRouter verfügbar'));
+      }
+    }).finally(() => {
+      if (orInFlight.get(flightKey)?.promise === transportPromise) {
+        orInFlight.delete(flightKey);
+      }
     });
 
-    const handleSuccess = (rawText) => {
-      try {
-        const data = JSON.parse(rawText || '{}');
-        const msg = data?.choices?.[0]?.message;
-        const rawContent = msg?.content;
-        const answer = (typeof rawContent === 'string'
-          ? rawContent
-          : Array.isArray(rawContent)
-            ? rawContent.map(p => (typeof p === 'string' ? p : p?.text || '')).join('')
-            : ''
-        ).trim();
-        if (!answer) {
-          reject(new Error('Kein Fazit von OpenRouter erhalten'));
-          return;
-        }
-        const citations = extractOpenRouterCitations(msg?.annotations);
-        const result = { answer, citations };
-        setCachedOpenRouter(cacheKey, result);
-        resolve(result);
-      } catch {
-        reject(new Error('Antwort von OpenRouter konnte nicht gelesen werden'));
-      }
-    };
-
-    const headers = {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      'Authorization': `Bearer ${trimmedKey}`,
-      'HTTP-Referer': 'https://www.toppreise.ch',
-      'X-Title': 'Toppreise.ch Suite'
-    };
-
-    if (typeof GM_xmlhttpRequest !== 'undefined') {
-      gmRequestWithTimeout({
-        method: 'POST',
-        url: OPENROUTER_API_ENDPOINT,
-        headers,
-        data: payload,
-      }, { timeoutMs, signal: options.signal, source: 'openrouter', label: 'web_search' })
-        .then((res) => {
-          if (res.status >= 200 && res.status < 300) handleSuccess(res.responseText);
-          else reject(new Error(mapOpenRouterHttpError(res.status)));
-        })
-        .catch((err) => {
-          if (err?.cancelled) reject(Object.assign(new Error('Abgebrochen'), { cancelled: true }));
-          else reject(new Error(err?.timeout ? 'Zeitüberschreitung bei OpenRouter' : 'Netzwerkfehler bei Verbindung zu OpenRouter'));
-        });
-    } else if (typeof fetch !== 'undefined') {
-      fetchWithTimeout(OPENROUTER_API_ENDPOINT, {
-        method: 'POST',
-        headers,
-        body: payload,
-      }, { timeoutMs, signal: options.signal, source: 'openrouter', label: 'web_search', readAs: 'text' })
-        .then(({ res, body }) => {
-          if (res.ok) handleSuccess(body);
-          else reject(new Error(mapOpenRouterHttpError(res.status)));
-        })
-        .catch((err) => {
-          if (err?.cancelled) reject(Object.assign(new Error('Abgebrochen'), { cancelled: true }));
-          else reject(new Error(err?.timeout ? 'Zeitüberschreitung bei OpenRouter' : 'Netzwerkfehler bei Verbindung zu OpenRouter'));
-        });
-    } else {
-      reject(new Error('Kein HTTP-Transport für OpenRouter verfügbar'));
-    }
-  }).finally(() => {
-    if (orInFlight.get(flightKey)?.promise === promise) {
-      orInFlight.delete(flightKey);
-    }
-  });
-
-  if (!options.signal) {
-    orInFlight.set(flightKey, { promise, timeoutMs });
+    entry = { promise: transportPromise, timeoutMs, abortCtrl, consumers: new Set() };
+    orInFlight.set(flightKey, entry);
   }
-  return promise;
+
+  const consumer = {};
+  entry.consumers.add(consumer);
+  const cleanupConsumer = () => {
+    entry.consumers.delete(consumer);
+    if (entry.consumers.size === 0) {
+      try { entry.abortCtrl?.abort(); } catch {}
+      if (orInFlight.get(flightKey) === entry) orInFlight.delete(flightKey);
+    }
+  };
+  return raceOpenRouterSignal(entry.promise, callerSignal).finally(cleanupConsumer);
 }
 
 export function hasOpenRouterKey(cfg = CONFIG) {

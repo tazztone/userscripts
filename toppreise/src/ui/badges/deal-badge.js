@@ -11,7 +11,7 @@ import { getBadgeHeatStyle, getInsetHeatStyle, getCardDealerRows, extractCardDis
 import { getCardSortableUnit } from '../../page/sort.js';
 import { extractCanonicalPrice, parsePrice, priceToCents } from '../../domain/price.js';
 import { fetchSingleProductPriceStats } from '../../scanner/scanner.js';
-import { getCachedPriceStats, hasUsablePriceStats, bumpCacheGeneration } from '../../scanner/cache.js';
+import { getCachedPriceStats, hasUsablePriceStats, bumpCacheGeneration, setDealerCacheInvalidateListener } from '../../scanner/cache.js';
 import { isShippingPriceActive, triggerProcessListings } from '../../page/adapter.js';
 import { markFreshVerified, armFreshDismiss } from '../fresh-dismiss.js';
 import { scanState, isScanningPid } from '../../state/store.js';
@@ -51,6 +51,12 @@ export function clearDealerMemory() {
   dealerAutoTries.clear();
   bumpCacheGeneration();
 }
+setDealerCacheInvalidateListener(pid => {
+  dealerCache.delete(`${pid}:p`);
+  dealerCache.delete(`${pid}:s`);
+  dealerHydrated.delete(`${pid}:p`);
+  dealerHydrated.delete(`${pid}:s`);
+});
 export function clearDealerAutoTried() {
   dealerAutoTries.clear();
 }

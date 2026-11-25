@@ -8,7 +8,8 @@
 import { CONFIG } from '../state/config.js';
 import { getOriginCooldownUntil, fetchWithTimeout } from '../state/net.js';
 import { SELECTORS } from '../page/selectors.js';
-import { isShippingPriceActive } from '../page/adapter.js';
+import { isShippingPriceActive, getPageLang } from '../page/adapter.js';
+import { interruptibleSleep } from '../scanner/transport.js';
 import { fetchProductInfo, extractDealer } from '../page/product-offers.js';
 import { getCachedDealer, setCachedDealer, getCachedPriceStats, getSharedDeal, setSharedDeal, fullSeries } from '../scanner/cache.js';
 import { priceToCents } from '../domain/price.js';
@@ -71,7 +72,7 @@ export async function runSingleBatchAlarm(pid, card = null, { targetPct, duratio
         im_nimb_ch: '1',
         im_nimb_pid: pidKey,
         im_nimb_tmpl: 'btn',
-        lang: 'de'
+        lang: getPageLang()
       });
       const { res, body: html } = await fetchWithTimeout('/plugins/infomails/NewInfoMailButton', {
         method: 'POST',
@@ -381,8 +382,10 @@ export async function runBatchDiscordShare(items, channel, { onProgress, signal 
       const threadName = buildThreadName(it.title);
       const rawSeries = stats ? fullSeries(stats) : null;
       const chartSeries = rawSeries ? withLivePrice(rawSeries, it.cardPrice) : null;
-      const png = chartSeries ? await renderSparklinePng(chartSeries, 360, 100, it.title).catch(() => null) : null;
-      const productBlob = it.imageUrl ? await fetchImageBlob(it.imageUrl).catch(() => null) : null;
+      const [png, productBlob] = await Promise.all([
+        chartSeries ? renderSparklinePng(chartSeries, 360, 100, it.title).catch(() => null) : null,
+        it.imageUrl ? fetchImageBlob(it.imageUrl).catch(() => null) : null
+      ]);
       const productOpt = {
         ...(productBlob ? { productImageBlob: productBlob } : null),
         ...(it.imageUrl ? { productImageUrl: it.imageUrl } : null)
@@ -393,8 +396,9 @@ export async function runBatchDiscordShare(items, channel, { onProgress, signal 
       try {
         await sendDealToChannel(channel, payload, stillFresh);
       } catch (err) {
-        if (err?.retryAfterMs) {
-          await sleep(Math.min(5000, Math.max(500, err.retryAfterMs)));
+        if (err?.status === 429 || err?.retryAfterMs > 0) {
+          const waitMs = Math.min(30000, Math.max(500, err.retryAfterMs || 5000));
+          await interruptibleSleep(waitMs, null, signal);
           if (signal?.aborted) break;
           await sendDealToChannel(channel, payload, stillFresh);
         } else {

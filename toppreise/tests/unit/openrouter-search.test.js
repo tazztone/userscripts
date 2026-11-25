@@ -284,4 +284,33 @@ describe('openrouter-search: cache & fetch', () => {
       model: 'openrouter/free'
     }), null);
   });
+
+  it('refcounts orInFlight so aborting one caller does not cancel sibling caller sharing flight', async () => {
+    CONFIG.OPENROUTER_API_KEY = 'sk-or-ref';
+    let calls = 0;
+    let transportAborted = false;
+    globalThis.fetch = (_url, init) => {
+      calls++;
+      init.signal?.addEventListener?.('abort', () => { transportAborted = true; });
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          resolve({
+            ok: true,
+            status: 200,
+            text: async () => JSON.stringify({ choices: [{ message: { content: 'Shared answer', annotations: [] } }] })
+          });
+        }, 30);
+      });
+    };
+    const ac1 = new AbortController();
+    const ac2 = new AbortController();
+    const p1 = fetchOpenRouterWebSearch('sk-or-ref', 'Refcount query', { signal: ac1.signal });
+    const p2 = fetchOpenRouterWebSearch('sk-or-ref', 'Refcount query', { signal: ac2.signal });
+    ac1.abort();
+    await assert.rejects(p1, { cancelled: true });
+    assert.equal(transportAborted, false);
+    const res2 = await p2;
+    assert.equal(res2.answer, 'Shared answer');
+    assert.equal(calls, 1);
+  });
 });

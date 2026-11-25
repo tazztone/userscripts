@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.569
+// @version      2.18.570
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -4576,9 +4576,9 @@ const SHADOW_MODAL_STYLES = `
       const j = i;
       let k = j;
       while (k < n && !isNormalAt(k)) k++;
-      const startTs = sorted[j - 1]?.[0] ?? sorted[j][0];
-      const endTs = sorted[k]?.[0] ?? sorted[k - 1][0];
-      const runH = (endTs - startTs) / 3600000;
+      const leftTs = j > 0 ? (sorted[j - 1][0] + sorted[j][0]) / 2 : sorted[j][0];
+      const rightTs = k < n ? (sorted[k - 1][0] + sorted[k][0]) / 2 : sorted[k - 1][0];
+      const runH = (rightTs - leftTs) / 3600000;
       let isGlitch = runH <= maxGlitchHours + 0.5;
       if (isGlitch) for (let m = j; m < k; m++) if (!isLocallySharp(m)) { isGlitch = false; break; }
       if (isGlitch && k - j === 1 && (j === 0 || k === n) && n > 1) { const nb = j === 0 ? 1 : n - 2; if (!isNormalAt(nb)) isGlitch = false; }
@@ -5478,6 +5478,18 @@ const SHADOW_MODAL_STYLES = `
   // Händlername + Angebotslink pro Produkt, je Preisbasis (p/s-Slot): wird beim
   // 🏬-Klick zusammen mit dem Produktseiten-Fetch geschrieben und überlebt so
   // Reloads — gleiche TTL wie die Preishistorie (REAL_DEAL_CACHE_HOURS).
+  let dealerCacheInvalidateListener = null;
+  function setDealerCacheInvalidateListener(fn) {
+    dealerCacheInvalidateListener = typeof fn === 'function' ? fn : null;
+  }
+
+  function deleteCachedDealer(productId, storage = null) {
+    if (!productId) return;
+    storage = resolveStorage(storage);
+    try { storage?.removeItem(DEALER_CACHE_PREFIX + productId); } catch {}
+    try { dealerCacheInvalidateListener?.(String(productId)); } catch {}
+  }
+
   function getCachedDealer(productId, useShipping, storage = null) {
     if (!productId) return null;
     storage = resolveStorage(storage);
@@ -7263,7 +7275,14 @@ const SHADOW_MODAL_STYLES = `
       const ok = typeof isOk === 'function' ? Boolean(isOk(res)) : Boolean(res?.ok);
 
       if (readAs === 'text' || readAs === 'json' || readAs === 'blob') {
-        const body = typeof res?.[readAs] === 'function' ? await res[readAs]() : null;
+        let body = null;
+        if (typeof res?.[readAs] === 'function') {
+          if (readAs === 'json' && !res.ok) {
+            try { body = await res.json(); } catch { body = null; }
+          } else {
+            body = await res[readAs]();
+          }
+        }
         const elapsed = Date.now() - startedAt;
         const bytes = typeof body === 'string'
           ? body.length
@@ -7360,7 +7379,7 @@ const SHADOW_MODAL_STYLES = `
       try {
         handle = gmFn({
           ...gmOpts,
-          timeout: timeoutMs,
+          ...(timeoutMs > 0 ? { timeout: timeoutMs } : {}),
           onload: (res) => {
             if (settled) return;
             settled = true;
@@ -7428,6 +7447,20 @@ const SHADOW_MODAL_STYLES = `
       delete card.dataset.tpProductId;
       delete card.dataset.tpAppliedHeat;
     }
+  }
+
+  function getPageLang() {
+    if (typeof document !== 'undefined') {
+      const menuLang = document.querySelector?.('.Plugin_CategoryMenu')?.getAttribute?.('data-lang');
+      if (menuLang && /^(de|fr|en)$/i.test(menuLang.trim())) return menuLang.trim().toLowerCase();
+      const htmlLang = document.documentElement?.lang?.trim()?.slice(0, 2);
+      if (htmlLang && /^(de|fr|en)$/i.test(htmlLang)) return htmlLang.toLowerCase();
+    }
+    if (typeof location !== 'undefined' && location.pathname) {
+      const m = location.pathname.match(/^\/(de|fr|en)(?:\/|$)/i);
+      if (m) return m[1].toLowerCase();
+    }
+    return 'de';
   }
 
   function isShippingPriceActive(card = null) {
@@ -8937,7 +8970,9 @@ const SHADOW_MODAL_STYLES = `
   function searchCategoryTree(tree, query, maxResults = 12, ignoredIds = null) {
     if (!tree || !query || !query.trim()) return [];
     const q = query.trim().toLowerCase();
-    const results = [];
+    const escapedQ = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const wordRe = new RegExp(`(?:^|[^\\p{L}\\p{N}])${escapedQ}(?:$|[^\\p{L}\\p{N}])`, 'u');
+    const scored = [];
     const hasIgnoredFilter = ignoredIds && ((ignoredIds instanceof Set && ignoredIds.size > 0) || (Array.isArray(ignoredIds) && ignoredIds.length > 0));
 
     for (const node of tree.allNodes) {
@@ -8945,13 +8980,17 @@ const SHADOW_MODAL_STYLES = `
       if (hasIgnoredFilter && hasIgnoredAncestor(node, tree, ignoredIds)) continue;
 
       const titleLower = node.title.toLowerCase();
-      const urlLower = node.url.toLowerCase();
-      if (titleLower.includes(q) || urlLower.includes(q)) {
-        results.push(node);
-        if (results.length >= maxResults) break;
-      }
+      const urlLower = (node.url || '').toLowerCase();
+      let tier = -1;
+      if (titleLower === q) tier = 0;
+      else if (titleLower.startsWith(q)) tier = 1;
+      else if (wordRe.test(titleLower)) tier = 2;
+      else if (titleLower.includes(q)) tier = 3;
+      else if (urlLower.includes(q)) tier = 4;
+      if (tier !== -1) scored.push({ node, tier, len: titleLower.length });
     }
-    return results;
+    scored.sort((a, b) => (a.tier - b.tier) || (a.len - b.len));
+    return scored.slice(0, maxResults).map(x => x.node);
   }
 
   function parseCategoryIdentsFromText(text, targetMap = null) {
@@ -9741,13 +9780,9 @@ const SHADOW_MODAL_STYLES = `
   }
 
   function renderChildList(children, parentEl, currentPath, expandedBranches) {
-    let sublist = parentEl.querySelector(':scope > .tp-cat-sublist');
-    if (sublist) {
-      sublist.remove();
-      return;
-    }
+    parentEl.querySelector(':scope > .tp-cat-sublist')?.remove();
 
-    sublist = document.createElement('ul');
+    const sublist = document.createElement('ul');
     sublist.className = 'tp-cat-sublist';
     const storedIdents = getStoredIdents();
     const doc = parentEl?.ownerDocument || (typeof document !== 'undefined' ? document : null);
@@ -9805,10 +9840,10 @@ const SHADOW_MODAL_STYLES = `
         setTimeout(async () => {
           if (typeof document === 'undefined') return;
           const tree = await loadNativeCategoryTree();
-          if (!li.isConnected || !expandedBranches.has(child.id) || li.querySelector(':scope > .tp-cat-sublist')) return;
+          if (!li.isConnected || !expandedBranches.has(child.id)) return;
           const subChildren = tree.childrenOf.get(child.id) || [];
           const toggle = row.querySelector('.tp-cat-toggle');
-          if (toggle) {
+          if (toggle && toggle.getAttribute('aria-expanded') !== 'true') {
             toggle.setAttribute('aria-expanded', 'true');
             toggle.textContent = '▾';
             renderChildList(subChildren, li, currentPath, expandedBranches);
@@ -10308,7 +10343,7 @@ const SHADOW_MODAL_STYLES = `
       el.setAttribute('y', String(y));
       el.setAttribute('fill', '#64748b');
       el.setAttribute('font-size', '8.5');
-      el.setAttribute('font-family', 'inherit');
+      el.setAttribute('font-family', '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif');
       el.setAttribute('text-anchor', anchor);
       el.textContent = text;
       return el;
@@ -10437,7 +10472,7 @@ const SHADOW_MODAL_STYLES = `
       titleEl.setAttribute('fill', '#334155');
       titleEl.setAttribute('font-size', '12');
       titleEl.setAttribute('font-weight', '600');
-      titleEl.setAttribute('font-family', 'inherit');
+      titleEl.setAttribute('font-family', '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif');
       const cleanTitle = String(title).replace(/\s+/g, ' ').trim();
       const maxChars = Math.max(10, Math.floor(width / 8));
       titleEl.textContent = cleanTitle.length > maxChars ? cleanTitle.slice(0, maxChars - 1) + '…' : cleanTitle;
@@ -11020,30 +11055,51 @@ const SHADOW_MODAL_STYLES = `
     return /\{link\}/.test(stripped) ? stripped : `${stripped.replace(/\s+$/, '')}\n{link}`;
   }
 
+  const safeSliceDiscord = (str, max) => {
+    if (str.length <= max) return str;
+    const code = str.charCodeAt(max - 1);
+    return (code >= 0xD800 && code <= 0xDBFF) ? str.slice(0, max - 1) : str.slice(0, max);
+  };
+
+  function fitDealMessage(fields = {}, recipe = DEFAULT_LAYOUT) {
+    const full = renderLayout(fields, recipe);
+    if (full.length <= 2000) return full;
+    const baseFields = { ...(fields || {}) };
+    const cleanTitle = cleanTitleOf(baseFields.title);
+    let shrunkTitle = safeSliceDiscord(cleanTitle, Math.max(20, cleanTitle.length - (full.length - 2000)));
+    let rendered = renderLayout({ ...baseFields, title: shrunkTitle }, recipe);
+    if (rendered.length > 2000 && shrunkTitle.length > 20) {
+      shrunkTitle = safeSliceDiscord(shrunkTitle, Math.max(20, shrunkTitle.length - (rendered.length - 2000)));
+      rendered = renderLayout({ ...baseFields, title: shrunkTitle }, recipe);
+    }
+    if (rendered.length > 2000 && baseFields.aiText) {
+      const ai = String(baseFields.aiText);
+      const keepAi = Math.max(40, ai.length - (rendered.length - 2000) - 1);
+      const trimmedAi = keepAi < ai.length ? `${safeSliceDiscord(ai, keepAi).trimEnd()}…` : ai;
+      rendered = renderLayout({ ...baseFields, title: shrunkTitle, aiText: trimmedAi }, recipe);
+      if (rendered.length > 2000 && trimmedAi.length > 41) {
+        const keepAi2 = Math.max(40, trimmedAi.length - (rendered.length - 2000) - 2);
+        const trimmedAi2 = `${safeSliceDiscord(ai, keepAi2).trimEnd()}…`;
+        rendered = renderLayout({ ...baseFields, title: shrunkTitle, aiText: trimmedAi2 }, recipe);
+      }
+    }
+    return rendered;
+  }
+
   function commentOverflows(fields = {}, recipe = DEFAULT_LAYOUT) {
+    if (!String(fields?.commentText || '').trim()) return false;
     const withComment = renderLayout(fields, recipe);
     if (withComment.length <= 2000) return false;
     const without = renderLayout({ ...fields, commentText: '' }, recipe);
-    return without.length <= 2000 && !!String(fields?.commentText || '').trim();
+    if (without.length <= 2000) return true;
+    if (fields?.aiText || fitDealMessage(fields, recipe).length > 2000) {
+      return fitDealMessage({ ...fields, commentText: '' }, recipe).length <= 2000;
+    }
+    return false;
   }
 
   function formatDealMessage(fields = {}, recipe = DEFAULT_LAYOUT) {
-    const safeSlice = (str, max) => {
-      if (str.length <= max) return str;
-      const code = str.charCodeAt(max - 1);
-      return (code >= 0xD800 && code <= 0xDBFF) ? str.slice(0, max - 1) : str.slice(0, max);
-    };
-    const full = renderLayout(fields, recipe);
-    if (full.length <= 2000) return full;
-    const cleanTitle = cleanTitleOf((fields || {}).title);
-    const over = full.length - 2000;
-    let shrunk = safeSlice(cleanTitle, Math.max(20, cleanTitle.length - over));
-    let rendered = renderLayout({ ...(fields || {}), title: shrunk }, recipe);
-    if (rendered.length > 2000) {
-      shrunk = safeSlice(shrunk, Math.max(20, shrunk.length - (rendered.length - 2000)));
-      rendered = renderLayout({ ...(fields || {}), title: shrunk }, recipe);
-    }
-    return safeSlice(rendered, 2000);
+    return safeSliceDiscord(fitDealMessage(fields, recipe), 2000);
   }
 
   // Reine Abbildung Kartenpreis + Stats → Discord-Referenzzeilen (Bisher / Ø-Preis
@@ -11546,6 +11602,24 @@ const SHADOW_MODAL_STYLES = `
     return `OpenRouter HTTP-Fehler ${status}`;
   }
 
+  function raceOpenRouterSignal(promise, signal) {
+    if (!signal) return promise;
+    if (signal.aborted) return Promise.reject(Object.assign(new Error('Abgebrochen'), { cancelled: true }));
+    return new Promise((resolve, reject) => {
+      let done = false;
+      const onAbort = () => {
+        if (done) return;
+        done = true;
+        reject(Object.assign(new Error('Abgebrochen'), { cancelled: true }));
+      };
+      signal.addEventListener('abort', onAbort, { once: true });
+      promise.then(
+        v => { if (!done) { done = true; signal.removeEventListener('abort', onAbort); resolve(v); } },
+        e => { if (!done) { done = true; signal.removeEventListener('abort', onAbort); reject(e); } }
+      );
+    });
+  }
+
   function fetchOpenRouterWebSearch(apiKey, prompt, options = {}) {
     const trimmedKey = String(apiKey || '').trim();
     if (!trimmedKey) return Promise.reject(new Error('OpenRouter API-Key fehlt'));
@@ -11553,7 +11627,8 @@ const SHADOW_MODAL_STYLES = `
     const normalized = normalizeOpenRouterPrompt(prompt);
     if (!normalized) return Promise.reject(new Error('Suchanfrage ist leer'));
 
-    if (options.signal?.aborted) {
+    const callerSignal = options?.signal;
+    if (callerSignal?.aborted) {
       return Promise.reject(Object.assign(new Error('Abgebrochen'), { cancelled: true }));
     }
 
@@ -11572,99 +11647,108 @@ const SHADOW_MODAL_STYLES = `
     }
 
     const flightKey = `${trimmedKey}:${cacheKey}`;
-    const existing = orInFlight.get(flightKey);
-    if (existing && existing.timeoutMs >= timeoutMs && !options.signal) {
-      return existing.promise;
-    }
+    let entry = orInFlight.get(flightKey);
+    if (!entry || entry.timeoutMs < timeoutMs) {
+      const abortCtrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      const transportPromise = new Promise((resolve, reject) => {
+        const payload = JSON.stringify({
+          model,
+          messages: [{ role: 'user', content: normalized }],
+          tools: [{
+            type: 'openrouter:web_search',
+            parameters: {
+              engine,
+              max_results: maxResults,
+              search_context_size: searchContextSize
+            }
+          }]
+        });
 
-    const promise = new Promise((resolve, reject) => {
-      const payload = JSON.stringify({
-        model,
-        messages: [{ role: 'user', content: normalized }],
-        tools: [{
-          type: 'openrouter:web_search',
-          parameters: {
-            engine,
-            max_results: maxResults,
-            search_context_size: searchContextSize
+        const handleSuccess = (rawText) => {
+          try {
+            const data = JSON.parse(rawText || '{}');
+            const msg = data?.choices?.[0]?.message;
+            const rawContent = msg?.content;
+            const answer = (typeof rawContent === 'string'
+              ? rawContent
+              : Array.isArray(rawContent)
+                ? rawContent.map(p => (typeof p === 'string' ? p : p?.text || '')).join('')
+                : ''
+            ).trim();
+            if (!answer) {
+              reject(new Error('Kein Fazit von OpenRouter erhalten'));
+              return;
+            }
+            const citations = extractOpenRouterCitations(msg?.annotations);
+            const result = { answer, citations };
+            setCachedOpenRouter(cacheKey, result);
+            resolve(result);
+          } catch {
+            reject(new Error('Antwort von OpenRouter konnte nicht gelesen werden'));
           }
-        }]
+        };
+
+        const headers = {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${trimmedKey}`,
+          'HTTP-Referer': 'https://www.toppreise.ch',
+          'X-Title': 'Toppreise.ch Suite'
+        };
+        const transportSignal = abortCtrl?.signal;
+
+        if (typeof GM_xmlhttpRequest !== 'undefined') {
+          gmRequestWithTimeout({
+            method: 'POST',
+            url: OPENROUTER_API_ENDPOINT,
+            headers,
+            data: payload,
+          }, { timeoutMs, signal: transportSignal, source: 'openrouter', label: 'web_search' })
+            .then((res) => {
+              if (res.status >= 200 && res.status < 300) handleSuccess(res.responseText);
+              else reject(new Error(mapOpenRouterHttpError(res.status)));
+            })
+            .catch((err) => {
+              if (err?.cancelled) reject(Object.assign(new Error('Abgebrochen'), { cancelled: true }));
+              else reject(new Error(err?.timeout ? 'Zeitüberschreitung bei OpenRouter' : 'Netzwerkfehler bei Verbindung zu OpenRouter'));
+            });
+        } else if (typeof fetch !== 'undefined') {
+          fetchWithTimeout(OPENROUTER_API_ENDPOINT, {
+            method: 'POST',
+            headers,
+            body: payload,
+          }, { timeoutMs, signal: transportSignal, source: 'openrouter', label: 'web_search', readAs: 'text' })
+            .then(({ res, body }) => {
+              if (res.ok) handleSuccess(body);
+              else reject(new Error(mapOpenRouterHttpError(res.status)));
+            })
+            .catch((err) => {
+              if (err?.cancelled) reject(Object.assign(new Error('Abgebrochen'), { cancelled: true }));
+              else reject(new Error(err?.timeout ? 'Zeitüberschreitung bei OpenRouter' : 'Netzwerkfehler bei Verbindung zu OpenRouter'));
+            });
+        } else {
+          reject(new Error('Kein HTTP-Transport für OpenRouter verfügbar'));
+        }
+      }).finally(() => {
+        if (orInFlight.get(flightKey)?.promise === transportPromise) {
+          orInFlight.delete(flightKey);
+        }
       });
 
-      const handleSuccess = (rawText) => {
-        try {
-          const data = JSON.parse(rawText || '{}');
-          const msg = data?.choices?.[0]?.message;
-          const rawContent = msg?.content;
-          const answer = (typeof rawContent === 'string'
-            ? rawContent
-            : Array.isArray(rawContent)
-              ? rawContent.map(p => (typeof p === 'string' ? p : p?.text || '')).join('')
-              : ''
-          ).trim();
-          if (!answer) {
-            reject(new Error('Kein Fazit von OpenRouter erhalten'));
-            return;
-          }
-          const citations = extractOpenRouterCitations(msg?.annotations);
-          const result = { answer, citations };
-          setCachedOpenRouter(cacheKey, result);
-          resolve(result);
-        } catch {
-          reject(new Error('Antwort von OpenRouter konnte nicht gelesen werden'));
-        }
-      };
-
-      const headers = {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Authorization': `Bearer ${trimmedKey}`,
-        'HTTP-Referer': 'https://www.toppreise.ch',
-        'X-Title': 'Toppreise.ch Suite'
-      };
-
-      if (typeof GM_xmlhttpRequest !== 'undefined') {
-        gmRequestWithTimeout({
-          method: 'POST',
-          url: OPENROUTER_API_ENDPOINT,
-          headers,
-          data: payload,
-        }, { timeoutMs, signal: options.signal, source: 'openrouter', label: 'web_search' })
-          .then((res) => {
-            if (res.status >= 200 && res.status < 300) handleSuccess(res.responseText);
-            else reject(new Error(mapOpenRouterHttpError(res.status)));
-          })
-          .catch((err) => {
-            if (err?.cancelled) reject(Object.assign(new Error('Abgebrochen'), { cancelled: true }));
-            else reject(new Error(err?.timeout ? 'Zeitüberschreitung bei OpenRouter' : 'Netzwerkfehler bei Verbindung zu OpenRouter'));
-          });
-      } else if (typeof fetch !== 'undefined') {
-        fetchWithTimeout(OPENROUTER_API_ENDPOINT, {
-          method: 'POST',
-          headers,
-          body: payload,
-        }, { timeoutMs, signal: options.signal, source: 'openrouter', label: 'web_search', readAs: 'text' })
-          .then(({ res, body }) => {
-            if (res.ok) handleSuccess(body);
-            else reject(new Error(mapOpenRouterHttpError(res.status)));
-          })
-          .catch((err) => {
-            if (err?.cancelled) reject(Object.assign(new Error('Abgebrochen'), { cancelled: true }));
-            else reject(new Error(err?.timeout ? 'Zeitüberschreitung bei OpenRouter' : 'Netzwerkfehler bei Verbindung zu OpenRouter'));
-          });
-      } else {
-        reject(new Error('Kein HTTP-Transport für OpenRouter verfügbar'));
-      }
-    }).finally(() => {
-      if (orInFlight.get(flightKey)?.promise === promise) {
-        orInFlight.delete(flightKey);
-      }
-    });
-
-    if (!options.signal) {
-      orInFlight.set(flightKey, { promise, timeoutMs });
+      entry = { promise: transportPromise, timeoutMs, abortCtrl, consumers: new Set() };
+      orInFlight.set(flightKey, entry);
     }
-    return promise;
+
+    const consumer = {};
+    entry.consumers.add(consumer);
+    const cleanupConsumer = () => {
+      entry.consumers.delete(consumer);
+      if (entry.consumers.size === 0) {
+        try { entry.abortCtrl?.abort(); } catch {}
+        if (orInFlight.get(flightKey) === entry) orInFlight.delete(flightKey);
+      }
+    };
+    return raceOpenRouterSignal(entry.promise, callerSignal).finally(cleanupConsumer);
   }
 
   function hasOpenRouterKey(cfg = CONFIG) {
@@ -12255,7 +12339,23 @@ const SHADOW_MODAL_STYLES = `
   // Forum-/Media-Channel brauchen thread_name (sonst 405/400, nichts erstellt).
   // Thread-/Channel-Namen: 1-100 Zeichen (Discord Channel-Doku).
   const buildThreadName = title => ((title || '').replace(/\s+/g, ' ').trim() || 'Toppreise-Deal').slice(0, 100);
-  const isForumThreadError = err => /^Discord (400|405)$/.test(err?.message || '');
+  function isForumThreadError(err) {
+    if (!err) return false;
+    if (err.status === 405 || /^Discord 405$/.test(err.message || '')) return true;
+    if (err.status === 400 || /^Discord 400$/.test(err.message || '')) {
+      const body = typeof err.body === 'string' ? err.body.trim() : '';
+      if (!body) return true;
+      try {
+        const parsed = JSON.parse(body);
+        if (parsed && typeof parsed.code === 'number') {
+          if (parsed.code === 220001 || parsed.code === 220003) return true;
+          return /thread_name|forum/i.test(body);
+        }
+      } catch {}
+      return /thread_name|forum/i.test(body);
+    }
+    return false;
+  }
 
   // Definite attachment rejections: the file itself was refused — text fallback
   // is safe. Anything else (429/timeout/network) must never auto-post text.
@@ -12933,6 +13033,7 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   let isRefreshing = false;
   let refreshController = null;
   const refreshState = {
@@ -13078,7 +13179,10 @@ const SHADOW_MODAL_STYLES = `
                 delete liveBadge.dataset.tpOriginalPid;
                 delete liveBadge.dataset.tpPaintedText;
               }
+            } else if (!inBadge && liveBadge && !liveBadge.classList?.contains('tp-injected-badge')) {
+              liveBadge.remove();
             }
+            deleteCachedDealer(pid);
             clearCardCache(existing);
             updated++;
           }
@@ -13248,12 +13352,15 @@ const SHADOW_MODAL_STYLES = `
         if (res.ok) return { res, data };
         if (res.status === 429) {
           const wait = parseRetryAfterMs(res.headers?.get('Retry-After'), baseDelayMs, attempt);
-          if (attempt < retries) {
+          if (attempt === 0 && retries > 0 && wait <= 5000) {
+            setOriginCooldownUntil(Date.now() + wait);
+            logActivity('warn', 'scanner', `429 Cooldown aktiviert (${wait}ms) — Retry (1/${retries})`);
             await interruptibleSleep(wait, shouldCancelFn, signal);
             continue;
           }
-          setOriginCooldownUntil(Date.now() + Math.max(wait, baseDelayMs));
-          logActivity('warn', 'scanner', `429 Cooldown aktiviert (${Math.max(wait, baseDelayMs)}ms)`);
+          const cooldownMs = Math.max(wait, baseDelayMs);
+          setOriginCooldownUntil(Date.now() + cooldownMs);
+          logActivity('warn', 'scanner', `429 Cooldown aktiviert (${cooldownMs}ms)`);
           const e = new Error('429');
           e.transient = true;
           throw e;
@@ -13329,7 +13436,7 @@ const SHADOW_MODAL_STYLES = `
   async function fetchPriceTimeSeries(productId, retries = 1, shouldCancelFn = null, useShipping = null, signal = null) {
     if (!productId) return null;
     const baseUrl = (typeof location !== 'undefined' && location.origin && location.origin.startsWith('http')) ? location.origin : 'https://www.toppreise.ch';
-    const postBody = `pcspagdpi=${encodeURIComponent(productId)}&pcspagdfdt=0000-00-00&pcspagdtd=&p_pc_ch=&lang=de`;
+    const postBody = `pcspagdpi=${encodeURIComponent(productId)}&pcspagdfdt=0000-00-00&pcspagdtd=&p_pc_ch=&lang=${encodeURIComponent(getPageLang())}`;
     // isShipping true ONLY when shipping was requested AND the data[1] branch
     // was taken; every other shape is basis-unconfirmed → treat as product.
     const pickSeries = data => {
@@ -13965,6 +14072,12 @@ const SHADOW_MODAL_STYLES = `
     dealerAutoTries.clear();
     bumpCacheGeneration();
   }
+  setDealerCacheInvalidateListener(pid => {
+    dealerCache.delete(`${pid}:p`);
+    dealerCache.delete(`${pid}:s`);
+    dealerHydrated.delete(`${pid}:p`);
+    dealerHydrated.delete(`${pid}:s`);
+  });
   function clearDealerAutoTried() {
     dealerAutoTries.clear();
   }
@@ -15623,6 +15736,7 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   const dealerPromises = new Map();
 
   async function ensureDealerInfo(card, pid, useShipping) {
@@ -15828,7 +15942,7 @@ const SHADOW_MODAL_STYLES = `
         const meetsDealThreshold = effectivePct >= realDealMinDiscount();
         const tryState = dealerAutoTries.get(dKey);
         const canAutoTry = !tryState || (!tryState.exhausted && tryState.count < 2 && Date.now() >= (tryState.nextTryAt || 0));
-        if (!filters?.isFiltered && CONFIG.DEALER_AUTOFETCH === true && meetsDealThreshold && canAutoTry && !dealerPending.has(dKey) && dealerPending.size < 3) {
+        if (!filters?.isFiltered && CONFIG.DEALER_AUTOFETCH === true && !scanState.isBatchChecking && Date.now() >= getOriginCooldownUntil() && meetsDealThreshold && canAutoTry && !dealerPending.has(dKey) && dealerPending.size < 3) {
           boundedMapSet(dealerAutoTries, dKey, { count: (tryState?.count || 0) + 1, nextTryAt: 0, exhausted: false }, 500);
           btn.disabled = true;
           loadDealer();
@@ -20405,7 +20519,7 @@ const SHADOW_MODAL_STYLES = `
     const dialogHash = dialogNode.getAttribute('data-instance-hash') || '1';
     const requestUrl = resolveAlarmFormUrl(formUrl, location.href, {
       contextHash: dialogHash,
-      lang: 'de'
+      lang: getPageLang()
     });
     if (!requestUrl) return false;
 
@@ -20531,7 +20645,7 @@ const SHADOW_MODAL_STYLES = `
           im_nimb_ch: '1',
           im_nimb_pid: pidKey,
           im_nimb_tmpl: 'btn',
-          lang: 'de'
+          lang: getPageLang()
         });
         const { res, body: html } = await fetchWithTimeout('/plugins/infomails/NewInfoMailButton', {
           method: 'POST',
@@ -20576,6 +20690,7 @@ const SHADOW_MODAL_STYLES = `
    * Google AI / OpenRouter searches, tab opening, Discord batch share,
    * and Toppreise native comparison (max 4, toggle-safe).
    */
+
 
 
 
@@ -20642,7 +20757,7 @@ const SHADOW_MODAL_STYLES = `
           im_nimb_ch: '1',
           im_nimb_pid: pidKey,
           im_nimb_tmpl: 'btn',
-          lang: 'de'
+          lang: getPageLang()
         });
         const { res, body: html } = await fetchWithTimeout('/plugins/infomails/NewInfoMailButton', {
           method: 'POST',
@@ -20952,8 +21067,10 @@ const SHADOW_MODAL_STYLES = `
         const threadName = buildThreadName(it.title);
         const rawSeries = stats ? fullSeries(stats) : null;
         const chartSeries = rawSeries ? withLivePrice(rawSeries, it.cardPrice) : null;
-        const png = chartSeries ? await renderSparklinePng(chartSeries, 360, 100, it.title).catch(() => null) : null;
-        const productBlob = it.imageUrl ? await fetchImageBlob(it.imageUrl).catch(() => null) : null;
+        const [png, productBlob] = await Promise.all([
+          chartSeries ? renderSparklinePng(chartSeries, 360, 100, it.title).catch(() => null) : null,
+          it.imageUrl ? fetchImageBlob(it.imageUrl).catch(() => null) : null
+        ]);
         const productOpt = {
           ...(productBlob ? { productImageBlob: productBlob } : null),
           ...(it.imageUrl ? { productImageUrl: it.imageUrl } : null)
@@ -20964,8 +21081,9 @@ const SHADOW_MODAL_STYLES = `
         try {
           await sendDealToChannel(channel, payload, stillFresh);
         } catch (err) {
-          if (err?.retryAfterMs) {
-            await sleep(Math.min(5000, Math.max(500, err.retryAfterMs)));
+          if (err?.status === 429 || err?.retryAfterMs > 0) {
+            const waitMs = Math.min(30000, Math.max(500, err.retryAfterMs || 5000));
+            await interruptibleSleep(waitMs, null, signal);
             if (signal?.aborted) break;
             await sendDealToChannel(channel, payload, stillFresh);
           } else {
@@ -22131,6 +22249,10 @@ const SHADOW_MODAL_STYLES = `
     }
     const unchecked = lastCounts.uncheckedDeals || 0;
     if (unchecked <= 0) {
+      if (!lastIsDealFeed) {
+        showToast('Keine ungeprüften Produkte auf dieser Seite');
+        return;
+      }
       refreshFeed({ onStart: syncFloatingCTA, onProgress: syncFloatingCTA, onEnd: syncFloatingCTA });
       return;
     }
@@ -22306,6 +22428,7 @@ const SHADOW_MODAL_STYLES = `
     if (refreshBtn) {
       refreshBtn.classList.toggle('tp-spinning', refreshing);
       refreshBtn.disabled = refreshing;
+      refreshBtn.style.setProperty('display', lastIsDealFeed ? '' : 'none', 'important');
     }
     const collapseBtn = el.querySelector('#tp-floating-cta-collapse');
     setTextIfChanged(collapseBtn, collapsedForSession ? '»' : '«');
@@ -22795,7 +22918,7 @@ const SHADOW_MODAL_STYLES = `
     }
   }
 
-  async function processProductDetailPage(domLock = fn => fn()) {
+  async function processProductDetailPage(domLock = fn => fn(), retryDepth = 0) {
     const run = ++detailRun;
     const pid = getDetailProductId();
     if (!pid) { domLock(removeDetailDecorations); return; }
@@ -22829,7 +22952,10 @@ const SHADOW_MODAL_STYLES = `
         return;
       }
       const fresh = getDetailLowestPrice();
-      if (fresh.price !== currentPrice || fresh.basis !== priceBasis) return;
+      if (fresh.price !== currentPrice || fresh.basis !== priceBasis) {
+        if (retryDepth < 2) return processProductDetailPage(domLock, retryDepth + 1);
+        return;
+      }
       stats = getCardStats(pid, priceBasis);
     }
 
@@ -22862,7 +22988,7 @@ const SHADOW_MODAL_STYLES = `
       // Live Session Bridge Telemetry (MCP evaluate_script)
       const rootEl = document.getElementById('tp-root');
       if (rootEl) {
-        const isAllTimeLow = !!(stats && stats.tiefstpreis > 0 && currentPrice <= stats.tiefstpreis);
+        const isAllTimeLow = !!(stats && stats.tiefstpreis > 0 && priceToCents(currentPrice) <= priceToCents(stats.tiefstpreis));
         rootEl.setAttribute('data-tp-diag', JSON.stringify({
           version: typeof GM_info !== 'undefined' ? (GM_info.script?.version || 'dev') : 'dev',
           pageType: 'detail',
@@ -23231,7 +23357,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.569';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.570';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     const isFileFixture = typeof location !== 'undefined' && location.protocol === 'file:';
     if (isDebugHost) {

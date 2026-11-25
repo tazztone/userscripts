@@ -1044,6 +1044,12 @@ describe('isForumThreadError', () => {
     assert.equal(isForumThreadError(new Error('Timeout')), false);
     assert.equal(isForumThreadError(null), false);
   });
+
+  it('inspects HTTP 400 error codes (220001/220003 vs non-forum 50035)', () => {
+    assert.equal(isForumThreadError({ status: 400, message: 'Discord 400', body: '{"code":220001,"message":"Webhooks in a forum channel require a thread_name"}' }), true);
+    assert.equal(isForumThreadError({ status: 400, message: 'Discord 400', body: '{"code":220003,"message":"Cannot set both thread_id and thread_name"}' }), true);
+    assert.equal(isForumThreadError({ status: 400, message: 'Discord 400', body: '{"code":50035,"message":"Invalid Form Body"}' }), false);
+  });
 });
 
 
@@ -1322,6 +1328,16 @@ describe('commentOverflows', () => {
   it('returns false when deal itself is over 2000 chars without comment', () => {
     const hugeTitle = 'X'.repeat(2050);
     assert.equal(commentOverflows({ ...baseFields, title: hugeTitle, commentText: 'Kurz' }), false);
+  });
+
+  it('overflows comment when long {ai} pushes message over 2000 chars and formatDealMessage preserves {link}', () => {
+    const aiText = 'Analyse '.repeat(260).trim();
+    const fields = { ...baseFields, aiText, commentText: 'Eigener Kommentar' };
+    assert.equal(commentOverflows(fields, '{title}\n{ai}\n{comment}\n{link}'), true);
+    const formatted = formatDealMessage(fields, '{title}\n{ai}\n{comment}\n{link}');
+    assert.ok(formatted.length <= 2000);
+    assert.ok(formatted.includes(baseFields.url));
+    assert.ok(formatted.includes('Eigener Kommentar'));
   });
 });
 

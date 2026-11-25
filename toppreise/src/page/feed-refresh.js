@@ -7,6 +7,7 @@
 import { getProductCards, getCardProductId } from './cards.js';
 import { getCardSortableUnit } from './sort.js';
 import { clearCardCache, triggerProcessListings } from './adapter.js';
+import { deleteCachedDealer } from '../scanner/cache.js';
 import { SELECTORS } from './selectors.js';
 import { sanitizeImportedNode } from './sanitize.js';
 import { showToast } from '../ui/toast.js';
@@ -159,7 +160,10 @@ export function reconcileFeedCards(incomingDoc, targetDoc = (typeof document !==
               delete liveBadge.dataset.tpOriginalPid;
               delete liveBadge.dataset.tpPaintedText;
             }
+          } else if (!inBadge && liveBadge && !liveBadge.classList?.contains('tp-injected-badge')) {
+            liveBadge.remove();
           }
+          deleteCachedDealer(pid);
           clearCardCache(existing);
           updated++;
         }

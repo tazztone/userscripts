@@ -15,7 +15,23 @@ export const isDiscordWebhookUrl = url =>
 // Forum-/Media-Channel brauchen thread_name (sonst 405/400, nichts erstellt).
 // Thread-/Channel-Namen: 1-100 Zeichen (Discord Channel-Doku).
 export const buildThreadName = title => ((title || '').replace(/\s+/g, ' ').trim() || 'Toppreise-Deal').slice(0, 100);
-export const isForumThreadError = err => /^Discord (400|405)$/.test(err?.message || '');
+export function isForumThreadError(err) {
+  if (!err) return false;
+  if (err.status === 405 || /^Discord 405$/.test(err.message || '')) return true;
+  if (err.status === 400 || /^Discord 400$/.test(err.message || '')) {
+    const body = typeof err.body === 'string' ? err.body.trim() : '';
+    if (!body) return true;
+    try {
+      const parsed = JSON.parse(body);
+      if (parsed && typeof parsed.code === 'number') {
+        if (parsed.code === 220001 || parsed.code === 220003) return true;
+        return /thread_name|forum/i.test(body);
+      }
+    } catch {}
+    return /thread_name|forum/i.test(body);
+  }
+  return false;
+}
 
 // Definite attachment rejections: the file itself was refused — text fallback
 // is safe. Anything else (429/timeout/network) must never auto-post text.

@@ -23,6 +23,20 @@ export function clearCardCache(card) {
   }
 }
 
+export function getPageLang() {
+  if (typeof document !== 'undefined') {
+    const menuLang = document.querySelector?.('.Plugin_CategoryMenu')?.getAttribute?.('data-lang');
+    if (menuLang && /^(de|fr|en)$/i.test(menuLang.trim())) return menuLang.trim().toLowerCase();
+    const htmlLang = document.documentElement?.lang?.trim()?.slice(0, 2);
+    if (htmlLang && /^(de|fr|en)$/i.test(htmlLang)) return htmlLang.toLowerCase();
+  }
+  if (typeof location !== 'undefined' && location.pathname) {
+    const m = location.pathname.match(/^\/(de|fr|en)(?:\/|$)/i);
+    if (m) return m[1].toLowerCase();
+  }
+  return 'de';
+}
+
 export function isShippingPriceActive(card = null) {
   if (!CONFIG.USE_SHIPPING_PRICE) return false;
   if (typeof document !== 'undefined' && document.body?.classList?.contains('showproductprice')) {

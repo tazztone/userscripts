@@ -432,7 +432,7 @@ export function renderDetailSparkline(pid, title, currentPrice, stats, priceBasi
   }
 }
 
-export async function processProductDetailPage(domLock = fn => fn()) {
+export async function processProductDetailPage(domLock = fn => fn(), retryDepth = 0) {
   const run = ++detailRun;
   const pid = getDetailProductId();
   if (!pid) { domLock(removeDetailDecorations); return; }
@@ -466,7 +466,10 @@ export async function processProductDetailPage(domLock = fn => fn()) {
       return;
     }
     const fresh = getDetailLowestPrice();
-    if (fresh.price !== currentPrice || fresh.basis !== priceBasis) return;
+    if (fresh.price !== currentPrice || fresh.basis !== priceBasis) {
+      if (retryDepth < 2) return processProductDetailPage(domLock, retryDepth + 1);
+      return;
+    }
     stats = getCardStats(pid, priceBasis);
   }
 
@@ -499,7 +502,7 @@ export async function processProductDetailPage(domLock = fn => fn()) {
     // Live Session Bridge Telemetry (MCP evaluate_script)
     const rootEl = document.getElementById('tp-root');
     if (rootEl) {
-      const isAllTimeLow = !!(stats && stats.tiefstpreis > 0 && currentPrice <= stats.tiefstpreis);
+      const isAllTimeLow = !!(stats && stats.tiefstpreis > 0 && priceToCents(currentPrice) <= priceToCents(stats.tiefstpreis));
       rootEl.setAttribute('data-tp-diag', JSON.stringify({
         version: typeof GM_info !== 'undefined' ? (GM_info.script?.version || 'dev') : 'dev',
         pageType: 'detail',

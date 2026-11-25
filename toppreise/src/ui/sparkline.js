@@ -64,7 +64,7 @@ export function renderSparkline(timeSeries, width, height, opts = {}) {
     el.setAttribute('y', String(y));
     el.setAttribute('fill', '#64748b');
     el.setAttribute('font-size', '8.5');
-    el.setAttribute('font-family', 'inherit');
+    el.setAttribute('font-family', '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif');
     el.setAttribute('text-anchor', anchor);
     el.textContent = text;
     return el;
@@ -193,7 +193,7 @@ export function renderDiscordChart(timeSeries, width = 360, height = 100, title 
     titleEl.setAttribute('fill', '#334155');
     titleEl.setAttribute('font-size', '12');
     titleEl.setAttribute('font-weight', '600');
-    titleEl.setAttribute('font-family', 'inherit');
+    titleEl.setAttribute('font-family', '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif');
     const cleanTitle = String(title).replace(/\s+/g, ' ').trim();
     const maxChars = Math.max(10, Math.floor(width / 8));
     titleEl.textContent = cleanTitle.length > maxChars ? cleanTitle.slice(0, maxChars - 1) + '…' : cleanTitle;

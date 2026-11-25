@@ -135,6 +135,10 @@ export function startBatchCheck() {
   }
   const unchecked = lastCounts.uncheckedDeals || 0;
   if (unchecked <= 0) {
+    if (!lastIsDealFeed) {
+      showToast('Keine ungeprüften Produkte auf dieser Seite');
+      return;
+    }
     refreshFeed({ onStart: syncFloatingCTA, onProgress: syncFloatingCTA, onEnd: syncFloatingCTA });
     return;
   }
@@ -310,6 +314,7 @@ function syncFloatingCTA(precomputedBatchCounts = undefined) {
   if (refreshBtn) {
     refreshBtn.classList.toggle('tp-spinning', refreshing);
     refreshBtn.disabled = refreshing;
+    refreshBtn.style.setProperty('display', lastIsDealFeed ? '' : 'none', 'important');
   }
   const collapseBtn = el.querySelector('#tp-floating-cta-collapse');
   setTextIfChanged(collapseBtn, collapsedForSession ? '»' : '«');

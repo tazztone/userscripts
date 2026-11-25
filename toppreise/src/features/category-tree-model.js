@@ -197,7 +197,9 @@ export function hasIgnoredAncestor(node, tree, ignoredIds) {
 export function searchCategoryTree(tree, query, maxResults = 12, ignoredIds = null) {
   if (!tree || !query || !query.trim()) return [];
   const q = query.trim().toLowerCase();
-  const results = [];
+  const escapedQ = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const wordRe = new RegExp(`(?:^|[^\\p{L}\\p{N}])${escapedQ}(?:$|[^\\p{L}\\p{N}])`, 'u');
+  const scored = [];
   const hasIgnoredFilter = ignoredIds && ((ignoredIds instanceof Set && ignoredIds.size > 0) || (Array.isArray(ignoredIds) && ignoredIds.length > 0));
 
   for (const node of tree.allNodes) {
@@ -205,13 +207,17 @@ export function searchCategoryTree(tree, query, maxResults = 12, ignoredIds = nu
     if (hasIgnoredFilter && hasIgnoredAncestor(node, tree, ignoredIds)) continue;
 
     const titleLower = node.title.toLowerCase();
-    const urlLower = node.url.toLowerCase();
-    if (titleLower.includes(q) || urlLower.includes(q)) {
-      results.push(node);
-      if (results.length >= maxResults) break;
-    }
+    const urlLower = (node.url || '').toLowerCase();
+    let tier = -1;
+    if (titleLower === q) tier = 0;
+    else if (titleLower.startsWith(q)) tier = 1;
+    else if (wordRe.test(titleLower)) tier = 2;
+    else if (titleLower.includes(q)) tier = 3;
+    else if (urlLower.includes(q)) tier = 4;
+    if (tier !== -1) scored.push({ node, tier, len: titleLower.length });
   }
-  return results;
+  scored.sort((a, b) => (a.tier - b.tier) || (a.len - b.len));
+  return scored.slice(0, maxResults).map(x => x.node);
 }
 
 export function parseCategoryIdentsFromText(text, targetMap = null) {

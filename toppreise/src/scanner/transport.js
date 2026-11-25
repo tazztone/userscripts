@@ -3,7 +3,7 @@
  * Retry/backoff HTTP layer and price time-series fetch used by the scanner.
  */
 
-import { isShippingPriceActive } from '../page/adapter.js';
+import { isShippingPriceActive, getPageLang } from '../page/adapter.js';
 import { CONFIG } from '../state/config.js';
 import { logActivity } from '../state/activity-log.js';
 import { getOriginCooldownUntil, setOriginCooldownUntil, parseRetryAfterMs, backoffMs } from '../state/net.js';
@@ -49,12 +49,15 @@ export async function requestWithRetry(makeRequest, { retries = 1, shouldCancelF
       if (res.ok) return { res, data };
       if (res.status === 429) {
         const wait = parseRetryAfterMs(res.headers?.get('Retry-After'), baseDelayMs, attempt);
-        if (attempt < retries) {
+        if (attempt === 0 && retries > 0 && wait <= 5000) {
+          setOriginCooldownUntil(Date.now() + wait);
+          logActivity('warn', 'scanner', `429 Cooldown aktiviert (${wait}ms) — Retry (1/${retries})`);
           await interruptibleSleep(wait, shouldCancelFn, signal);
           continue;
         }
-        setOriginCooldownUntil(Date.now() + Math.max(wait, baseDelayMs));
-        logActivity('warn', 'scanner', `429 Cooldown aktiviert (${Math.max(wait, baseDelayMs)}ms)`);
+        const cooldownMs = Math.max(wait, baseDelayMs);
+        setOriginCooldownUntil(Date.now() + cooldownMs);
+        logActivity('warn', 'scanner', `429 Cooldown aktiviert (${cooldownMs}ms)`);
         const e = new Error('429');
         e.transient = true;
         throw e;
@@ -130,7 +133,7 @@ export async function requestWithRetry(makeRequest, { retries = 1, shouldCancelF
 export async function fetchPriceTimeSeries(productId, retries = 1, shouldCancelFn = null, useShipping = null, signal = null) {
   if (!productId) return null;
   const baseUrl = (typeof location !== 'undefined' && location.origin && location.origin.startsWith('http')) ? location.origin : 'https://www.toppreise.ch';
-  const postBody = `pcspagdpi=${encodeURIComponent(productId)}&pcspagdfdt=0000-00-00&pcspagdtd=&p_pc_ch=&lang=de`;
+  const postBody = `pcspagdpi=${encodeURIComponent(productId)}&pcspagdfdt=0000-00-00&pcspagdtd=&p_pc_ch=&lang=${encodeURIComponent(getPageLang())}`;
   // isShipping true ONLY when shipping was requested AND the data[1] branch
   // was taken; every other shape is basis-unconfirmed → treat as product.
   const pickSeries = data => {

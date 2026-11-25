@@ -486,6 +486,18 @@ export function recomputeCachedMedians(horizonDays, storage = null, { horizonOnl
 // Händlername + Angebotslink pro Produkt, je Preisbasis (p/s-Slot): wird beim
 // 🏬-Klick zusammen mit dem Produktseiten-Fetch geschrieben und überlebt so
 // Reloads — gleiche TTL wie die Preishistorie (REAL_DEAL_CACHE_HOURS).
+let dealerCacheInvalidateListener = null;
+export function setDealerCacheInvalidateListener(fn) {
+  dealerCacheInvalidateListener = typeof fn === 'function' ? fn : null;
+}
+
+export function deleteCachedDealer(productId, storage = null) {
+  if (!productId) return;
+  storage = resolveStorage(storage);
+  try { storage?.removeItem(DEALER_CACHE_PREFIX + productId); } catch {}
+  try { dealerCacheInvalidateListener?.(String(productId)); } catch {}
+}
+
 export function getCachedDealer(productId, useShipping, storage = null) {
   if (!productId) return null;
   storage = resolveStorage(storage);

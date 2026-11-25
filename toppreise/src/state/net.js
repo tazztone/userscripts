@@ -86,7 +86,14 @@ export async function fetchWithTimeout(url, fetchOpts = {}, opts = {}) {
     const ok = typeof isOk === 'function' ? Boolean(isOk(res)) : Boolean(res?.ok);
 
     if (readAs === 'text' || readAs === 'json' || readAs === 'blob') {
-      const body = typeof res?.[readAs] === 'function' ? await res[readAs]() : null;
+      let body = null;
+      if (typeof res?.[readAs] === 'function') {
+        if (readAs === 'json' && !res.ok) {
+          try { body = await res.json(); } catch { body = null; }
+        } else {
+          body = await res[readAs]();
+        }
+      }
       const elapsed = Date.now() - startedAt;
       const bytes = typeof body === 'string'
         ? body.length
@@ -183,7 +190,7 @@ export function gmRequestWithTimeout(gmOpts = {}, opts = {}) {
     try {
       handle = gmFn({
         ...gmOpts,
-        timeout: timeoutMs,
+        ...(timeoutMs > 0 ? { timeout: timeoutMs } : {}),
         onload: (res) => {
           if (settled) return;
           settled = true;

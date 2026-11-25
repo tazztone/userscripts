@@ -232,6 +232,18 @@ test('searchCategoryTree matches title and URL keywords', () => {
   assert.equal(resParentMatch[0].id, 'c200');
 });
 
+test('searchCategoryTree ranks exact/word title matches ahead of URL substrings', () => {
+  const sample = [
+    { id: 'c1', title: 'Büro & Schule', url: '/produktsuche/Buero-Programm-c1', parentID: '' },
+    { id: 'c2', title: 'DDR5 Arbeitsspeicher', url: '/produktsuche/DDR5-c2', parentID: '' },
+    { id: 'c3', title: 'RAM-Zubehör', url: '/produktsuche/Zubehoer-c3', parentID: '' },
+    { id: 'c4', title: 'RAM', url: '/produktsuche/Speicher-c4', parentID: '' }
+  ];
+  const indexed = indexCategoryData(sample);
+  const res = searchCategoryTree(indexed, 'RAM', 3);
+  assert.deepEqual(res.map(n => n.id), ['c4', 'c3', 'c1']);
+});
+
 test('hasIgnoredAncestor checks parent and grandparent hierarchy against ignored sets', () => {
   const sample = [
     {

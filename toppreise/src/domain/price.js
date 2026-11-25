@@ -291,9 +291,9 @@ export function sanitizeTimeSeries(points, band = CONFIG.OUTLIER_DEVIATION_BAND,
     const j = i;
     let k = j;
     while (k < n && !isNormalAt(k)) k++;
-    const startTs = sorted[j - 1]?.[0] ?? sorted[j][0];
-    const endTs = sorted[k]?.[0] ?? sorted[k - 1][0];
-    const runH = (endTs - startTs) / 3600000;
+    const leftTs = j > 0 ? (sorted[j - 1][0] + sorted[j][0]) / 2 : sorted[j][0];
+    const rightTs = k < n ? (sorted[k - 1][0] + sorted[k][0]) / 2 : sorted[k - 1][0];
+    const runH = (rightTs - leftTs) / 3600000;
     let isGlitch = runH <= maxGlitchHours + 0.5;
     if (isGlitch) for (let m = j; m < k; m++) if (!isLocallySharp(m)) { isGlitch = false; break; }
     if (isGlitch && k - j === 1 && (j === 0 || k === n) && n > 1) { const nb = j === 0 ? 1 : n - 2; if (!isNormalAt(nb)) isGlitch = false; }
