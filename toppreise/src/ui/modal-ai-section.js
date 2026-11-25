@@ -106,21 +106,9 @@ export function renderAiBatchSettingsMarkup() {
           <span>Batch-Konfiguration</span>
           <button type="button" class="tp-btn-group-reset" data-reset-group="batch" title="Batch-Aktionen auf Standard zurücksetzen" aria-label="Batch-Aktionen auf Standard zurücksetzen">↺</button>
         </div>
-        <div class="tp-settings-group tp-ai-split-row">
-          <div class="tp-ai-split-col-wide">
-            <label for="tp-batch-ai-target-select" title="Ziel-Plattform für 🤖 KI-Vergleich im Batch-Menü.">Batch KI-Vergleich Ziel</label>
-            <select id="tp-batch-ai-target-select" class="tp-select tp-field-dark">
-              <option value="google-ai">Google AI-Modus (&amp;udm=50)</option>
-              <option value="openrouter">OpenRouter (In-Page)</option>
-              <option value="chatgpt">ChatGPT</option>
-              <option value="perplexity">Perplexity</option>
-              <option value="claude">Claude</option>
-            </select>
-          </div>
-          <div class="tp-ai-split-col">
-            <label for="tp-batch-confirm-threshold-input" title="Ab dieser Anzahl Karten fragt Batch vor Tabs, Händler-Laden oder API-Calls nach (1–100).">Bestätigung ab N Karten</label>
-            <input type="number" id="tp-batch-confirm-threshold-input" class="tp-field-dark" min="1" max="100" step="1" value="10">
-          </div>
+        <div class="tp-settings-group">
+          <label for="tp-batch-confirm-threshold-input" title="Ab dieser Anzahl Karten fragt Batch vor Tabs, Händler-Laden oder API-Calls nach (1–100).">Bestätigung ab N Karten</label>
+          <input type="number" id="tp-batch-confirm-threshold-input" class="tp-field-dark" min="1" max="100" step="1" value="10">
         </div>
           </div>
         </details>`;
@@ -273,7 +261,6 @@ export function collectAiSectionElements(shadow) {
     openrouterPaidModelInput: shadow.getElementById('tp-openrouter-paid-model-input'),
     openrouterEngineSelect: shadow.getElementById('tp-openrouter-engine-select'),
     openrouterMaxResults: shadow.getElementById('tp-openrouter-max-results'),
-    batchAiTargetSelect: shadow.getElementById('tp-batch-ai-target-select'),
     batchConfirmThresholdInput: shadow.getElementById('tp-batch-confirm-threshold-input')
   };
 }
@@ -334,7 +321,6 @@ export function syncAiSectionFromConfig(els) {
   if (els.openrouterPaidModelInput) els.openrouterPaidModelInput.value = CONFIG.OPENROUTER_PAID_MODEL || '';
   if (els.openrouterEngineSelect) els.openrouterEngineSelect.value = CONFIG.OPENROUTER_SEARCH_ENGINE || 'auto';
   if (els.openrouterMaxResults) els.openrouterMaxResults.value = String(CONFIG.OPENROUTER_MAX_RESULTS || 5);
-  if (els.batchAiTargetSelect) els.batchAiTargetSelect.value = CONFIG.BATCH_AI_TARGET || 'google-ai';
   if (els.batchConfirmThresholdInput) els.batchConfirmThresholdInput.value = String(CONFIG.BATCH_CONFIRM_THRESHOLD ?? 10);
   updateComparePreview(els);
   syncProviderBlockDimming(els);
@@ -422,9 +408,6 @@ export function collectAiSectionUpdates(els, updates) {
   if (els.openrouterMaxResults) {
     const rawMax = parseInt(els.openrouterMaxResults.value, 10);
     updates.OPENROUTER_MAX_RESULTS = Number.isFinite(rawMax) ? Math.max(1, Math.min(10, rawMax)) : 5;
-  }
-  if (els.batchAiTargetSelect) {
-    updates.BATCH_AI_TARGET = els.batchAiTargetSelect.value || 'google-ai';
   }
   if (els.batchConfirmThresholdInput) {
     const rawThr = parseInt(els.batchConfirmThresholdInput.value, 10);

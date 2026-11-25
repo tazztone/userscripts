@@ -3653,10 +3653,10 @@ def test_sparkline_near_miss_click_does_not_navigate_card_anchor(page: Page):
     }""")
     page.locator('#card-cheapest').hover()
     page.locator('#card-cheapest a.tp-review-search-btn').click()
-    page.wait_for_selector('#tp-ai-popout')
+    page.wait_for_selector('#tp-ai-launcher-popover')
     assert page.evaluate("() => ({ h: window.location.hash, leak: window._tpCaptureAnchorLeak })") == {'h': '', 'leak': 0}
     page.keyboard.press('Escape')
-    page.wait_for_selector('#tp-ai-popout', state='detached')
+    page.wait_for_selector('#tp-ai-launcher-popover', state='detached')
 
 
 def test_coarse_pointer_touch_targets_enlarged(browser, userscript_content):
@@ -3777,6 +3777,8 @@ def test_popout_dialogs_accessibility_and_touch_geometry(page: Page, browser, us
     }""")
     page.locator('#card-cheapest').hover()
     page.locator('#card-cheapest a.tp-review-search-btn').click()
+    page.wait_for_selector('#tp-ai-launcher-popover')
+    page.click('#tp-launcher-tavily-btn')
     page.wait_for_selector('#tp-ai-popout .tp-popout-footer')
     ai_diag = page.evaluate("""() => {
         const pop = document.getElementById('tp-ai-popout');

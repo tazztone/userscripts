@@ -117,7 +117,6 @@ def test_batch_openrouter_comparison_renders_citations(page: Page):
     page.route('https://openrouter.ai/api/v1/chat/completions', handle_openrouter)
     page.evaluate("""() => {
         window.ToppreiseSuite.updateConfig('BATCH_CONFIRM_THRESHOLD', 50);
-        window.ToppreiseSuite.updateConfig('BATCH_AI_TARGET', 'openrouter');
         window.ToppreiseSuite.updateConfig('OPENROUTER_API_KEY', 'sk-or-test-key');
     }""")
 
@@ -466,7 +465,6 @@ def test_batch_google_ai_comparison_compacts_query_and_uses_paste_modal_when_hug
             value: { writeText: async (t) => { window.__tpCopiedCmp.push(t); } }
         });
         window.ToppreiseSuite.updateConfig('BATCH_CONFIRM_THRESHOLD', 100);
-        window.ToppreiseSuite.updateConfig('BATCH_AI_TARGET', 'google-ai');
         window.ToppreiseSuite.updateConfig('REVIEW_SEARCH_AI_MODE', true);
         window.ToppreiseSuite.updateConfig('BATCH_SCOPE_DEFAULT', 'visible');
 
@@ -542,7 +540,6 @@ def test_batch_google_ai_keeps_full_specs_for_six_items_and_uses_custom_prompt(p
         window.__tpOpenedUrls = [];
         window.open = (url) => { window.__tpOpenedUrls.push(url); return {}; };
         window.ToppreiseSuite.updateConfig('BATCH_CONFIRM_THRESHOLD', 50);
-        window.ToppreiseSuite.updateConfig('BATCH_AI_TARGET', 'google-ai');
         window.ToppreiseSuite.updateConfig('BATCH_SCOPE_DEFAULT', 'visible');
         window.ToppreiseSuite.updateConfig('BATCH_COMPARE_PROMPT', 'Fokus AM5 vs AM4 ({anzahl} Angebote):');
         document.querySelectorAll('.Plugin_Product').forEach((c) => {
@@ -583,7 +580,6 @@ def test_batch_openrouter_and_google_respect_custom_item_template(page: Page):
     page.route('https://openrouter.ai/api/v1/chat/completions', handle_openrouter)
     page.evaluate("""() => {
         window.ToppreiseSuite.updateConfig('BATCH_CONFIRM_THRESHOLD', 50);
-        window.ToppreiseSuite.updateConfig('BATCH_AI_TARGET', 'openrouter');
         window.ToppreiseSuite.updateConfig('OPENROUTER_API_KEY', 'sk-or-payload-test');
         window.ToppreiseSuite.updateConfig('BATCH_COMPARE_ITEM_TEMPLATE', '{nr}. {titel} | {preis} | Link: {url}');
     }""")

@@ -255,11 +255,6 @@ export function syncUiControl(key, val, opts = {}, shadowRoot = null) {
           if (select) select.value = String(val || 5);
           break;
         }
-        case 'BATCH_AI_TARGET': {
-          const select = shadow.getElementById('tp-batch-ai-target-select');
-          if (select) select.value = val || 'google-ai';
-          break;
-        }
         case 'BATCH_CONFIRM_THRESHOLD': {
           const input = shadow.getElementById('tp-batch-confirm-threshold-input');
           if (input) input.value = String(val ?? 10);

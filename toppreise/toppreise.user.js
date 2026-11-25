@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.571
+// @version      2.18.572
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -5693,7 +5693,6 @@ const SHADOW_MODAL_STYLES = `
     BATCH_CONFIRM_THRESHOLD: 10,
     BATCH_SCOPE_DEFAULT: 'non-dimmed',
     BATCH_COPY_FORMAT: 'markdown',
-    BATCH_AI_TARGET: 'google-ai',
     BATCH_COMPARE_PROMPT: DEFAULT_BATCH_COMPARE_PROMPT,
     BATCH_COMPARE_ITEM_TEMPLATE: DEFAULT_BATCH_COMPARE_ITEM_TEMPLATE,
     DEALER_AUTOFETCH: false,
@@ -5766,7 +5765,7 @@ const SHADOW_MODAL_STYLES = `
     },
     batch: {
       label: 'Batch-Aktionen',
-      keys: ['BATCH_CONFIRM_THRESHOLD', 'BATCH_SCOPE_DEFAULT', 'BATCH_COPY_FORMAT', 'BATCH_AI_TARGET']
+      keys: ['BATCH_CONFIRM_THRESHOLD', 'BATCH_SCOPE_DEFAULT', 'BATCH_COPY_FORMAT']
     },
     deals: {
       label: 'Sortieren',
@@ -5907,7 +5906,6 @@ const SHADOW_MODAL_STYLES = `
     BATCH_CONFIRM_THRESHOLD: { type: 'int', default: 10, min: 1, max: 100 },
     BATCH_SCOPE_DEFAULT: { type: 'enum', default: 'non-dimmed', allowed: ['non-dimmed', 'visible', 'deals'] },
     BATCH_COPY_FORMAT: { type: 'enum', default: 'markdown', allowed: ['markdown', 'tsv'] },
-    BATCH_AI_TARGET: { type: 'enum', default: 'google-ai', allowed: ['openrouter', 'google-ai', 'chatgpt', 'perplexity', 'claude'] },
     BATCH_COMPARE_PROMPT: { type: 'string', default: DEFAULT_BATCH_COMPARE_PROMPT },
     BATCH_COMPARE_ITEM_TEMPLATE: { type: 'string', default: DEFAULT_BATCH_COMPARE_ITEM_TEMPLATE },
     DEALER_AUTOFETCH: { type: 'bool', default: false },
@@ -6698,11 +6696,6 @@ const SHADOW_MODAL_STYLES = `
           case 'OPENROUTER_MAX_RESULTS': {
             const select = shadow.getElementById('tp-openrouter-max-results');
             if (select) select.value = String(val || 5);
-            break;
-          }
-          case 'BATCH_AI_TARGET': {
-            const select = shadow.getElementById('tp-batch-ai-target-select');
-            if (select) select.value = val || 'google-ai';
             break;
           }
           case 'BATCH_CONFIRM_THRESHOLD': {
@@ -16970,21 +16963,9 @@ const SHADOW_MODAL_STYLES = `
             <span>Batch-Konfiguration</span>
             <button type="button" class="tp-btn-group-reset" data-reset-group="batch" title="Batch-Aktionen auf Standard zurücksetzen" aria-label="Batch-Aktionen auf Standard zurücksetzen">↺</button>
           </div>
-          <div class="tp-settings-group tp-ai-split-row">
-            <div class="tp-ai-split-col-wide">
-              <label for="tp-batch-ai-target-select" title="Ziel-Plattform für 🤖 KI-Vergleich im Batch-Menü.">Batch KI-Vergleich Ziel</label>
-              <select id="tp-batch-ai-target-select" class="tp-select tp-field-dark">
-                <option value="google-ai">Google AI-Modus (&amp;udm=50)</option>
-                <option value="openrouter">OpenRouter (In-Page)</option>
-                <option value="chatgpt">ChatGPT</option>
-                <option value="perplexity">Perplexity</option>
-                <option value="claude">Claude</option>
-              </select>
-            </div>
-            <div class="tp-ai-split-col">
-              <label for="tp-batch-confirm-threshold-input" title="Ab dieser Anzahl Karten fragt Batch vor Tabs, Händler-Laden oder API-Calls nach (1–100).">Bestätigung ab N Karten</label>
-              <input type="number" id="tp-batch-confirm-threshold-input" class="tp-field-dark" min="1" max="100" step="1" value="10">
-            </div>
+          <div class="tp-settings-group">
+            <label for="tp-batch-confirm-threshold-input" title="Ab dieser Anzahl Karten fragt Batch vor Tabs, Händler-Laden oder API-Calls nach (1–100).">Bestätigung ab N Karten</label>
+            <input type="number" id="tp-batch-confirm-threshold-input" class="tp-field-dark" min="1" max="100" step="1" value="10">
           </div>
             </div>
           </details>`;
@@ -17137,7 +17118,6 @@ const SHADOW_MODAL_STYLES = `
       openrouterPaidModelInput: shadow.getElementById('tp-openrouter-paid-model-input'),
       openrouterEngineSelect: shadow.getElementById('tp-openrouter-engine-select'),
       openrouterMaxResults: shadow.getElementById('tp-openrouter-max-results'),
-      batchAiTargetSelect: shadow.getElementById('tp-batch-ai-target-select'),
       batchConfirmThresholdInput: shadow.getElementById('tp-batch-confirm-threshold-input')
     };
   }
@@ -17198,7 +17178,6 @@ const SHADOW_MODAL_STYLES = `
     if (els.openrouterPaidModelInput) els.openrouterPaidModelInput.value = CONFIG.OPENROUTER_PAID_MODEL || '';
     if (els.openrouterEngineSelect) els.openrouterEngineSelect.value = CONFIG.OPENROUTER_SEARCH_ENGINE || 'auto';
     if (els.openrouterMaxResults) els.openrouterMaxResults.value = String(CONFIG.OPENROUTER_MAX_RESULTS || 5);
-    if (els.batchAiTargetSelect) els.batchAiTargetSelect.value = CONFIG.BATCH_AI_TARGET || 'google-ai';
     if (els.batchConfirmThresholdInput) els.batchConfirmThresholdInput.value = String(CONFIG.BATCH_CONFIRM_THRESHOLD ?? 10);
     updateComparePreview(els);
     syncProviderBlockDimming(els);
@@ -17286,9 +17265,6 @@ const SHADOW_MODAL_STYLES = `
     if (els.openrouterMaxResults) {
       const rawMax = parseInt(els.openrouterMaxResults.value, 10);
       updates.OPENROUTER_MAX_RESULTS = Number.isFinite(rawMax) ? Math.max(1, Math.min(10, rawMax)) : 5;
-    }
-    if (els.batchAiTargetSelect) {
-      updates.BATCH_AI_TARGET = els.batchAiTargetSelect.value || 'google-ai';
     }
     if (els.batchConfirmThresholdInput) {
       const rawThr = parseInt(els.batchConfirmThresholdInput.value, 10);
@@ -23305,7 +23281,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.571';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.572';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     const isFileFixture = typeof location !== 'undefined' && location.protocol === 'file:';
     if (isDebugHost) {

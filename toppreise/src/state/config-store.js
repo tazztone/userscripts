@@ -69,7 +69,6 @@ export const DEFAULTS = Object.freeze({
   BATCH_CONFIRM_THRESHOLD: 10,
   BATCH_SCOPE_DEFAULT: 'non-dimmed',
   BATCH_COPY_FORMAT: 'markdown',
-  BATCH_AI_TARGET: 'google-ai',
   BATCH_COMPARE_PROMPT: DEFAULT_BATCH_COMPARE_PROMPT,
   BATCH_COMPARE_ITEM_TEMPLATE: DEFAULT_BATCH_COMPARE_ITEM_TEMPLATE,
   DEALER_AUTOFETCH: false,
@@ -142,7 +141,7 @@ export const RESET_GROUPS = Object.freeze({
   },
   batch: {
     label: 'Batch-Aktionen',
-    keys: ['BATCH_CONFIRM_THRESHOLD', 'BATCH_SCOPE_DEFAULT', 'BATCH_COPY_FORMAT', 'BATCH_AI_TARGET']
+    keys: ['BATCH_CONFIRM_THRESHOLD', 'BATCH_SCOPE_DEFAULT', 'BATCH_COPY_FORMAT']
   },
   deals: {
     label: 'Sortieren',
@@ -283,7 +282,6 @@ export const SETTING_SCHEMA = {
   BATCH_CONFIRM_THRESHOLD: { type: 'int', default: 10, min: 1, max: 100 },
   BATCH_SCOPE_DEFAULT: { type: 'enum', default: 'non-dimmed', allowed: ['non-dimmed', 'visible', 'deals'] },
   BATCH_COPY_FORMAT: { type: 'enum', default: 'markdown', allowed: ['markdown', 'tsv'] },
-  BATCH_AI_TARGET: { type: 'enum', default: 'google-ai', allowed: ['openrouter', 'google-ai', 'chatgpt', 'perplexity', 'claude'] },
   BATCH_COMPARE_PROMPT: { type: 'string', default: DEFAULT_BATCH_COMPARE_PROMPT },
   BATCH_COMPARE_ITEM_TEMPLATE: { type: 'string', default: DEFAULT_BATCH_COMPARE_ITEM_TEMPLATE },
   DEALER_AUTOFETCH: { type: 'bool', default: false },
