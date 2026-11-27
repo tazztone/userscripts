@@ -94,7 +94,7 @@ export function buildBundle() {
     'page/feed-refresh.js',
     'scanner/transport.js',
     'scanner/scanner.js',
-    'ui/fresh-dismiss.js',
+    'ui/fresh-glow.js',
     'ui/badges/dom-helpers.js',
     'ui/badges/deal-badge.js',
     'ui/badges/deal-verdict.js',

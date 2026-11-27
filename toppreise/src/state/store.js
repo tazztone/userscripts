@@ -10,8 +10,7 @@ export const scanState = {
   singleScanningPids: new Set(),
   batchScanningPids: new Set(),
   progress: { completed: 0, total: 0 },
-  freshPids: new Set(),
-  freshUntil: 0
+  freshPids: new Set()
 };
 
 export function isScanningPid(pid) {

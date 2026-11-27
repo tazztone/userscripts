@@ -28,7 +28,7 @@ import {
 import { setTextIfChanged, setHtmlIfChanged } from "./badges.js";
 import { showToast } from "./toast.js";
 import { triggerProcessListings } from "../page/adapter.js";
-import { markFreshVerified, armFreshDismiss } from "./fresh-dismiss.js";
+import { markFreshVerified } from "./fresh-glow.js";
 import { getCardProductId } from "../page/cards.js";
 import { refreshFeed, isFeedRefreshing, cancelFeedRefresh, getFeedRefreshState } from "../page/feed-refresh.js";
 import { getBatchScopeCounts } from "../features/batch-actions.js";
@@ -149,7 +149,6 @@ export function startBatchCheck() {
     minDisc,
     () => syncFloatingCTA(),
     (completed, total, newlyVerified, meta) => {
-      armFreshDismiss();
       for (const item of newlyVerified || []) markFreshVerified(item.pid);
       // Recompute counts → CTA flips to its dimmed empty form when nothing is left.
       triggerProcessListings();

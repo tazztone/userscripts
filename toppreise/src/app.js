@@ -40,7 +40,6 @@ import {
 } from './ui/badges.js';
 import { renderSuiteFilterBar } from './ui/toolbar.js';
 import { renderFloatingCTA, hideFloatingCTA, startBatchCheck } from './ui/floating-cta.js';
-import { setFreshDomGuard } from './ui/fresh-dismiss.js';
 import { closeBatchPopover } from './ui/batch-popover.js';
 import { closeBatchDialogs } from './ui/batch-dialogs.js';
 import { cancelActiveBatchJob } from './features/batch-runners.js';
@@ -78,7 +77,7 @@ import { enhanceCategorySidebar, disconnectCategoryObservers } from './features/
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.575
+// @version      2.18.576
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -141,8 +140,6 @@ import { enhanceCategorySidebar, disconnectCategoryObservers } from './features/
       }
     }
   }
-
-  setFreshDomGuard(withDomMutationLock);
 
   function processListings() {
     const dismissChrome = () => { const staleBar = document.getElementById('tp-suite-filter-bar'); if (staleBar) staleBar.remove(); hideFloatingCTA(); };
@@ -462,7 +459,7 @@ import { enhanceCategorySidebar, disconnectCategoryObservers } from './features/
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.575';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.576';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     const isFileFixture = typeof location !== 'undefined' && location.protocol === 'file:';
     if (isDebugHost) {

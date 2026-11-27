@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.575
+// @version      2.18.576
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -100,14 +100,14 @@ const STYLES_CARDS = `
   .tp-heat-blend .Plugin_ProductName a {
     color: #0f172a !important;
   }
-  /* Fresh-deal glow (transient, post-verification): outline-only so the heat
-  box-shadow underneath keeps showing the deal color. "Neu" pill is a
-  pseudo-element — zero DOM bookkeeping, auto-cleans with the class. */
-  .tp-deal-fresh {
+  /* Fresh-deal glow (session-scoped, post-verification): outline-only so the
+  heat box-shadow underneath keeps showing the deal color. "Neu" pill is a
+  pseudo-element — zero DOM bookkeeping; the class lives until reload. */
+  html body .tp-deal-fresh {
     position: relative;
-    outline: 2px solid var(--tp-acc) !important;
+    outline: 2px solid var(--tp-acc);
     outline-offset: -2px;
-    animation: tp-fresh-pulse 1.2s ease-in-out infinite;
+    animation: tp-fresh-pulse 1.2s ease-in-out 3;
   }
   @keyframes tp-fresh-pulse {
     0%, 100% { outline-width: 2px; outline-color: var(--tp-acc); }
@@ -135,7 +135,7 @@ const STYLES_CARDS = `
     100% { outline: 2px solid transparent; box-shadow: none; }
   }
   @media (prefers-reduced-motion: reduce) {
-    .tp-deal-fresh { animation: none; }
+    html body .tp-deal-fresh { animation: none; }
   }
   .Plugin_Product.mixedBrowsingList.tp-is-cheapest {
     border: 2px solid var(--tp-acc) !important;
@@ -6912,8 +6912,7 @@ const SHADOW_MODAL_STYLES = `
     singleScanningPids: new Set(),
     batchScanningPids: new Set(),
     progress: { completed: 0, total: 0 },
-    freshPids: new Set(),
-    freshUntil: 0
+    freshPids: new Set()
   };
 
   function isScanningPid(pid) {
@@ -13829,66 +13828,15 @@ const SHADOW_MODAL_STYLES = `
     try { batchController?.abort(); } catch {}
   }
 
-  // ─── MODULE: src/ui/fresh-dismiss.js ────────────────────────────────────────
+  // ─── MODULE: src/ui/fresh-glow.js ───────────────────────────────────────────
   /**
-   * Fresh-deal glow dismissal.
-   * Minimum 5s floor, then the next user input clears the glow.
+   * Fresh-deal glow bookkeeping.
+   * Marked pids stay for the tab session (until reload); user input never clears them.
    */
 
 
-  let freshTimer = null;
-  let domGuard = fn => fn();
-  const freshListeners = [];
-
-  function setFreshDomGuard(fn) {
-    domGuard = typeof fn === 'function' ? fn : (f => f());
-  }
-
-  const FRESH_EVENTS = ['pointerdown', 'keydown', 'wheel', 'touchstart'];
-
   function markFreshVerified(pid) {
     if (pid) scanState.freshPids.add(pid);
-  }
-
-  function removeFreshListeners() {
-    for (const { type, fn } of freshListeners.splice(0)) {
-      document.removeEventListener(type, fn);
-    }
-  }
-
-  function clearFresh() {
-    scanState.freshPids.clear();
-    scanState.freshUntil = 0;
-    if (freshTimer) {
-      clearTimeout(freshTimer);
-      freshTimer = null;
-    }
-    removeFreshListeners();
-    if (typeof document !== 'undefined') {
-      domGuard(() => {
-        for (const card of document.querySelectorAll('.tp-deal-fresh')) {
-          card.classList.remove('tp-deal-fresh');
-        }
-      });
-    }
-  }
-
-  function installFreshListeners() {
-    removeFreshListeners();
-    for (const type of FRESH_EVENTS) {
-      const fn = () => clearFresh();
-      freshListeners.push({ type, fn });
-      document.addEventListener(type, fn, { once: true, passive: true });
-    }
-  }
-
-  // Re-arm replaces the old set: call armFreshDismiss() BEFORE marking the new
-  // pids, then re-render so the render toggle picks up the fresh set.
-  function armFreshDismiss() {
-    clearFresh();
-    if (typeof document === 'undefined') return;
-    scanState.freshUntil = Date.now() + 5000;
-    freshTimer = setTimeout(installFreshListeners, 5000);
   }
 
   // ─── MODULE: src/ui/badges/dom-helpers.js ───────────────────────────────────
@@ -14014,7 +13962,6 @@ const SHADOW_MODAL_STYLES = `
     }
     badgeDifEl.classList.remove('tp-deal-loading');
     if (fetchedStats) {
-      armFreshDismiss();
       markFreshVerified(reqPid);
       triggerProcessListings();
     } else {
@@ -22127,7 +22074,6 @@ const SHADOW_MODAL_STYLES = `
       minDisc,
       () => syncFloatingCTA(),
       (completed, total, newlyVerified, meta) => {
-        armFreshDismiss();
         for (const item of newlyVerified || []) markFreshVerified(item.pid);
         // Recompute counts → CTA flips to its dimmed empty form when nothing is left.
         triggerProcessListings();
@@ -22901,8 +22847,6 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
     }
   }
 
-  setFreshDomGuard(withDomMutationLock);
-
   function processListings() {
     const dismissChrome = () => { const staleBar = document.getElementById('tp-suite-filter-bar'); if (staleBar) staleBar.remove(); hideFloatingCTA(); };
     if (isProductDetailPage()) { dismissChrome(); return; }
@@ -23221,7 +23165,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.575';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.576';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     const isFileFixture = typeof location !== 'undefined' && location.protocol === 'file:';
     if (isDebugHost) {

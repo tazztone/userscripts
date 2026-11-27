@@ -14,7 +14,7 @@ import { extractCanonicalPrice, parsePrice, priceToCents } from '../../domain/pr
 import { fetchSingleProductPriceStats } from '../../scanner/scanner.js';
 import { getCachedPriceStats, hasUsablePriceStats, bumpCacheGeneration, setDealerCacheInvalidateListener } from '../../scanner/cache.js';
 import { isShippingPriceActive, triggerProcessListings } from '../../page/adapter.js';
-import { markFreshVerified, armFreshDismiss } from '../fresh-dismiss.js';
+import { markFreshVerified } from '../fresh-glow.js';
 import { scanState, isScanningPid } from '../../state/store.js';
 import { logActivity } from '../../state/activity-log.js';
 import { setHtmlIfChanged } from './dom-helpers.js';
@@ -78,7 +78,6 @@ async function runSingleDealCheck(card, badgeDifEl) {
   }
   badgeDifEl.classList.remove('tp-deal-loading');
   if (fetchedStats) {
-    armFreshDismiss();
     markFreshVerified(reqPid);
     triggerProcessListings();
   } else {

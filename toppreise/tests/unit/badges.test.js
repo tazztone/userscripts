@@ -353,6 +353,31 @@ describe('Verdict badges F-03 & F-04', () => {
     scanState.freshPids.clear();
   });
 
+  it('applyFreshGlow keeps the glow for a verified record pid in the fresh set', async () => {
+    const { applyFreshGlow } = await import('../../src/ui/badges/card-chrome.js');
+    const { scanState } = await import('../../src/state/store.js');
+
+    let freshToggled = null;
+    const card = {
+      querySelector: sel => (sel.includes('tp-deal-new-record') ? {} : null),
+      classList: { toggle: (cls, on) => { if (cls === 'tp-deal-fresh') freshToggled = on; } }
+    };
+    scanState.freshPids.add('fresh-pid');
+
+    try {
+      applyFreshGlow({
+        card,
+        pid: 'fresh-pid',
+        stats: { tiefstpreis: 100, medianPrice: 120 },
+        cardPrice: 100,
+        cardPriceEl: null
+      });
+      assert.equal(freshToggled, true, 'verified record pid must keep the fresh glow');
+    } finally {
+      scanState.freshPids.delete('fresh-pid');
+    }
+  });
+
   it('renderBadgeSetup returns null early when pid is null', async () => {
     const { renderBadgeSetup } = await import('../../src/ui/badges/deal-badge.js');
     const card = { querySelector: () => null };

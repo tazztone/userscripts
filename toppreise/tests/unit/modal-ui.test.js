@@ -134,28 +134,14 @@ describe('UI modal & controls', () => {
     assert.equal(btn.classList.contains('tp-active'), true);
   });
 
-  it('fresh-dismiss markFreshVerified, armFreshDismiss, and clearFresh manage scanState', async () => {
-    const { markFreshVerified, armFreshDismiss, clearFresh } = await import('../../src/ui/fresh-dismiss.js');
+  it('fresh-glow keeps marked pids for the tab session', async () => {
+    const { markFreshVerified } = await import('../../src/ui/fresh-glow.js');
     const { scanState } = await import('../../src/state/store.js');
-    const card = createMockNode('div');
-    card.classList.add('tp-deal-fresh');
-    const prevDoc = globalThis.document;
-    globalThis.document = {
-      querySelectorAll: () => [card],
-      addEventListener: () => {},
-      removeEventListener: () => {},
-    };
-    try {
-      markFreshVerified('p-fresh-1');
-      assert.equal(scanState.freshPids.has('p-fresh-1'), true);
-      armFreshDismiss();
-      assert.ok(scanState.freshUntil > 0);
-      clearFresh();
-      assert.equal(scanState.freshPids.size, 0);
-      assert.equal(scanState.freshUntil, 0);
-      assert.equal(card.classList.contains('tp-deal-fresh'), false);
-    } finally {
-      if (prevDoc === undefined) delete globalThis.document; else globalThis.document = prevDoc;
-    }
+    scanState.freshPids.clear();
+    markFreshVerified('p-fresh-1');
+    markFreshVerified('p-fresh-2');
+    markFreshVerified('p-fresh-1');
+    assert.deepEqual([...scanState.freshPids].sort(), ['p-fresh-1', 'p-fresh-2']);
+    scanState.freshPids.clear();
   });
 });

@@ -48,7 +48,7 @@ Erfordert einen Userscript-Manager als Browser-Erweiterung:
 - [Violentmonkey](https://violentmonkey.github.io/) (empfohlen: [Firefox](https://addons.mozilla.org/en-US/firefox/addon/violentmonkey/) · [Chrome / Brave](https://chromewebstore.google.com/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag))
 - [Tampermonkey](https://www.tampermonkey.net/)
 
-### 👉 [**HIER KLICKEN ZUR INSTALLATION (v2.18.575)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
+### 👉 [**HIER KLICKEN ZUR INSTALLATION (v2.18.576)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
 
 > [!NOTE]
 > Das Skript enthält `@updateURL`- und `@downloadURL`-Metadaten. Dein Userscript-Manager prüft GitHub automatisch im Hintergrund und hält die Installation aktuell.
@@ -96,7 +96,7 @@ Erfordert einen Userscript-Manager als Browser-Erweiterung:
 
 * **Kontinuierliche Heatmap (Grau→Rot-Skala):** Verifizierte Deals leuchten proportional zur Gewichteten Differenz (neutrales Grau bei geringem Rabatt → warmes Bernstein → tiefes Rubinrot bei Rekord-Deals). Ungeprüfte Karten tragen ein grau gestreiftes Badge mit vorläufiger Kartenwärme.
 * **Fallback-Tiefs:** Verifizierte Tiefstpreise ohne qualifizierten Median (zu wenige Datenpunkte `< minPoints`, HTML-Fallback ohne Zeitreihe oder flache Kurve `< 2%`). Zeigen den Vortief-Abstand statt des Blends (ohne `⚖️`) und lassen sich separat filtern (Normal/Dimmen/Verbergen). Qualifizierte Deals mit 0% Ersparnis tragen ein neutral-graues 0%-Badge.
-* **Neu-Geprüft-Glow (*Neu*-Puls):** Frisch verifizierte Tiefstpreise pulsieren mindestens 5s lang mit Kontur und `Neu`-Markierung bis zur nächsten Nutzerinteraktion.
+* **Neu-Geprüft-Glow (*Neu*-Puls):** Frisch verifizierte Tiefstpreise pulsieren dreimal mit Kontur und `Neu`-Markierung; danach bleibt die Kontur bis zum Neuladen der Seite sichtbar.
 * **Interaktive SVG-Sparklines:** Kompakte Mini-Preiskurve direkt auf geprüften Karten. Klick auf die Sparkline öffnet den grossen interaktiven Chart-Dialog mit Preis- und Monatsachsen.
 * **1-Klick Web- & KI-Launcher (`🌐`):** Such-Icon bei Hover am Produkttitel öffnet den einheitlichen Launcher für **Google-Suche** / **Google-KI-Modus (`&udm=50`)**, **OpenRouter** (`openrouter:web_search` mit Einmal-Modellwahl) oder Legacy-**Tavily**-Kurzfazit, inklusive konfigurierbarem Prompt und `{preis}`-Token.
 

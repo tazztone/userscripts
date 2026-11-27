@@ -23,14 +23,14 @@ export const STYLES_CARDS = `
   .tp-heat-blend .Plugin_ProductName a {
     color: #0f172a !important;
   }
-  /* Fresh-deal glow (transient, post-verification): outline-only so the heat
-  box-shadow underneath keeps showing the deal color. "Neu" pill is a
-  pseudo-element — zero DOM bookkeeping, auto-cleans with the class. */
-  .tp-deal-fresh {
+  /* Fresh-deal glow (session-scoped, post-verification): outline-only so the
+  heat box-shadow underneath keeps showing the deal color. "Neu" pill is a
+  pseudo-element — zero DOM bookkeeping; the class lives until reload. */
+  html body .tp-deal-fresh {
     position: relative;
-    outline: 2px solid var(--tp-acc) !important;
+    outline: 2px solid var(--tp-acc);
     outline-offset: -2px;
-    animation: tp-fresh-pulse 1.2s ease-in-out infinite;
+    animation: tp-fresh-pulse 1.2s ease-in-out 3;
   }
   @keyframes tp-fresh-pulse {
     0%, 100% { outline-width: 2px; outline-color: var(--tp-acc); }
@@ -58,7 +58,7 @@ export const STYLES_CARDS = `
     100% { outline: 2px solid transparent; box-shadow: none; }
   }
   @media (prefers-reduced-motion: reduce) {
-    .tp-deal-fresh { animation: none; }
+    html body .tp-deal-fresh { animation: none; }
   }
   .Plugin_Product.mixedBrowsingList.tp-is-cheapest {
     border: 2px solid var(--tp-acc) !important;
