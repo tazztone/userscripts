@@ -17,7 +17,6 @@ export function clearCardCache(card) {
   if (card.dataset) {
     delete card.dataset.tpOfferCount;
     delete card.dataset.tpDiff;
-    delete card.dataset.tpDiscount;
     delete card.dataset.tpProductId;
     delete card.dataset.tpAppliedHeat;
   }
@@ -87,19 +86,19 @@ export function isShippingPriceActive(card = null) {
     card._tpUseShipping = true;
     return true;
   }
-  if (typeof document !== 'undefined' && document.body?.classList?.contains('showshippingprice')) {
-    return true;
-  }
   return true;
 }
 
 export function isNeueToppreisePage() {
+  if (typeof document === 'undefined') {
+    return typeof location !== 'undefined' && /(?:neue-toppreise|new-best-prices|nouveaux-meilleurs-prix)/i.test(location.href);
+  }
   if (document.body?.classList.contains('Page_Browsing') || document.body?.classList.contains('Page_ProductSearch')) {
     return false;
   }
   const currentUrl = document.body?.getAttribute('data-current_url') ?? document.body?.getAttribute('data-current-url');
   if (currentUrl !== undefined && currentUrl !== null) {
-    if (/(?:produktsuche|katalog|search|suche)/i.test(currentUrl)) return false;
+    if (/(?:produktsuche|katalog|catalogue|recherche-produits|search|suche)/i.test(currentUrl)) return false;
     if (/(?:neue-toppreise|new-best-prices|nouveaux-meilleurs-prix)/i.test(currentUrl)) return true;
   }
   return (typeof location !== 'undefined' && /(?:neue-toppreise|new-best-prices|nouveaux-meilleurs-prix)/i.test(location.href)) ||
@@ -107,8 +106,10 @@ export function isNeueToppreisePage() {
          document.body?.classList.contains('Page_ListTop100Products');
 }
 export function isSearchPage() {
-  const currentUrl = document.body?.getAttribute('data-current_url') ?? document.body?.getAttribute('data-current-url') ?? (typeof location !== 'undefined' ? location.href : '');
-  return /(?:produktsuche|productsearch)/i.test(currentUrl || '');
+  const currentUrl = (typeof document !== 'undefined'
+    ? (document.body?.getAttribute('data-current_url') ?? document.body?.getAttribute('data-current-url'))
+    : null) ?? (typeof location !== 'undefined' ? location.href : '');
+  return /(?:produktsuche|productsearch|recherche-produits)/i.test(currentUrl || '');
 }
 
 export function getPageProfileType(url = null) {

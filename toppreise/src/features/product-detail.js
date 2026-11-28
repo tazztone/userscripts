@@ -9,24 +9,28 @@ import { SELECTORS } from '../page/selectors.js';
 import { getCardStats } from '../page/cards.js';
 import { getDisplayDelta, medianHorizonLabel, vortiefDropPct, getLevelPct } from '../domain/deal-score.js';
 import { fetchSingleProductPriceStats } from '../scanner/scanner.js';
-import { pctDrop, pctRise, priceToCents, recordRefForPrice } from '../domain/price.js';
+import { pctRise, priceToCents, recordRefForPrice } from '../domain/price.js';
 import { withLivePrice } from './share-discord.js';
 import { CONFIG, sanitizeReviewKeyword } from '../state/config.js';
+import { openTabUrl } from '../utils/common.js';
 import { formatSearchQuery, formatReviewTooltip } from './tavily-search.js';
 import { openAiPopover } from '../ui/badges/card-ai-popover.js';
-import { openAiLauncherPopover, openSearchTab } from '../ui/ai-launcher-popover.js';
+import { openAiLauncherPopover } from '../ui/ai-launcher-popover.js';
 import { openSparklinePopout, renderSparkline } from '../ui/sparkline.js';
 import { extractShareData, parseProductOffers, pickCheapestOffer } from '../page/product-offers.js';
 import { triggerDiscordShare } from '../ui/badges/card-share.js';
 import { getSharedDeal, fullSeries } from '../scanner/cache.js';
-import { setHtmlIfChanged, setTextIfChanged, setTitleIfChanged } from '../ui/badges/dom-helpers.js';
+import { setHtmlIfChanged, setTitleIfChanged } from '../ui/badges/dom-helpers.js';
 
 let detailRun = 0;
 
+function removeStatsDecorations() {
+  document.querySelectorAll('#tp-detail-subline, .tp-detail-subline, #tp-detail-sparkline, .tp-detail-sparkline').forEach(el => el.remove());
+}
+
 export const removeDetailDecorations = () => {
-  document.querySelectorAll('#tp-detail-subline, .tp-detail-subline').forEach(el => el.remove());
+  removeStatsDecorations();
   document.querySelectorAll('#tp-detail-share-btn, .tp-detail-share-btn').forEach(el => el.remove());
-  document.querySelectorAll('#tp-detail-sparkline, .tp-detail-sparkline').forEach(el => el.remove());
   document.querySelectorAll('.tp-detail-review-btn').forEach(el => el.remove());
 };
 
@@ -55,7 +59,7 @@ export function getDetailHeadings() {
   return unique;
 }
 
-export function renderDetailReviewButton(headingEl, title, currentPrice, stats, pid) {
+export function renderDetailReviewButton(headingEl, title, currentPrice, pid) {
   if (!headingEl || !title) return;
   let btn = headingEl.querySelector('.tp-review-search-btn');
   if (CONFIG.REVIEW_SEARCH_ENABLED === false) {
@@ -66,7 +70,6 @@ export function renderDetailReviewButton(headingEl, title, currentPrice, stats, 
   const priceText = currentPrice > 0 ? `CHF ${currentPrice.toFixed(2)}` : '';
   const fullQuery = formatSearchQuery(title, rawKw, priceText);
   const aiMode = CONFIG.REVIEW_SEARCH_AI_MODE === true;
-  const hasTavily = !!(CONFIG.TAVILY_ENABLED && CONFIG.TAVILY_API_KEY && CONFIG.TAVILY_API_KEY.trim());
 
   if (!btn) {
     btn = document.createElement('a');
@@ -88,9 +91,9 @@ export function renderDetailReviewButton(headingEl, title, currentPrice, stats, 
         priceText: payload.priceText,
         onLaunch: ({ engine, model }) => {
           if (engine === 'google') {
-            openSearchTab(baseGoogle);
+            openTabUrl(baseGoogle, { active: true });
           } else if (engine === 'google-ai') {
-            openSearchTab(`${baseGoogle}&udm=50`);
+            openTabUrl(`${baseGoogle}&udm=50`, { active: true });
           } else if (engine === 'openrouter' || engine === 'tavily') {
             openAiPopover({
               title: payload.title,
@@ -204,8 +207,7 @@ export function renderDetailSubline(stats, currentPrice, priceBasis) {
   for (let i = 0; i < targets.length; i++) {
     const target = targets[i];
     const parent = target.parentElement || target;
-    let subline = (target.nextElementSibling?.classList?.contains('tp-detail-subline') ? target.nextElementSibling : null)
-      || parent.querySelector?.('.tp-detail-subline');
+    let subline = target.nextElementSibling?.classList?.contains('tp-detail-subline') ? target.nextElementSibling : null;
     if (!subline) {
       subline = document.createElement('div');
       if (i === 0 && !document.getElementById('tp-detail-subline')) {
@@ -377,6 +379,8 @@ export function renderDetailSparkline(pid, title, currentPrice, stats, priceBasi
   const baseLastTs = baseSeries.length ? (+baseSeries[baseSeries.length - 1][0] || 0) : 0;
   const lastPriceCents = priceToCents(currentPrice);
   const sig = [
+    pid || '',
+    useShipping ? 1 : 0,
     baseSeries.length,
     lastPriceCents,
     priceToCents(stats?.medianPrice ?? 0),
@@ -453,7 +457,7 @@ export async function processProductDetailPage(domLock = fn => fn(), retryDepth 
   // Render Web Search / AI Review next to each H1 title
   domLock(() => {
     for (const h of headings) {
-      renderDetailReviewButton(h, title, currentPrice, null, pid);
+      renderDetailReviewButton(h, title, currentPrice, pid);
     }
   });
 
@@ -475,13 +479,10 @@ export async function processProductDetailPage(domLock = fn => fn(), retryDepth 
 
   domLock(() => {
     const nativeRating = extractNativePriceRating(document);
+    const validStats = !!(stats && stats.tiefstpreis > 0
+      && !(typeof stats.isShippingPrice === 'boolean' && stats.isShippingPrice !== (priceBasis === 'shipping')));
 
-    if (stats && stats.tiefstpreis > 0) {
-      if (typeof stats.isShippingPrice === 'boolean' && stats.isShippingPrice !== (priceBasis === 'shipping')) {
-        removeDetailDecorations();
-        return;
-      }
-
+    if (validStats) {
       // Render Deal Subline
       renderDetailSubline(stats, currentPrice, priceBasis);
 
@@ -490,19 +491,15 @@ export async function processProductDetailPage(domLock = fn => fn(), retryDepth 
 
       // Render Mini Sparkline below chart thumbnail
       renderDetailSparkline(pid, title, currentPrice, stats, priceBasis);
-
-      // Update Web Search / AI review button with stats
-      for (const h of headings) {
-        renderDetailReviewButton(h, title, currentPrice, stats, pid);
-      }
     } else {
-      removeDetailDecorations();
+      removeStatsDecorations();
+      renderDetailShareButton({ pid, currentPrice, priceBasis, stats: null, title, url, imageUrl, nativeRating });
     }
 
     // Live Session Bridge Telemetry (MCP evaluate_script)
     const rootEl = document.getElementById('tp-root');
     if (rootEl) {
-      const isAllTimeLow = !!(stats && stats.tiefstpreis > 0 && priceToCents(currentPrice) <= priceToCents(stats.tiefstpreis));
+      const isAllTimeLow = !!(validStats && priceToCents(currentPrice) <= priceToCents(stats.tiefstpreis));
       rootEl.setAttribute('data-tp-diag', JSON.stringify({
         version: typeof GM_info !== 'undefined' ? (GM_info.script?.version || 'dev') : 'dev',
         pageType: 'detail',

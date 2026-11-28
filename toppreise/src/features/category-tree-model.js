@@ -198,11 +198,12 @@ export function searchCategoryTree(tree, query, maxResults = 12, ignoredIds = nu
   const escapedQ = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const wordRe = new RegExp(`(?:^|[^\\p{L}\\p{N}])${escapedQ}(?:$|[^\\p{L}\\p{N}])`, 'u');
   const scored = [];
-  const hasIgnoredFilter = ignoredIds && ((ignoredIds instanceof Set && ignoredIds.size > 0) || (Array.isArray(ignoredIds) && ignoredIds.length > 0));
+  const ignoredSet = ignoredIds ? (ignoredIds instanceof Set ? ignoredIds : new Set(ignoredIds)) : null;
+  const hasIgnoredFilter = !!(ignoredSet && ignoredSet.size > 0);
 
   for (const node of tree.allNodes) {
     if (!node.title || node.id === 'start' || node.id === 'root') continue;
-    if (hasIgnoredFilter && hasIgnoredAncestor(node, tree, ignoredIds)) continue;
+    if (hasIgnoredFilter && hasIgnoredAncestor(node, tree, ignoredSet)) continue;
 
     const titleLower = node.title.toLowerCase();
     const urlLower = (node.url || '').toLowerCase();
@@ -384,11 +385,6 @@ export async function loadNativeCategoryTree(doc = (typeof document !== 'undefin
   return treeLoadingPromise;
 }
 
-export function resetCategoryTreeForTesting() {
-  treeIndex = null;
-  treeLoadingPromise = null;
-}
-
 const hydratedFeedUrls = new Set();
 
 export function resetHydratedFeedUrlsForTesting() {
@@ -398,16 +394,19 @@ export function resetHydratedFeedUrlsForTesting() {
 export async function hydrateBranchIdents(feedUrl, branchEl) {
   if (!feedUrl || typeof fetch !== 'function') return;
   if (hydratedFeedUrls.has(feedUrl)) return;
+  hydratedFeedUrls.add(feedUrl);
+  while (hydratedFeedUrls.size > 500) {
+    hydratedFeedUrls.delete(hydratedFeedUrls.values().next().value);
+  }
   try {
     const { res: resp, body: html } = await fetchWithTimeout(
       feedUrl,
       { credentials: 'same-origin' },
       { timeoutMs: 8000, source: 'category-tree', label: 'hydrate', readAs: 'text' }
     );
-    if (!resp.ok) return;
-    hydratedFeedUrls.add(feedUrl);
-    while (hydratedFeedUrls.size > 500) {
-      hydratedFeedUrls.delete(hydratedFeedUrls.values().next().value);
+    if (!resp.ok) {
+      hydratedFeedUrls.delete(feedUrl);
+      return;
     }
     const stored = parseCategoryIdentsFromText(html);
 
@@ -419,21 +418,34 @@ export async function hydrateBranchIdents(feedUrl, branchEl) {
         }
       });
     }
-  } catch {}
+  } catch {
+    hydratedFeedUrls.delete(feedUrl);
+  }
 }
 
-export async function ensureCategoryIdent(item, tree = null, currentPath = '', doc = null) {
+export function getCategoryAjaxContext(activeDoc = (typeof document !== 'undefined' ? document : null)) {
+  const doc = getDoc(activeDoc);
+  const bar = doc?.querySelector?.('.Plugin_IgnoredCategories') || null;
+  const ajaxUrl = bar?.getAttribute?.('data-ajax-url') || '/plugins/filter/IgnoredCategories';
+  const menuEl = doc?.querySelector?.('.Plugin_CategoryMenu');
+  const lang = menuEl?.getAttribute?.('data-lang') || 'de';
+  const contextHash = bar?.getAttribute?.('data-context-hash') ||
+                      doc?.querySelector?.('[data-context-hash]')?.getAttribute?.('data-context-hash') || '';
+  return { bar, ajaxUrl, lang, contextHash };
+}
+
+export async function ensureCategoryIdent(item, tree = null, currentPath = '', doc = null, excludeIdent = '') {
   if (!item) return '';
   const vcatId = String(item.numericId || item.vcatId || '').trim();
   if (!vcatId) return '';
-  if (item.ident) return item.ident;
+  if (item.ident && item.ident !== excludeIdent) return item.ident;
 
   const activeDoc = getDoc(doc);
   const safeVcatId = String(vcatId).replace(/["\\]/g, '\\$&');
   // Live DOM takes precedence over stored localStorage cache (avoid stale tokens from older sessions)
   // Exclude suite-created buttons (.tp-cat-action-btn) to prevent reading our own stale attributes
   const domToken = activeDoc?.querySelector?.(`[data-vcat-id="${safeVcatId}"][data-ident]:not(.tp-cat-action-btn)`)?.getAttribute?.('data-ident');
-  if (domToken) {
+  if (domToken && domToken !== excludeIdent) {
     const stored = getStoredIdents();
     stored[vcatId] = domToken;
     saveStoredIdents(stored);
@@ -442,7 +454,7 @@ export async function ensureCategoryIdent(item, tree = null, currentPath = '', d
   }
 
   const stored = getStoredIdents();
-  if (stored[vcatId]) {
+  if (stored[vcatId] && stored[vcatId] !== excludeIdent) {
     item.ident = stored[vcatId];
     return item.ident;
   }
@@ -458,12 +470,7 @@ export async function ensureCategoryIdent(item, tree = null, currentPath = '', d
 
   const fetchMenuIdents = async (pid) => {
     if (!pid || typeof fetch !== 'function') return false;
-    const bar = activeDoc?.querySelector?.('.Plugin_IgnoredCategories');
-    const ajaxUrl = bar?.getAttribute?.('data-ajax-url') || '/plugins/filter/IgnoredCategories';
-    const menuEl = activeDoc?.querySelector?.('.Plugin_CategoryMenu');
-    const lang = menuEl?.getAttribute?.('data-lang') || 'de';
-    const contextHash = bar?.getAttribute?.('data-context-hash') ||
-                        activeDoc?.querySelector?.('[data-context-hash]')?.getAttribute?.('data-context-hash') || '';
+    const { ajaxUrl, lang, contextHash } = getCategoryAjaxContext(activeDoc);
 
     const body = new URLSearchParams({
       aicatpr: pid,

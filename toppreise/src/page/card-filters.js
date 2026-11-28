@@ -17,28 +17,36 @@ import {
 
 const _negReCache = new Map();
 
+function shortTermRe(term) {
+  let re = _negReCache.get(term);
+  if (!re) {
+    re = new RegExp(`(?<![\\p{L}\\p{N}])${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}\\p{N}])`, 'iu');
+    lruSet(_negReCache, term, re, 100);
+  }
+  return re;
+}
+
+function stripTpText(el) {
+  if (!el) return '';
+  if (!el.querySelector?.('[class*="tp-"]')) return el.textContent || '';
+  if (typeof el.cloneNode !== 'function') return el.textContent || '';
+  const clone = el.cloneNode(true);
+  clone.querySelectorAll?.('[class*="tp-"]')?.forEach(n => n.remove());
+  return clone.textContent || '';
+}
+
 export function matchesNegativeTerms(card, termsList) {
   if (!termsList || termsList.length === 0) return false;
   let text = card._tpTextLower;
   if (text === undefined) {
     const nodes = card.querySelectorAll?.('.bold, .product-name, .productDetails, .Plugin_ProductHeading');
-    const joined = [...(nodes ?? [])].map(el => {
-      if (!el.querySelector?.('[class*="tp-"]')) return el.textContent;
-      const clone = el.cloneNode(true);
-      clone.querySelectorAll('[class*="tp-"]').forEach(n => n.remove());
-      return clone.textContent;
-    }).join(' ');
+    const joined = [...(nodes ?? [])].map(stripTpText).join(' ');
     if (joined.trim()) text = joined.toLowerCase();
     else {
       const single = card.querySelector?.('.bold, .product-name, .productDetails, .Plugin_ProductHeading');
-      if (single?.textContent?.trim()) text = single.textContent.toLowerCase();
-      else if (typeof card.cloneNode === 'function') {
-        const clone = card.cloneNode(true);
-        clone.querySelectorAll?.('.tp-injected-badge, .tp-share-btn, .tp-dealer-name, [class*="tp-"]').forEach(el => el.remove());
-        text = (clone.textContent || '').toLowerCase();
-      } else {
-        text = (card.textContent || '').toLowerCase();
-      }
+      const singleText = stripTpText(single);
+      if (singleText.trim()) text = singleText.toLowerCase();
+      else text = stripTpText(card).toLowerCase();
     }
     card._tpTextLower = text;
   }
@@ -48,14 +56,7 @@ export function matchesNegativeTerms(card, termsList) {
     if (re) return re.test(text);
     const term = typeof entry === 'string' ? entry : entry.term;
     if (!term) return false;
-    if (term.length <= 3) {
-      let shortRe = _negReCache.get(term);
-      if (!shortRe) {
-        shortRe = new RegExp(`(?<![\\p{L}\\p{N}])${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}\\p{N}])`, 'iu');
-        lruSet(_negReCache, term, shortRe, 100);
-      }
-      return shortRe.test(text);
-    }
+    if (term.length <= 3) return shortTermRe(term).test(text);
     return text.includes(term);
   });
 }
@@ -65,13 +66,13 @@ let _negCacheParsed = null;
 export function parseNegativeTerms(rawTerms = CONFIG.NEGATIVE_TERMS || '') {
   if (rawTerms === _negCacheRaw && _negCacheParsed) return _negCacheParsed;
   const parsed = (rawTerms || '').split(/[,;\n]/).map(t => t.trim().toLowerCase()).filter(Boolean)
-    .map(term => ({ term, re: term.length <= 3 ? new RegExp(`(?<![\\p{L}\\p{N}])${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}\\p{N}])`, 'iu') : null }));
+    .map(term => ({ term, re: term.length <= 3 ? shortTermRe(term) : null }));
   _negCacheRaw = rawTerms;
   _negCacheParsed = parsed;
   return parsed;
 }
 
-export function applyCardFilters(cd, termsList, minOffers, pageHasOffers, isDealFeed = true) {
+export function applyCardFilters(cd, termsList, minOffers, pageHasOffers) {
   const isNeg = CONFIG.FILTER_NEG_ENABLED ? matchesNegativeTerms(cd.card, termsList) : false;
   const isLowOffers = CONFIG.FILTER_MIN_ENABLED ? !!(pageHasOffers && minOffers > 0 && cd.offerCount < minOffers) : false;
   const kind = cd.displayDelta?.kind;
@@ -167,28 +168,27 @@ export function isCardFilteredOut(card, filters = null, opts = null) {
     isDealerLoser: card.classList?.contains('tp-not-cheapest') === true
       || card.classList?.contains('tp-no-store-offer') === true,
   };
-  // ponytail: no page context here; callers with a card list must pass
-  // explicit filters built with the real pageHasOffers (feed cards have
-  // no offer counts, so assuming true wrongly filters the whole feed).
-  const termsList = parseNegativeTerms();
-  const offerCount = extractOfferCount(card);
-  let pageHasOffers = typeof opts?.pageHasOffers === 'boolean' ? opts.pageHasOffers : (offerCount > 0);
-  if (!pageHasOffers) {
-    const doc = card?.ownerDocument || (typeof document !== 'undefined' ? document : null);
-    if (doc?.querySelector) {
-      const now = Date.now();
-      if (doc._tpOffersMemoTime && (now - doc._tpOffersMemoTime) < 500) {
-        pageHasOffers = doc._tpHasOffersMemo;
-      } else {
-        pageHasOffers = doc.querySelector('.Plugin_DealerRelProdPriceInfo') !== null;
-        doc._tpOffersMemoTime = now;
-        doc._tpHasOffersMemo = pageHasOffers;
+  if (!f.isNeg && CONFIG.FILTER_NEG_ENABLED) {
+    f.isNeg = matchesNegativeTerms(card, parseNegativeTerms());
+  }
+  if (!f.isLowOffers && CONFIG.FILTER_MIN_ENABLED && CONFIG.MIN_OFFERS > 0) {
+    const offerCount = extractOfferCount(card);
+    let pageHasOffers = typeof opts?.pageHasOffers === 'boolean' ? opts.pageHasOffers : (offerCount > 0);
+    if (!pageHasOffers) {
+      const doc = card?.ownerDocument || (typeof document !== 'undefined' ? document : null);
+      if (doc?.querySelector) {
+        const now = Date.now();
+        if (doc._tpOffersMemoTime && (now - doc._tpOffersMemoTime) < 500) {
+          pageHasOffers = doc._tpHasOffersMemo;
+        } else {
+          pageHasOffers = doc.querySelector('.Plugin_DealerRelProdPriceInfo') !== null;
+          doc._tpOffersMemoTime = now;
+          doc._tpHasOffersMemo = pageHasOffers;
+        }
       }
     }
+    f.isLowOffers = !!(pageHasOffers && offerCount < CONFIG.MIN_OFFERS);
   }
-  const recomp = applyCardFilters({ card, offerCount }, termsList, CONFIG.MIN_OFFERS, pageHasOffers);
-  f.isNeg = f.isNeg || recomp.isNeg;
-  f.isLowOffers = f.isLowOffers || recomp.isLowOffers;
   if (!causeHit(f)) return legacyChecks();
   return true;
 }

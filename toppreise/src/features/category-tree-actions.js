@@ -10,28 +10,34 @@ import { showToast } from '../ui/toast.js';
 import {
   getStoredIdents, harvestExistingIdents, getDoc,
   loadNativeCategoryTree, ensureCategoryIdent, evictStoredIdent,
-  parseCategoryIdentsFromText
+  parseCategoryIdentsFromText, getCategoryAjaxContext
 } from './category-tree-model.js';
 import { syncCategoryTreeIgnoredState } from './category-tree.js';
 import { fetchWithTimeout } from '../state/net.js';
 import { logActivity } from '../state/activity-log.js';
 
 let ignoredBarObserver = null;
+let observedIgnoredBar = null;
 
 export function disconnectIgnoredBarObserver() {
   if (ignoredBarObserver) {
     try { ignoredBarObserver.disconnect(); } catch {}
     ignoredBarObserver = null;
   }
+  observedIgnoredBar = null;
 }
 
 export function observeIgnoredCategoriesBar(activeDoc = (typeof document !== 'undefined' ? document : null)) {
   if (!activeDoc || typeof MutationObserver !== 'function') return;
   const doc = getDoc(activeDoc);
   const ignoredBar = doc?.querySelector?.('.Plugin_IgnoredCategories');
+  if (ignoredBar && ignoredBar === observedIgnoredBar && ignoredBar.isConnected !== false && ignoredBarObserver) {
+    return;
+  }
   disconnectIgnoredBarObserver();
   if (!ignoredBar) return;
 
+  observedIgnoredBar = ignoredBar;
   ignoredBarObserver = new MutationObserver(() => {
     const sidebar = doc?.querySelector?.('.Plugin_CategoryMainSelectionLeft');
     if (sidebar && typeof syncCategoryTreeIgnoredState === 'function') {
@@ -137,12 +143,7 @@ export async function executeServerCategoryToggle(vcatId, initialIdent = '', doc
   if (typeof location === 'undefined' || !/(?:^|\.)toppreise\.ch$/i.test(location.hostname || '')) return true;
 
   const activeDoc = getDoc(doc);
-  const bar = activeDoc?.querySelector?.('.Plugin_IgnoredCategories');
-  const ajaxUrl = bar?.getAttribute?.('data-ajax-url') || '/plugins/filter/IgnoredCategories';
-  const menuEl = activeDoc?.querySelector?.('.Plugin_CategoryMenu');
-  const lang = menuEl?.getAttribute?.('data-lang') || 'de';
-  const contextHash = bar?.getAttribute?.('data-context-hash') ||
-                      activeDoc?.querySelector?.('[data-context-hash]')?.getAttribute?.('data-context-hash') || '';
+  const { bar, ajaxUrl, lang, contextHash } = getCategoryAjaxContext(activeDoc);
 
   if (typeof fetch !== 'function' || !ajaxUrl) return false;
 
@@ -175,7 +176,7 @@ export async function executeServerCategoryToggle(vcatId, initialIdent = '', doc
     // Stale cached ident may have been rejected by HMAC. Evict and retry once via fresh discovery.
     evictStoredIdent(vcatId);
     const tree = await loadNativeCategoryTree(activeDoc);
-    const refreshed = await ensureCategoryIdent({ numericId: vcatId, vcatId }, tree, currentPath, activeDoc);
+    const refreshed = await ensureCategoryIdent({ numericId: vcatId, vcatId }, tree, currentPath, activeDoc, ident);
     if (refreshed && refreshed !== ident) {
       const liveBar = bar?.isConnected ? bar : activeDoc?.querySelector?.('.Plugin_IgnoredCategories');
       ok = await postCategoryAction(ajaxUrl, buildBody(refreshed), liveBar, activeDoc, `Category ${isRestore ? 'restore retry' : 'exclusion retry'}`);
@@ -230,12 +231,7 @@ export async function executeServerCategoryReset(doc = (typeof document !== 'und
   if (typeof location === 'undefined' || !/(?:^|\.)toppreise\.ch$/i.test(location.hostname || '')) return true;
 
   const activeDoc = getDoc(doc);
-  const bar = activeDoc?.querySelector?.('.Plugin_IgnoredCategories');
-  const ajaxUrl = bar?.getAttribute?.('data-ajax-url') || '/plugins/filter/IgnoredCategories';
-  const menuEl = activeDoc?.querySelector?.('.Plugin_CategoryMenu');
-  const lang = menuEl?.getAttribute?.('data-lang') || 'de';
-  const contextHash = bar?.getAttribute?.('data-context-hash') ||
-                      activeDoc?.querySelector?.('[data-context-hash]')?.getAttribute?.('data-context-hash') || '';
+  const { bar, ajaxUrl, lang, contextHash } = getCategoryAjaxContext(activeDoc);
 
   if (typeof fetch !== 'function' || !ajaxUrl) return false;
 

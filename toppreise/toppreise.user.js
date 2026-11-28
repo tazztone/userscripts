@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.578
+// @version      2.18.579
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -4163,16 +4163,13 @@ const SHADOW_MODAL_STYLES = `
    */
   const SELECTORS = Object.freeze({
     cards: Object.freeze({
-      standard: 'a.Plugin_Product, .Plugin_Product.medium-box, .Plugin_Product.mixedBrowsingList, .mixedBrowsingListProduct, .Plugin_Product',
-      collections: '.Plugin_ProductCollItem',
-      variants: '.f_collection',
+      standard: '.Plugin_Product, .mixedBrowsingListProduct',
       nestedCards: '.Plugin_Product, .mixedBrowsingListProduct',
       excludedParents: 'header, nav, footer, .breadcrumb, #tp-suite-filter-bar, .Plugin_ProductHistoryDropdown, .AbstractDropDown, #Plugin_MainHead, .DropDownMenuList',
       hiddenStyles: '.d-none, [style*="display: none"], [style*="display:none"]',
       productLinks: 'a[href*="/preisvergleich/"]',
       dealerRows: '.Plugin_DealerRelProdPriceInfo',
-      diffBadge: '.badge-dif, .badge, [class*="badge-dif"]',
-      availabilityIcon: '.Plugin_AvailabilityInformation'
+      diffBadge: '.badge-dif, .badge, [class*="badge-dif"]'
     }),
     price: Object.freeze({
       mainInfo: '.Plugin_PriceInformation, .price_information_product',
@@ -4180,10 +4177,7 @@ const SHADOW_MODAL_STYLES = `
       product: '.productPrice .Plugin_Price',
       fallbackShipping: '.priceContainer.shippingPrice .Plugin_Price',
       fallbackProduct: '.priceContainer.productPrice .Plugin_Price',
-      shippingContainer: '.priceContainer.shippingPrice',
-      productContainer: '.priceContainer.productPrice',
       anyContainer: '.priceContainer',
-      chartPrice: '.chartProductPrice .Plugin_Price, .Plugin_Price',
       genericPriceMatch: '.Plugin_Price, [class*="Price"], [class*="price"]',
       genericDiffMatch: '[class*="Differenz"], [class*="differenz"]'
     }),
@@ -4196,7 +4190,6 @@ const SHADOW_MODAL_STYLES = `
         'main',
         '#content'
       ]),
-      breadcrumbs: '.breadcrumb a:last-of-type, [class*="breadcrumb"] a:last-of-type',
       activeStoreFilters: '.filters .f_remove_filter[data-target-type="df"]'
     }),
     alarm: Object.freeze({
@@ -7433,7 +7426,6 @@ const SHADOW_MODAL_STYLES = `
     if (card.dataset) {
       delete card.dataset.tpOfferCount;
       delete card.dataset.tpDiff;
-      delete card.dataset.tpDiscount;
       delete card.dataset.tpProductId;
       delete card.dataset.tpAppliedHeat;
     }
@@ -7503,19 +7495,19 @@ const SHADOW_MODAL_STYLES = `
       card._tpUseShipping = true;
       return true;
     }
-    if (typeof document !== 'undefined' && document.body?.classList?.contains('showshippingprice')) {
-      return true;
-    }
     return true;
   }
 
   function isNeueToppreisePage() {
+    if (typeof document === 'undefined') {
+      return typeof location !== 'undefined' && /(?:neue-toppreise|new-best-prices|nouveaux-meilleurs-prix)/i.test(location.href);
+    }
     if (document.body?.classList.contains('Page_Browsing') || document.body?.classList.contains('Page_ProductSearch')) {
       return false;
     }
     const currentUrl = document.body?.getAttribute('data-current_url') ?? document.body?.getAttribute('data-current-url');
     if (currentUrl !== undefined && currentUrl !== null) {
-      if (/(?:produktsuche|katalog|search|suche)/i.test(currentUrl)) return false;
+      if (/(?:produktsuche|katalog|catalogue|recherche-produits|search|suche)/i.test(currentUrl)) return false;
       if (/(?:neue-toppreise|new-best-prices|nouveaux-meilleurs-prix)/i.test(currentUrl)) return true;
     }
     return (typeof location !== 'undefined' && /(?:neue-toppreise|new-best-prices|nouveaux-meilleurs-prix)/i.test(location.href)) ||
@@ -7523,8 +7515,10 @@ const SHADOW_MODAL_STYLES = `
            document.body?.classList.contains('Page_ListTop100Products');
   }
   function isSearchPage() {
-    const currentUrl = document.body?.getAttribute('data-current_url') ?? document.body?.getAttribute('data-current-url') ?? (typeof location !== 'undefined' ? location.href : '');
-    return /(?:produktsuche|productsearch)/i.test(currentUrl || '');
+    const currentUrl = (typeof document !== 'undefined'
+      ? (document.body?.getAttribute('data-current_url') ?? document.body?.getAttribute('data-current-url'))
+      : null) ?? (typeof location !== 'undefined' ? location.href : '');
+    return /(?:produktsuche|productsearch|recherche-produits)/i.test(currentUrl || '');
   }
 
   function getPageProfileType(url = null) {
@@ -7738,9 +7732,9 @@ const SHADOW_MODAL_STYLES = `
 
   function getCardDealerRows(card) {
     if (!card._tpDealerRows) {
-      card._tpDealerRows = Array.from(card.querySelectorAll(SELECTORS.cards.dealerRows)).map(row => ({
+      card._tpDealerRows = Array.from(card.querySelectorAll?.(SELECTORS.cards.dealerRows) || []).map(row => ({
         row,
-        storeName: normalizeName(row.querySelector('.title')?.textContent || '')
+        storeName: normalizeName(row.querySelector?.('.title')?.textContent || '')
       }));
     }
     return card._tpDealerRows;
@@ -7797,7 +7791,7 @@ const SHADOW_MODAL_STYLES = `
 
   function extractOfferCount(card) {
     if (card.dataset?.tpOfferCount) return parseInt(card.dataset.tpOfferCount, 10);
-    const count = parseInt(card.textContent.match(/(\d+)\s*(?:Angebote?|offres?|offert[ae]|offers?)/i)?.[1] || card.querySelectorAll('.Plugin_DealerRelProdPriceInfo').length, 10);
+    const count = parseInt(card.textContent.match(/(\d+)\s*(?:Angebote?|offres?|offert[ae]|offers?)/i)?.[1] ?? getCardDealerRows(card).length, 10);
     if (card.dataset) card.dataset.tpOfferCount = String(count);
     return count;
   }
@@ -7821,6 +7815,7 @@ const SHADOW_MODAL_STYLES = `
 
   function extractCardDiff(card) {
     if (card.dataset?.tpDiff !== undefined && card.dataset.tpDiff !== '') {
+      if (card.dataset.tpDiff === 'none') return null;
       const cached = parseFloat(card.dataset.tpDiff);
       return isNaN(cached) ? null : (cached === 0 ? 0 : cached);
     }
@@ -7858,7 +7853,7 @@ const SHADOW_MODAL_STYLES = `
     // fall back to full card.textContent (specs like "40% Vol." or "99% sRGB"
     // would become phantom discounts).
     if (!badgeEl) {
-      if (card.dataset) card.dataset.tpDiff = '';
+      if (card.dataset) card.dataset.tpDiff = 'none';
       return null;
     }
     const text = badgeEl.textContent || '';
@@ -7873,7 +7868,7 @@ const SHADOW_MODAL_STYLES = `
       }
     }
     if (card.dataset) {
-      card.dataset.tpDiff = '';
+      card.dataset.tpDiff = 'none';
     }
     return null;
   }
@@ -7887,9 +7882,9 @@ const SHADOW_MODAL_STYLES = `
   // (-40% mid discount) -> deep ruby/red (-100% max savings).
   // Markups and 0% deals return null (transparent / no heat effect).
   const HEAT_STOPS = [
-    { t: 0.00, base: [65, 38, 10],   acc: [180, 83, 9],    border: [245, 158, 11, 0.75] }, // Warm Amber (-1%)
-    { t: 0.40, base: [85, 28, 14],   acc: [200, 50, 15],   border: [234, 88, 12, 0.85] },  // Coral / Vermilion (-40%)
-    { t: 1.00, base: [110, 15, 35],  acc: [215, 25, 55],   border: [244, 63, 94, 0.95] }   // Blazing Ruby/Red (-100%)
+    { t: 0.00, acc: [180, 83, 9],  border: [245, 158, 11, 0.75] }, // Warm Amber (-1%)
+    { t: 0.40, acc: [200, 50, 15], border: [234, 88, 12, 0.85] },  // Coral / Vermilion (-40%)
+    { t: 1.00, acc: [215, 25, 55], border: [244, 63, 94, 0.95] }   // Blazing Ruby/Red (-100%)
   ];
 
   function heatRamp(t) {
@@ -7899,7 +7894,6 @@ const SHADOW_MODAL_STYLES = `
     const s0 = HEAT_STOPS[i], s1 = HEAT_STOPS[i + 1], factor = (clampedT - s0.t) / (s1.t - s0.t || 1);
     const lerp = (a, b) => Math.round(a + (b - a) * factor);
     return {
-      base: [lerp(s0.base[0], s1.base[0]), lerp(s0.base[1], s1.base[1]), lerp(s0.base[2], s1.base[2])],
       acc: [lerp(s0.acc[0], s1.acc[0]), lerp(s0.acc[1], s1.acc[1]), lerp(s0.acc[2], s1.acc[2])],
       borderRgb: [lerp(s0.border[0], s1.border[0]), lerp(s0.border[1], s1.border[1]), lerp(s0.border[2], s1.border[2])],
       borderAlpha: (s0.border[3] + (s1.border[3] - s0.border[3]) * factor)
@@ -8018,7 +8012,7 @@ const SHADOW_MODAL_STYLES = `
     const cardPriceBasis = priceData.basis;
     const stats = getCardStats(pid, cardPriceBasis);
     const diffVal = extractCardDiff(card);
-    const discountVal = extractCardDiscount(card);
+    const discountVal = diffVal === null ? null : (diffVal === 0 ? 0 : -diffVal);
     const basisMatches = basisMatchesFor(stats, cardPriceBasis);
     const dealScore = (basisMatches && hasUsablePriceStats(stats) && cardPrice > 0) ? computeDealScore(stats, cardPrice) : null;
     // Display delta never gates on history quality: with just {tiefstpreis} +
@@ -8095,28 +8089,36 @@ const SHADOW_MODAL_STYLES = `
 
   const _negReCache = new Map();
 
+  function shortTermRe(term) {
+    let re = _negReCache.get(term);
+    if (!re) {
+      re = new RegExp(`(?<![\\p{L}\\p{N}])${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}\\p{N}])`, 'iu');
+      lruSet(_negReCache, term, re, 100);
+    }
+    return re;
+  }
+
+  function stripTpText(el) {
+    if (!el) return '';
+    if (!el.querySelector?.('[class*="tp-"]')) return el.textContent || '';
+    if (typeof el.cloneNode !== 'function') return el.textContent || '';
+    const clone = el.cloneNode(true);
+    clone.querySelectorAll?.('[class*="tp-"]')?.forEach(n => n.remove());
+    return clone.textContent || '';
+  }
+
   function matchesNegativeTerms(card, termsList) {
     if (!termsList || termsList.length === 0) return false;
     let text = card._tpTextLower;
     if (text === undefined) {
       const nodes = card.querySelectorAll?.('.bold, .product-name, .productDetails, .Plugin_ProductHeading');
-      const joined = [...(nodes ?? [])].map(el => {
-        if (!el.querySelector?.('[class*="tp-"]')) return el.textContent;
-        const clone = el.cloneNode(true);
-        clone.querySelectorAll('[class*="tp-"]').forEach(n => n.remove());
-        return clone.textContent;
-      }).join(' ');
+      const joined = [...(nodes ?? [])].map(stripTpText).join(' ');
       if (joined.trim()) text = joined.toLowerCase();
       else {
         const single = card.querySelector?.('.bold, .product-name, .productDetails, .Plugin_ProductHeading');
-        if (single?.textContent?.trim()) text = single.textContent.toLowerCase();
-        else if (typeof card.cloneNode === 'function') {
-          const clone = card.cloneNode(true);
-          clone.querySelectorAll?.('.tp-injected-badge, .tp-share-btn, .tp-dealer-name, [class*="tp-"]').forEach(el => el.remove());
-          text = (clone.textContent || '').toLowerCase();
-        } else {
-          text = (card.textContent || '').toLowerCase();
-        }
+        const singleText = stripTpText(single);
+        if (singleText.trim()) text = singleText.toLowerCase();
+        else text = stripTpText(card).toLowerCase();
       }
       card._tpTextLower = text;
     }
@@ -8126,14 +8128,7 @@ const SHADOW_MODAL_STYLES = `
       if (re) return re.test(text);
       const term = typeof entry === 'string' ? entry : entry.term;
       if (!term) return false;
-      if (term.length <= 3) {
-        let shortRe = _negReCache.get(term);
-        if (!shortRe) {
-          shortRe = new RegExp(`(?<![\\p{L}\\p{N}])${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}\\p{N}])`, 'iu');
-          lruSet(_negReCache, term, shortRe, 100);
-        }
-        return shortRe.test(text);
-      }
+      if (term.length <= 3) return shortTermRe(term).test(text);
       return text.includes(term);
     });
   }
@@ -8143,13 +8138,13 @@ const SHADOW_MODAL_STYLES = `
   function parseNegativeTerms(rawTerms = CONFIG.NEGATIVE_TERMS || '') {
     if (rawTerms === _negCacheRaw && _negCacheParsed) return _negCacheParsed;
     const parsed = (rawTerms || '').split(/[,;\n]/).map(t => t.trim().toLowerCase()).filter(Boolean)
-      .map(term => ({ term, re: term.length <= 3 ? new RegExp(`(?<![\\p{L}\\p{N}])${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}\\p{N}])`, 'iu') : null }));
+      .map(term => ({ term, re: term.length <= 3 ? shortTermRe(term) : null }));
     _negCacheRaw = rawTerms;
     _negCacheParsed = parsed;
     return parsed;
   }
 
-  function applyCardFilters(cd, termsList, minOffers, pageHasOffers, isDealFeed = true) {
+  function applyCardFilters(cd, termsList, minOffers, pageHasOffers) {
     const isNeg = CONFIG.FILTER_NEG_ENABLED ? matchesNegativeTerms(cd.card, termsList) : false;
     const isLowOffers = CONFIG.FILTER_MIN_ENABLED ? !!(pageHasOffers && minOffers > 0 && cd.offerCount < minOffers) : false;
     const kind = cd.displayDelta?.kind;
@@ -8245,28 +8240,27 @@ const SHADOW_MODAL_STYLES = `
       isDealerLoser: card.classList?.contains('tp-not-cheapest') === true
         || card.classList?.contains('tp-no-store-offer') === true,
     };
-    // ponytail: no page context here; callers with a card list must pass
-    // explicit filters built with the real pageHasOffers (feed cards have
-    // no offer counts, so assuming true wrongly filters the whole feed).
-    const termsList = parseNegativeTerms();
-    const offerCount = extractOfferCount(card);
-    let pageHasOffers = typeof opts?.pageHasOffers === 'boolean' ? opts.pageHasOffers : (offerCount > 0);
-    if (!pageHasOffers) {
-      const doc = card?.ownerDocument || (typeof document !== 'undefined' ? document : null);
-      if (doc?.querySelector) {
-        const now = Date.now();
-        if (doc._tpOffersMemoTime && (now - doc._tpOffersMemoTime) < 500) {
-          pageHasOffers = doc._tpHasOffersMemo;
-        } else {
-          pageHasOffers = doc.querySelector('.Plugin_DealerRelProdPriceInfo') !== null;
-          doc._tpOffersMemoTime = now;
-          doc._tpHasOffersMemo = pageHasOffers;
+    if (!f.isNeg && CONFIG.FILTER_NEG_ENABLED) {
+      f.isNeg = matchesNegativeTerms(card, parseNegativeTerms());
+    }
+    if (!f.isLowOffers && CONFIG.FILTER_MIN_ENABLED && CONFIG.MIN_OFFERS > 0) {
+      const offerCount = extractOfferCount(card);
+      let pageHasOffers = typeof opts?.pageHasOffers === 'boolean' ? opts.pageHasOffers : (offerCount > 0);
+      if (!pageHasOffers) {
+        const doc = card?.ownerDocument || (typeof document !== 'undefined' ? document : null);
+        if (doc?.querySelector) {
+          const now = Date.now();
+          if (doc._tpOffersMemoTime && (now - doc._tpOffersMemoTime) < 500) {
+            pageHasOffers = doc._tpHasOffersMemo;
+          } else {
+            pageHasOffers = doc.querySelector('.Plugin_DealerRelProdPriceInfo') !== null;
+            doc._tpOffersMemoTime = now;
+            doc._tpHasOffersMemo = pageHasOffers;
+          }
         }
       }
+      f.isLowOffers = !!(pageHasOffers && offerCount < CONFIG.MIN_OFFERS);
     }
-    const recomp = applyCardFilters({ card, offerCount }, termsList, CONFIG.MIN_OFFERS, pageHasOffers);
-    f.isNeg = f.isNeg || recomp.isNeg;
-    f.isLowOffers = f.isLowOffers || recomp.isLowOffers;
     if (!causeHit(f)) return legacyChecks();
     return true;
   }
@@ -8296,6 +8290,17 @@ const SHADOW_MODAL_STYLES = `
       return PRODUCT_PATH_RE.test(parsed.pathname);
     } catch { return false; }
   };
+
+  function resolveHttpUrl(raw, fallbackBase = 'https://www.toppreise.ch/') {
+    if (!raw || typeof raw !== 'string') return '';
+    try {
+      const base = (typeof location !== 'undefined' && /^https?:/i.test(location.href)) ? location.href : fallbackBase;
+      const resolved = new URL(raw, base).href;
+      return /^https?:\/\//i.test(resolved) ? resolved : '';
+    } catch {
+      return '';
+    }
+  }
 
   const PATH_LINK_PREFIXES = ['/preisvergleich/', '/price-comparison/', '/comparateur-de-prix/'];
 
@@ -8362,18 +8367,12 @@ const SHADOW_MODAL_STYLES = `
     if (!url && typeof document !== 'undefined') {
       const curUrl = document.body?.getAttribute?.('data-current_url') || document.body?.getAttribute?.('data-current-url');
       if (curUrl) {
-        try {
-          const base = (typeof location !== 'undefined' && /^https?:/i.test(location.href)) ? location.href : 'https://www.toppreise.ch/';
-          const resolved = new URL(curUrl, base).href;
-          if (isToppreiseProductUrl(resolved)) url = resolved;
-        } catch {}
+        const resolved = resolveHttpUrl(curUrl);
+        if (resolved && isToppreiseProductUrl(resolved)) url = resolved;
       }
     }
-    if (url && !/^https?:\/\//i.test(url)) {
-      try {
-        const base = (typeof location !== 'undefined' && /^https?:/i.test(location.href)) ? location.href : 'https://www.toppreise.ch/';
-        url = new URL(url, base).href;
-      } catch { /* relativ lassen */ }
+    if (url) {
+      url = resolveHttpUrl(url);
     }
     const imgEl = queryFirst(card, IMG_SELECTORS);
     const candidates = [
@@ -8383,13 +8382,9 @@ const SHADOW_MODAL_STYLES = `
       imgEl?.getAttribute?.('data-original'),
     ];
     let imageUrl = candidates.find(u => u && !/^\s*data:/i.test(u)) || '';
-    if (imageUrl && !/^https?:\/\//i.test(imageUrl)) {
-      try {
-        const base = (typeof location !== 'undefined' && /^https?:/i.test(location.href)) ? location.href : 'https://www.toppreise.ch/';
-        imageUrl = new URL(imageUrl, base).href;
-      } catch { imageUrl = ''; }
+    if (imageUrl) {
+      imageUrl = resolveHttpUrl(imageUrl);
     }
-    if (!/^https?:\/\//i.test(imageUrl)) imageUrl = '';
     if (url && !isToppreiseProductUrl(url)) url = '';
     return { title, url, imageUrl };
   }
@@ -8418,14 +8413,8 @@ const SHADOW_MODAL_STYLES = `
   // Direktlink zum Händlerangebot aus der Händlerzeile (Katalog), falls verlinkt.
   function extractDealerUrl(card, useShipping = false) {
     const a = extractCheapestDealerRow(card, useShipping)?.querySelector?.('a[href]');
-    let url = a?.getAttribute?.('href') || a?.href || '';
-    if (url && !/^https?:\/\//i.test(url)) {
-      try {
-        const base = (typeof location !== 'undefined' && /^https?:/i.test(location.href)) ? location.href : 'https://www.toppreise.ch/';
-        url = new URL(url, base).href;
-      } catch { /* relativ lassen */ }
-    }
-    return /^https:/i.test(url) ? url : '';
+    const resolved = resolveHttpUrl(a?.getAttribute?.('href') || a?.href || '');
+    return /^https:/i.test(resolved) ? resolved : '';
   }
 
   // Schema.org-JSON-LD aus statischem HTML lesen: Händlerzeilen sind AJAX-gerendert
@@ -8596,7 +8585,7 @@ const SHADOW_MODAL_STYLES = `
           const best = pickCheapestOffer(offers, useShipping);
           out.dealer = best ? best.dealer : '';
           if (best?.url) {
-            try { out.dealerUrl = new URL(best.url, productUrl).href; } catch { out.dealerUrl = best.url; }
+            out.dealerUrl = resolveHttpUrl(best.url, productUrl);
           }
           return { info: out, transient: false };
         }
@@ -8671,6 +8660,12 @@ const SHADOW_MODAL_STYLES = `
 
   // Resolves the Amazon ASIN from a direct dealer link or /ext_de redirect URL.
   // Caches persistently per productId in localStorage and memory.
+  function cacheAsin(productId, asin, storage) {
+    if (!asin || !productId) return;
+    lruSet(memoryAsinCache, productId, asin, 500);
+    setCachedAsin(productId, asin, storage);
+  }
+
   async function resolveAmazonAsin(directUrl, productId = null, storage = null, fetchFn = null) {
     if (productId) {
       if (memoryAsinCache.has(productId)) return memoryAsinCache.get(productId);
@@ -8683,10 +8678,7 @@ const SHADOW_MODAL_STYLES = `
 
     const inlineAsin = isAllowedAmazonUrl(directUrl) ? parseAmazonAsin(directUrl) : null;
     if (inlineAsin) {
-      if (productId) {
-        lruSet(memoryAsinCache, productId, inlineAsin, 500);
-        setCachedAsin(productId, inlineAsin, storage);
-      }
+      cacheAsin(productId, inlineAsin, storage);
       return inlineAsin;
     }
 
@@ -8714,10 +8706,7 @@ const SHADOW_MODAL_STYLES = `
           const res = await fetchFn(target);
           const resolvedUrl = res?.url || res?.location || (typeof res === 'string' ? res : '');
           const asin = isAllowedAmazonUrl(resolvedUrl) ? parseAmazonAsin(resolvedUrl) : null;
-          if (asin && productId) {
-            lruSet(memoryAsinCache, productId, asin, 500);
-            setCachedAsin(productId, asin, storage);
-          }
+          cacheAsin(productId, asin, storage);
           return asin || null;
         } catch {
           return null;
@@ -8742,10 +8731,7 @@ const SHADOW_MODAL_STYLES = `
           });
           const loc = res?.finalUrl || res?.responseHeaders?.match(/(?:^|\r?\n)location:\s*([^\r\n]+)/i)?.[1] || '';
           const asin = isAllowedAmazonUrl(loc) ? parseAmazonAsin(loc) : null;
-          if (asin && productId) {
-            lruSet(memoryAsinCache, productId, asin, 500);
-            setCachedAsin(productId, asin, storage);
-          }
+          cacheAsin(productId, asin, storage);
           return asin || null;
         }
         if (typeof fetch !== 'undefined') {
@@ -8755,10 +8741,7 @@ const SHADOW_MODAL_STYLES = `
             { timeoutMs: 6000, source: 'asin', label: 'HEAD', isOk: r => isAsinHeadOk(r, r?.url || '') }
           );
           const asin = isAllowedAmazonUrl(res.url) ? parseAmazonAsin(res.url) : null;
-          if (asin && productId) {
-            lruSet(memoryAsinCache, productId, asin, 500);
-            setCachedAsin(productId, asin, storage);
-          }
+          cacheAsin(productId, asin, storage);
           return asin || null;
         }
       } catch {
@@ -8771,7 +8754,9 @@ const SHADOW_MODAL_STYLES = `
     try {
       return await resolvePromise;
     } finally {
-      inFlightAsin.delete(inFlightKey);
+      if (inFlightAsin.get(inFlightKey) === resolvePromise) {
+        inFlightAsin.delete(inFlightKey);
+      }
     }
   }
 
@@ -8975,11 +8960,12 @@ const SHADOW_MODAL_STYLES = `
     const escapedQ = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const wordRe = new RegExp(`(?:^|[^\\p{L}\\p{N}])${escapedQ}(?:$|[^\\p{L}\\p{N}])`, 'u');
     const scored = [];
-    const hasIgnoredFilter = ignoredIds && ((ignoredIds instanceof Set && ignoredIds.size > 0) || (Array.isArray(ignoredIds) && ignoredIds.length > 0));
+    const ignoredSet = ignoredIds ? (ignoredIds instanceof Set ? ignoredIds : new Set(ignoredIds)) : null;
+    const hasIgnoredFilter = !!(ignoredSet && ignoredSet.size > 0);
 
     for (const node of tree.allNodes) {
       if (!node.title || node.id === 'start' || node.id === 'root') continue;
-      if (hasIgnoredFilter && hasIgnoredAncestor(node, tree, ignoredIds)) continue;
+      if (hasIgnoredFilter && hasIgnoredAncestor(node, tree, ignoredSet)) continue;
 
       const titleLower = node.title.toLowerCase();
       const urlLower = (node.url || '').toLowerCase();
@@ -9161,11 +9147,6 @@ const SHADOW_MODAL_STYLES = `
     return treeLoadingPromise;
   }
 
-  function resetCategoryTreeForTesting() {
-    treeIndex = null;
-    treeLoadingPromise = null;
-  }
-
   const hydratedFeedUrls = new Set();
 
   function resetHydratedFeedUrlsForTesting() {
@@ -9175,16 +9156,19 @@ const SHADOW_MODAL_STYLES = `
   async function hydrateBranchIdents(feedUrl, branchEl) {
     if (!feedUrl || typeof fetch !== 'function') return;
     if (hydratedFeedUrls.has(feedUrl)) return;
+    hydratedFeedUrls.add(feedUrl);
+    while (hydratedFeedUrls.size > 500) {
+      hydratedFeedUrls.delete(hydratedFeedUrls.values().next().value);
+    }
     try {
       const { res: resp, body: html } = await fetchWithTimeout(
         feedUrl,
         { credentials: 'same-origin' },
         { timeoutMs: 8000, source: 'category-tree', label: 'hydrate', readAs: 'text' }
       );
-      if (!resp.ok) return;
-      hydratedFeedUrls.add(feedUrl);
-      while (hydratedFeedUrls.size > 500) {
-        hydratedFeedUrls.delete(hydratedFeedUrls.values().next().value);
+      if (!resp.ok) {
+        hydratedFeedUrls.delete(feedUrl);
+        return;
       }
       const stored = parseCategoryIdentsFromText(html);
 
@@ -9196,21 +9180,34 @@ const SHADOW_MODAL_STYLES = `
           }
         });
       }
-    } catch {}
+    } catch {
+      hydratedFeedUrls.delete(feedUrl);
+    }
   }
 
-  async function ensureCategoryIdent(item, tree = null, currentPath = '', doc = null) {
+  function getCategoryAjaxContext(activeDoc = (typeof document !== 'undefined' ? document : null)) {
+    const doc = getDoc(activeDoc);
+    const bar = doc?.querySelector?.('.Plugin_IgnoredCategories') || null;
+    const ajaxUrl = bar?.getAttribute?.('data-ajax-url') || '/plugins/filter/IgnoredCategories';
+    const menuEl = doc?.querySelector?.('.Plugin_CategoryMenu');
+    const lang = menuEl?.getAttribute?.('data-lang') || 'de';
+    const contextHash = bar?.getAttribute?.('data-context-hash') ||
+                        doc?.querySelector?.('[data-context-hash]')?.getAttribute?.('data-context-hash') || '';
+    return { bar, ajaxUrl, lang, contextHash };
+  }
+
+  async function ensureCategoryIdent(item, tree = null, currentPath = '', doc = null, excludeIdent = '') {
     if (!item) return '';
     const vcatId = String(item.numericId || item.vcatId || '').trim();
     if (!vcatId) return '';
-    if (item.ident) return item.ident;
+    if (item.ident && item.ident !== excludeIdent) return item.ident;
 
     const activeDoc = getDoc(doc);
     const safeVcatId = String(vcatId).replace(/["\\]/g, '\\$&');
     // Live DOM takes precedence over stored localStorage cache (avoid stale tokens from older sessions)
     // Exclude suite-created buttons (.tp-cat-action-btn) to prevent reading our own stale attributes
     const domToken = activeDoc?.querySelector?.(`[data-vcat-id="${safeVcatId}"][data-ident]:not(.tp-cat-action-btn)`)?.getAttribute?.('data-ident');
-    if (domToken) {
+    if (domToken && domToken !== excludeIdent) {
       const stored = getStoredIdents();
       stored[vcatId] = domToken;
       saveStoredIdents(stored);
@@ -9219,7 +9216,7 @@ const SHADOW_MODAL_STYLES = `
     }
 
     const stored = getStoredIdents();
-    if (stored[vcatId]) {
+    if (stored[vcatId] && stored[vcatId] !== excludeIdent) {
       item.ident = stored[vcatId];
       return item.ident;
     }
@@ -9235,12 +9232,7 @@ const SHADOW_MODAL_STYLES = `
 
     const fetchMenuIdents = async (pid) => {
       if (!pid || typeof fetch !== 'function') return false;
-      const bar = activeDoc?.querySelector?.('.Plugin_IgnoredCategories');
-      const ajaxUrl = bar?.getAttribute?.('data-ajax-url') || '/plugins/filter/IgnoredCategories';
-      const menuEl = activeDoc?.querySelector?.('.Plugin_CategoryMenu');
-      const lang = menuEl?.getAttribute?.('data-lang') || 'de';
-      const contextHash = bar?.getAttribute?.('data-context-hash') ||
-                          activeDoc?.querySelector?.('[data-context-hash]')?.getAttribute?.('data-context-hash') || '';
+      const { ajaxUrl, lang, contextHash } = getCategoryAjaxContext(activeDoc);
 
       const body = new URLSearchParams({
         aicatpr: pid,
@@ -9382,21 +9374,27 @@ const SHADOW_MODAL_STYLES = `
 
 
   let ignoredBarObserver = null;
+  let observedIgnoredBar = null;
 
   function disconnectIgnoredBarObserver() {
     if (ignoredBarObserver) {
       try { ignoredBarObserver.disconnect(); } catch {}
       ignoredBarObserver = null;
     }
+    observedIgnoredBar = null;
   }
 
   function observeIgnoredCategoriesBar(activeDoc = (typeof document !== 'undefined' ? document : null)) {
     if (!activeDoc || typeof MutationObserver !== 'function') return;
     const doc = getDoc(activeDoc);
     const ignoredBar = doc?.querySelector?.('.Plugin_IgnoredCategories');
+    if (ignoredBar && ignoredBar === observedIgnoredBar && ignoredBar.isConnected !== false && ignoredBarObserver) {
+      return;
+    }
     disconnectIgnoredBarObserver();
     if (!ignoredBar) return;
 
+    observedIgnoredBar = ignoredBar;
     ignoredBarObserver = new MutationObserver(() => {
       const sidebar = doc?.querySelector?.('.Plugin_CategoryMainSelectionLeft');
       if (sidebar && typeof syncCategoryTreeIgnoredState === 'function') {
@@ -9502,12 +9500,7 @@ const SHADOW_MODAL_STYLES = `
     if (typeof location === 'undefined' || !/(?:^|\.)toppreise\.ch$/i.test(location.hostname || '')) return true;
 
     const activeDoc = getDoc(doc);
-    const bar = activeDoc?.querySelector?.('.Plugin_IgnoredCategories');
-    const ajaxUrl = bar?.getAttribute?.('data-ajax-url') || '/plugins/filter/IgnoredCategories';
-    const menuEl = activeDoc?.querySelector?.('.Plugin_CategoryMenu');
-    const lang = menuEl?.getAttribute?.('data-lang') || 'de';
-    const contextHash = bar?.getAttribute?.('data-context-hash') ||
-                        activeDoc?.querySelector?.('[data-context-hash]')?.getAttribute?.('data-context-hash') || '';
+    const { bar, ajaxUrl, lang, contextHash } = getCategoryAjaxContext(activeDoc);
 
     if (typeof fetch !== 'function' || !ajaxUrl) return false;
 
@@ -9540,7 +9533,7 @@ const SHADOW_MODAL_STYLES = `
       // Stale cached ident may have been rejected by HMAC. Evict and retry once via fresh discovery.
       evictStoredIdent(vcatId);
       const tree = await loadNativeCategoryTree(activeDoc);
-      const refreshed = await ensureCategoryIdent({ numericId: vcatId, vcatId }, tree, currentPath, activeDoc);
+      const refreshed = await ensureCategoryIdent({ numericId: vcatId, vcatId }, tree, currentPath, activeDoc, ident);
       if (refreshed && refreshed !== ident) {
         const liveBar = bar?.isConnected ? bar : activeDoc?.querySelector?.('.Plugin_IgnoredCategories');
         ok = await postCategoryAction(ajaxUrl, buildBody(refreshed), liveBar, activeDoc, `Category ${isRestore ? 'restore retry' : 'exclusion retry'}`);
@@ -9595,12 +9588,7 @@ const SHADOW_MODAL_STYLES = `
     if (typeof location === 'undefined' || !/(?:^|\.)toppreise\.ch$/i.test(location.hostname || '')) return true;
 
     const activeDoc = getDoc(doc);
-    const bar = activeDoc?.querySelector?.('.Plugin_IgnoredCategories');
-    const ajaxUrl = bar?.getAttribute?.('data-ajax-url') || '/plugins/filter/IgnoredCategories';
-    const menuEl = activeDoc?.querySelector?.('.Plugin_CategoryMenu');
-    const lang = menuEl?.getAttribute?.('data-lang') || 'de';
-    const contextHash = bar?.getAttribute?.('data-context-hash') ||
-                        activeDoc?.querySelector?.('[data-context-hash]')?.getAttribute?.('data-context-hash') || '';
+    const { bar, ajaxUrl, lang, contextHash } = getCategoryAjaxContext(activeDoc);
 
     if (typeof fetch !== 'function' || !ajaxUrl) return false;
 
@@ -9643,28 +9631,16 @@ const SHADOW_MODAL_STYLES = `
   }
 
   function applyIgnoredElementState(targetEl, span, isIgnored, toggle = null) {
-    if (isIgnored) {
-      targetEl.classList.add('ignoredCategoryEntry');
-      span.classList.remove('f_IgnoredCategories_Hide');
-      span.classList.add('f_IgnoredCategories_Show');
-      span.setAttribute('title', 'Kategorie einblenden');
-      const icon = span.querySelector('i');
-      if (icon) icon.className = 'TPIcons-plus';
-      if (toggle) {
-        toggle.disabled = false;
-        toggle.removeAttribute?.('aria-disabled');
-      }
-    } else {
-      targetEl.classList.remove('ignoredCategoryEntry');
-      span.classList.remove('f_IgnoredCategories_Show');
-      span.classList.add('f_IgnoredCategories_Hide');
-      span.setAttribute('title', 'Kategorie ausblenden');
-      const icon = span.querySelector('i');
-      if (icon) icon.className = 'TPIcons-cross';
-      if (toggle) {
-        toggle.disabled = false;
-        toggle.removeAttribute?.('aria-disabled');
-      }
+    const setClass = (el, cls, on) => (on ? el.classList.add(cls) : el.classList.remove(cls));
+    setClass(targetEl, 'ignoredCategoryEntry', isIgnored);
+    setClass(span, 'f_IgnoredCategories_Show', isIgnored);
+    setClass(span, 'f_IgnoredCategories_Hide', !isIgnored);
+    span.setAttribute('title', isIgnored ? 'Kategorie einblenden' : 'Kategorie ausblenden');
+    const icon = span.querySelector('i');
+    if (icon) icon.className = isIgnored ? 'TPIcons-plus' : 'TPIcons-cross';
+    if (toggle) {
+      toggle.disabled = false;
+      toggle.removeAttribute?.('aria-disabled');
     }
   }
 
@@ -9858,10 +9834,12 @@ const SHADOW_MODAL_STYLES = `
   }
 
   function convertLeafTogglesToSpacers(sidebar) {
-    const rootLis = sidebar?.querySelectorAll?.('ul > li.category_level_0');
+    if (!sidebar || sidebar.dataset?.tpLeavesDone === '1') return;
+    const rootLis = sidebar.querySelectorAll?.('ul > li.category_level_0');
     if (!rootLis || !rootLis.length) return;
     loadNativeCategoryTree().then(tree => {
       if (!tree?.byId || tree.byId.size === 0) return;
+      if (sidebar.dataset) sidebar.dataset.tpLeavesDone = '1';
       rootLis.forEach(li => {
         const catId = li.dataset.catId;
         if (!catId || !tree.byId.has(catId)) return;
@@ -9884,13 +9862,15 @@ const SHADOW_MODAL_STYLES = `
       flyoutObserver = new MutationObserver(mutations => {
         for (const m of mutations) {
           for (const node of m.addedNodes) {
-            if (node.nodeType === 1) {
-              const menu = node.classList?.contains('IgnoredCategoriesMenu')
-                ? node
-                : node.querySelector?.('.IgnoredCategoriesMenu');
-              if (menu) {
-                parseCategoryIdentsFromText(menu.outerHTML);
-              }
+            if (node.nodeType !== 1) continue;
+            const id = typeof node.id === 'string' ? node.id : '';
+            const cls = typeof node.className === 'string' ? node.className : '';
+            if (id.startsWith('tp-') || cls.includes('tp-')) continue;
+            const menu = node.classList?.contains('IgnoredCategoriesMenu')
+              ? node
+              : node.querySelector?.('.IgnoredCategoriesMenu');
+            if (menu) {
+              parseCategoryIdentsFromText(menu.outerHTML);
             }
           }
         }
@@ -10155,7 +10135,14 @@ const SHADOW_MODAL_STYLES = `
               e.preventDefault?.();
               e.stopPropagation?.();
               e.stopImmediatePropagation?.();
-              executeServerCategoryReset(document);
+              if (resetBtn.classList?.contains?.('tp-cat-loading')) return;
+              resetBtn.classList?.add?.('tp-cat-loading');
+              try {
+                const ok = await executeServerCategoryReset(document);
+                if (!ok) showToast('Kategorien-Reset fehlgeschlagen');
+              } finally {
+                resetBtn.classList?.remove?.('tp-cat-loading');
+              }
             }
           }
         }, { capture: true });
@@ -12580,6 +12567,39 @@ const SHADOW_MODAL_STYLES = `
   let nextInitialOrder = 0;
   let minInitialOrder = 0;
 
+  function reconcileSectionSlots(primaryRow, sliceChildren, targetItems, sectionEndAnchor) {
+    const targetSet = new Set(targetItems);
+    const desired = [];
+    let cardCursor = 0;
+    for (const c of sliceChildren) {
+      if (targetSet.has(c)) {
+        if (cardCursor < targetItems.length) desired.push(targetItems[cardCursor++]);
+      } else {
+        desired.push(c);
+      }
+    }
+    while (cardCursor < targetItems.length) desired.push(targetItems[cardCursor++]);
+
+    if (sliceChildren.length === desired.length && sliceChildren.every((c, i) => c === desired[i])) return;
+
+    let anchor = sectionEndAnchor;
+    for (let i = desired.length - 1; i >= 0; i--) {
+      const node = desired[i];
+      if (!node) continue;
+      if (!targetSet.has(node)) {
+        anchor = node;
+        continue;
+      }
+      const children = primaryRow.children;
+      const idx = children.indexOf ? children.indexOf(node) : Array.prototype.indexOf.call(children, node);
+      const nextEl = idx !== -1 ? (children[idx + 1] || null) : undefined;
+      if (nextEl !== anchor) {
+        primaryRow.insertBefore(node, anchor);
+      }
+      anchor = node;
+    }
+  }
+
   function applySorting(cards, pageHasOffers, cardDataList = null) {
     const list = cards || [];
 
@@ -12725,7 +12745,6 @@ const SHADOW_MODAL_STYLES = `
           fillUpSeparator.style.setProperty('order', '0');
         }
         fillUpSeparator.style.removeProperty('display');
-        fillUpSeparator.classList.remove('tp-fillup-separator-hidden');
 
         // Section 2 items: flex orders 1 to N2
         section2Entries.forEach((entry, rank) => {
@@ -12741,48 +12760,14 @@ const SHADOW_MODAL_STYLES = `
           }
         });
 
-        // Maintain DOM slot positions within each section
-        const reconcileSectionSlots = (sliceChildren, targetItems, sectionEndAnchor) => {
-          const targetSet = new Set(targetItems);
-          const desired = [];
-          let cardCursor = 0;
-          for (const c of sliceChildren) {
-            if (targetSet.has(c)) {
-              if (cardCursor < targetItems.length) desired.push(targetItems[cardCursor++]);
-            } else {
-              desired.push(c);
-            }
-          }
-          while (cardCursor < targetItems.length) desired.push(targetItems[cardCursor++]);
-
-          if (sliceChildren.length === desired.length && sliceChildren.every((c, i) => c === desired[i])) return;
-
-          let anchor = sectionEndAnchor;
-          for (let i = desired.length - 1; i >= 0; i--) {
-            const node = desired[i];
-            if (!node) continue;
-            if (!targetSet.has(node)) {
-              anchor = node;
-              continue;
-            }
-            const children = primaryRow.children;
-            const idx = children.indexOf ? children.indexOf(node) : Array.prototype.indexOf.call(children, node);
-            const nextEl = idx !== -1 ? (children[idx + 1] || null) : undefined;
-            if (nextEl !== anchor) {
-              primaryRow.insertBefore(node, anchor);
-            }
-            anchor = node;
-          }
-        };
-
         let currentChildren = Array.from(primaryRow.children);
         let sepIndex = currentChildren.indexOf(fillUpSeparator);
         if (sepIndex !== -1) {
-          reconcileSectionSlots(currentChildren.slice(0, sepIndex), section1Entries.map(e => e.item).filter(Boolean), fillUpSeparator);
+          reconcileSectionSlots(primaryRow, currentChildren.slice(0, sepIndex), section1Entries.map(e => e.item).filter(Boolean), fillUpSeparator);
           currentChildren = Array.from(primaryRow.children);
           sepIndex = currentChildren.indexOf(fillUpSeparator);
           if (sepIndex !== -1) {
-            reconcileSectionSlots(currentChildren.slice(sepIndex + 1), section2Entries.map(e => e.item).filter(Boolean), null);
+            reconcileSectionSlots(primaryRow, currentChildren.slice(sepIndex + 1), section2Entries.map(e => e.item).filter(Boolean), null);
           }
         }
       } else {
@@ -12926,19 +12911,18 @@ const SHADOW_MODAL_STYLES = `
       });
 
       // Clear any sort flex order and restore separators
+      const separators = new Set(
+        typeof document?.querySelectorAll === 'function' ? document.querySelectorAll('.fillUpSeparator') : []
+      );
       allOrigParents.forEach(row => {
-        const seps = row.querySelectorAll ? Array.from(row.querySelectorAll('.fillUpSeparator, .tp-fillup-separator-hidden')) : (Array.isArray(row.children) ? row.children.filter(c => c.classList?.contains?.('fillUpSeparator') || c.classList?.contains?.('tp-fillup-separator-hidden')) : []);
-        seps.forEach(sep => {
-          sep.style.removeProperty('order');
-          sep.style.removeProperty('display');
-          sep.classList.remove('tp-fillup-separator-hidden');
-        });
+        const seps = row.querySelectorAll
+          ? row.querySelectorAll('.fillUpSeparator')
+          : (Array.isArray(row.children) ? row.children.filter(c => c.classList?.contains?.('fillUpSeparator')) : []);
+        seps.forEach(sep => separators.add(sep));
       });
-      const separators = typeof document?.querySelectorAll === 'function' ? Array.from(document.querySelectorAll('.fillUpSeparator, .tp-fillup-separator-hidden')) : [];
       separators.forEach(sep => {
         sep.style.removeProperty('order');
         sep.style.removeProperty('display');
-        sep.classList.remove('tp-fillup-separator-hidden');
       });
     }
   }
@@ -13038,12 +13022,17 @@ const SHADOW_MODAL_STYLES = `
     target.innerHTML = source.innerHTML;
   }
 
-  function reconcileFeedCards(incomingDoc, targetDoc = (typeof document !== 'undefined' ? document : null)) {
+  const NATIVE_DIFF_BADGE_SEL = SELECTORS.cards.diffBadge
+    .split(',')
+    .map(s => `${s.trim()}:not(.tp-injected-badge)`)
+    .join(', ');
+
+  function reconcileFeedCards(incomingDoc, targetDoc = (typeof document !== 'undefined' ? document : null), preScannedIncoming = null) {
     if (!incomingDoc || !targetDoc) {
       return { added: 0, updated: 0 };
     }
 
-    const incomingCards = getProductCards(incomingDoc);
+    const incomingCards = Array.isArray(preScannedIncoming) ? preScannedIncoming : getProductCards(incomingDoc);
     if (incomingCards.length === 0) {
       return { added: 0, updated: 0 };
     }
@@ -13094,9 +13083,10 @@ const SHADOW_MODAL_STYLES = `
             // TP-owned children (alarm bell, sparkline) are re-created by the
             // triggerProcessListings pass that follows the merge.
             replaceWithSanitized(liveContainer, inContainer, targetDoc);
-            const inBadge = inCard.querySelector?.(SELECTORS.cards.diffBadge);
-            const liveBadge = existing.querySelector?.(SELECTORS.cards.diffBadge);
-            if (inBadge && liveBadge) {
+            const inBadge = inCard.querySelector?.(NATIVE_DIFF_BADGE_SEL);
+            const liveBadge = existing.querySelector?.(NATIVE_DIFF_BADGE_SEL);
+            const isInjected = el => el?.classList?.contains('tp-injected-badge') === true;
+            if (inBadge && liveBadge && !isInjected(liveBadge)) {
               replaceWithSanitized(liveBadge, inBadge, targetDoc);
               delete liveBadge._tpLastHtml;
               if (liveBadge.dataset) {
@@ -13105,7 +13095,21 @@ const SHADOW_MODAL_STYLES = `
                 delete liveBadge.dataset.tpOriginalPid;
                 delete liveBadge.dataset.tpPaintedText;
               }
-            } else if (!inBadge && liveBadge && !liveBadge.classList?.contains('tp-injected-badge')) {
+            } else if (inBadge) {
+              existing.querySelectorAll?.('.tp-injected-badge')?.forEach(el => el.remove());
+              const adoptedBadge = targetDoc.importNode
+                ? targetDoc.importNode(inBadge, true)
+                : inBadge.cloneNode?.(true);
+              if (adoptedBadge && sanitizeImportedNode(adoptedBadge) !== null) {
+                if (liveContainer.parentElement === existing && typeof existing.insertBefore === 'function') {
+                  existing.insertBefore(adoptedBadge, liveContainer);
+                } else if (typeof existing.prepend === 'function') {
+                  existing.prepend(adoptedBadge);
+                } else {
+                  existing.appendChild?.(adoptedBadge);
+                }
+              }
+            } else if (liveBadge && !isInjected(liveBadge)) {
               liveBadge.remove();
             }
             deleteCachedDealer(pid);
@@ -13186,7 +13190,8 @@ const SHADOW_MODAL_STYLES = `
       emitProgress('parsing');
       const parser = new DOMParser();
       const doc = parser.parseFromString(html, 'text/html');
-      const incomingCount = getProductCards(doc).length;
+      const incomingCards = getProductCards(doc);
+      const incomingCount = incomingCards.length;
       if (incomingCount === 0) {
         refreshState.lastOutcome = 'empty';
         logActivity('warn', 'feed-refresh', 'Antwort enthielt keine Produktkarten (Login-Wall/Captcha?)');
@@ -13195,7 +13200,7 @@ const SHADOW_MODAL_STYLES = `
       }
 
       emitProgress('reconciling');
-      const { added, updated } = reconcileFeedCards(doc, document);
+      const { added, updated } = reconcileFeedCards(doc, document, incomingCards);
       refreshState.lastOutcome = added > 0 || updated > 0 ? 'updated' : 'no-change';
       logActivity('info', 'feed-refresh', `Abgleich abgeschlossen: +${added} neu, ${updated} aktualisiert (${incomingCount} Karten)`);
 
@@ -22352,12 +22357,16 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   let detailRun = 0;
 
+  function removeStatsDecorations() {
+    document.querySelectorAll('#tp-detail-subline, .tp-detail-subline, #tp-detail-sparkline, .tp-detail-sparkline').forEach(el => el.remove());
+  }
+
   const removeDetailDecorations = () => {
-    document.querySelectorAll('#tp-detail-subline, .tp-detail-subline').forEach(el => el.remove());
+    removeStatsDecorations();
     document.querySelectorAll('#tp-detail-share-btn, .tp-detail-share-btn').forEach(el => el.remove());
-    document.querySelectorAll('#tp-detail-sparkline, .tp-detail-sparkline').forEach(el => el.remove());
     document.querySelectorAll('.tp-detail-review-btn').forEach(el => el.remove());
   };
 
@@ -22386,7 +22395,7 @@ const SHADOW_MODAL_STYLES = `
     return unique;
   }
 
-  function renderDetailReviewButton(headingEl, title, currentPrice, stats, pid) {
+  function renderDetailReviewButton(headingEl, title, currentPrice, pid) {
     if (!headingEl || !title) return;
     let btn = headingEl.querySelector('.tp-review-search-btn');
     if (CONFIG.REVIEW_SEARCH_ENABLED === false) {
@@ -22397,7 +22406,6 @@ const SHADOW_MODAL_STYLES = `
     const priceText = currentPrice > 0 ? `CHF ${currentPrice.toFixed(2)}` : '';
     const fullQuery = formatSearchQuery(title, rawKw, priceText);
     const aiMode = CONFIG.REVIEW_SEARCH_AI_MODE === true;
-    const hasTavily = !!(CONFIG.TAVILY_ENABLED && CONFIG.TAVILY_API_KEY && CONFIG.TAVILY_API_KEY.trim());
 
     if (!btn) {
       btn = document.createElement('a');
@@ -22419,9 +22427,9 @@ const SHADOW_MODAL_STYLES = `
           priceText: payload.priceText,
           onLaunch: ({ engine, model }) => {
             if (engine === 'google') {
-              openSearchTab(baseGoogle);
+              openTabUrl(baseGoogle, { active: true });
             } else if (engine === 'google-ai') {
-              openSearchTab(`${baseGoogle}&udm=50`);
+              openTabUrl(`${baseGoogle}&udm=50`, { active: true });
             } else if (engine === 'openrouter' || engine === 'tavily') {
               openAiPopover({
                 title: payload.title,
@@ -22535,8 +22543,7 @@ const SHADOW_MODAL_STYLES = `
     for (let i = 0; i < targets.length; i++) {
       const target = targets[i];
       const parent = target.parentElement || target;
-      let subline = (target.nextElementSibling?.classList?.contains('tp-detail-subline') ? target.nextElementSibling : null)
-        || parent.querySelector?.('.tp-detail-subline');
+      let subline = target.nextElementSibling?.classList?.contains('tp-detail-subline') ? target.nextElementSibling : null;
       if (!subline) {
         subline = document.createElement('div');
         if (i === 0 && !document.getElementById('tp-detail-subline')) {
@@ -22708,6 +22715,8 @@ const SHADOW_MODAL_STYLES = `
     const baseLastTs = baseSeries.length ? (+baseSeries[baseSeries.length - 1][0] || 0) : 0;
     const lastPriceCents = priceToCents(currentPrice);
     const sig = [
+      pid || '',
+      useShipping ? 1 : 0,
       baseSeries.length,
       lastPriceCents,
       priceToCents(stats?.medianPrice ?? 0),
@@ -22784,7 +22793,7 @@ const SHADOW_MODAL_STYLES = `
     // Render Web Search / AI Review next to each H1 title
     domLock(() => {
       for (const h of headings) {
-        renderDetailReviewButton(h, title, currentPrice, null, pid);
+        renderDetailReviewButton(h, title, currentPrice, pid);
       }
     });
 
@@ -22806,13 +22815,10 @@ const SHADOW_MODAL_STYLES = `
 
     domLock(() => {
       const nativeRating = extractNativePriceRating(document);
+      const validStats = !!(stats && stats.tiefstpreis > 0
+        && !(typeof stats.isShippingPrice === 'boolean' && stats.isShippingPrice !== (priceBasis === 'shipping')));
 
-      if (stats && stats.tiefstpreis > 0) {
-        if (typeof stats.isShippingPrice === 'boolean' && stats.isShippingPrice !== (priceBasis === 'shipping')) {
-          removeDetailDecorations();
-          return;
-        }
-
+      if (validStats) {
         // Render Deal Subline
         renderDetailSubline(stats, currentPrice, priceBasis);
 
@@ -22821,19 +22827,15 @@ const SHADOW_MODAL_STYLES = `
 
         // Render Mini Sparkline below chart thumbnail
         renderDetailSparkline(pid, title, currentPrice, stats, priceBasis);
-
-        // Update Web Search / AI review button with stats
-        for (const h of headings) {
-          renderDetailReviewButton(h, title, currentPrice, stats, pid);
-        }
       } else {
-        removeDetailDecorations();
+        removeStatsDecorations();
+        renderDetailShareButton({ pid, currentPrice, priceBasis, stats: null, title, url, imageUrl, nativeRating });
       }
 
       // Live Session Bridge Telemetry (MCP evaluate_script)
       const rootEl = document.getElementById('tp-root');
       if (rootEl) {
-        const isAllTimeLow = !!(stats && stats.tiefstpreis > 0 && priceToCents(currentPrice) <= priceToCents(stats.tiefstpreis));
+        const isAllTimeLow = !!(validStats && priceToCents(currentPrice) <= priceToCents(stats.tiefstpreis));
         rootEl.setAttribute('data-tp-diag', JSON.stringify({
           version: typeof GM_info !== 'undefined' ? (GM_info.script?.version || 'dev') : 'dev',
           pageType: 'detail',
@@ -22849,9 +22851,7 @@ const SHADOW_MODAL_STYLES = `
   }
 
   // ─── APPLICATION & LIFECYCLE LOGIC ──────────────────────────────────────────
-const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ...args); };
-
-  let styleEl = document.getElementById('tp-unified-settings-styles');
+let styleEl = document.getElementById('tp-unified-settings-styles');
   if (!styleEl) {
     styleEl = document.createElement('style');
     styleEl.id = 'tp-unified-settings-styles';
@@ -22903,7 +22903,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
       const pageHasOffers = cardDataList.some(cd => cd.offerCount > 0);
 
       for (const cd of cardDataList) {
-        cd.filters = applyCardFilters(cd, termsList, CONFIG.MIN_OFFERS, pageHasOffers, isNeueFeed);
+        cd.filters = applyCardFilters(cd, termsList, CONFIG.MIN_OFFERS, pageHasOffers);
         // Dealer verdict before counting: scanner and counter must agree.
         cd.filters.isDealerLoser = dealerLoserFor(cd.card, activeStores);
         // Scan bucket from the shared resolver: fresh unavailable markers
@@ -23024,6 +23024,15 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
     if (typeof n.matches === 'function' && n.matches(TP_CARD_SEL)) return n;
     return n.closest?.(TP_CARD_SEL) ?? null;
   };
+  const NON_CARD_SEL = '.Plugin_ProductHeading, .productHeading, .product_title, h1, .priceContainer, .Plugin_Price, .Plugin_NewInfoMailForm, .AbstractDialog, .Plugin_NewInfoMailButton, .filters, .f_remove_filter, [data-tp-product-id]';
+  const STRUCTURAL_SEL = '.Plugin_Product, .mixedBrowsingListProduct, .Plugin_TopPriceReductionProductListFull, .standardList, .f_browsingListContainer, #Plugin_MixedBrowsingList, .Plugin_MixedBrowsingList, .f_MixedBrowsingList, #product-list, .Plugin_NewInfoMailForm, .AbstractDialog, .Page_DetailProduct, .Plugin_ProductHeading, .Plugin_Price, .priceContainer, .Plugin_NewInfoMailButton, .filters, .f_remove_filter';
+  const checkNode = node => {
+    if (!node) return false;
+    if (node.nodeType === 3) node = node.parentElement;
+    if (!node || node.nodeType !== 1) return false;
+    if (isOwnedNode(node)) return false;
+    return node.matches?.(STRUCTURAL_SEL) || !!node.querySelector?.(STRUCTURAL_SEL);
+  };
   mainObserver = new MutationObserver(mutations => {
     if (isModifyingDOM) return;
     if (typeof location !== 'undefined' && location.href !== lastKnownHref) {
@@ -23033,18 +23042,6 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
 
     let dirtyCard = false;
     let structural = false;
-    // Outside cards the interesting changes are text/attribute swaps (detail
-    // price, alarm controls, active filters, route attrs) — records without
-    // added/removed nodes. OBSERVE_OPTS.attributeFilter stays tight on purpose.
-    const NON_CARD_SEL = '.Plugin_ProductHeading, .productHeading, .product_title, h1, .priceContainer, .Plugin_Price, .Plugin_NewInfoMailForm, .AbstractDialog, .Plugin_NewInfoMailButton, .filters, .f_remove_filter, [data-tp-product-id]';
-    const checkNode = node => {
-      if (!node) return false;
-      if (node.nodeType === 3) node = node.parentElement;
-      if (!node || node.nodeType !== 1) return false;
-      if (isOwnedNode(node)) return false;
-      return node.matches?.('.Plugin_Product, .mixedBrowsingListProduct, .Plugin_TopPriceReductionProductListFull, .standardList, .f_browsingListContainer, #Plugin_MixedBrowsingList, .Plugin_MixedBrowsingList, .f_MixedBrowsingList, #product-list, .Plugin_NewInfoMailForm, .AbstractDialog, .Page_DetailProduct, .Plugin_ProductHeading, .Plugin_Price, .priceContainer, .Plugin_NewInfoMailButton, .filters, .f_remove_filter') ||
-             !!node.querySelector?.('.Plugin_Product, .mixedBrowsingListProduct, .Plugin_TopPriceReductionProductListFull, .standardList, .f_browsingListContainer, #Plugin_MixedBrowsingList, .Plugin_MixedBrowsingList, .f_MixedBrowsingList, #product-list, .Plugin_NewInfoMailForm, .AbstractDialog, .Page_DetailProduct, .Plugin_ProductHeading, .Plugin_Price, .priceContainer, .Plugin_NewInfoMailButton, .filters, .f_remove_filter');
-    };
 
     for (const m of mutations) {
       // Route-attribute swap on body matches no card selector: handle
@@ -23180,11 +23177,16 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
     checkPageProfileTransition();
     triggerProcessListings();
   }
+  const onRouteEvent = () => {
+    if (typeof location !== 'undefined' && location.href === lastKnownHref) return;
+    handleRouteTransition();
+  };
   if (self.navigation?.addEventListener) {
-    self.navigation.addEventListener('navigatesuccess', handleRouteTransition);
+    self.navigation.addEventListener('navigatesuccess', onRouteEvent);
+  } else {
+    window.addEventListener('popstate', onRouteEvent);
+    window.addEventListener('hashchange', onRouteEvent);
   }
-  window.addEventListener('popstate', handleRouteTransition);
-  window.addEventListener('hashchange', handleRouteTransition);
 
   async function safeProcessProductDetailPage() {
     try {
@@ -23200,7 +23202,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.578';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.579';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     const isFileFixture = typeof location !== 'undefined' && location.protocol === 'file:';
     if (isDebugHost) {

@@ -251,6 +251,40 @@ describe('Feed Refresh Engine (feed-refresh.js)', () => {
       }
     });
 
+    it('ignores .tp-injected-badge when matching native badge and adopts incoming native badge', () => {
+      const injectedBadge = {
+        nodeType: 1,
+        classList: { contains: c => c === 'tp-injected-badge' },
+        removed: false,
+        remove() { this.removed = true; }
+      };
+      const liveCard = createMockCard('101', '149.00');
+      const liveChildren = [];
+      const origLiveQs = liveCard.querySelector.bind(liveCard);
+      liveCard.querySelector = sel => {
+        if (sel?.includes('badge-dif') && !sel.includes(':not(.tp-injected-badge)')) return injectedBadge;
+        return origLiveQs(sel);
+      };
+      liveCard.querySelectorAll = sel => (sel === '.tp-injected-badge' ? [injectedBadge] : []);
+      liveCard.prepend = el => liveChildren.unshift(el);
+      const liveContainer = createMockContainer([liveCard]);
+      const liveDoc = createMockDoc(liveContainer, [liveCard]);
+      liveDoc.importNode = (n) => ({ ...n, adopted: true });
+
+      const inBadge = { nodeType: 1, attributes: [], removeAttribute() {}, innerHTML: '-30%' };
+      const inCard = createMockCard('101', '109.00');
+      const origInQs = inCard.querySelector.bind(inCard);
+      inCard.querySelector = sel => (sel?.includes('badge-dif') ? inBadge : origInQs(sel));
+      const inContainer = createMockContainer([inCard]);
+      const inDoc = createMockDoc(inContainer, [inCard]);
+
+      const res = reconcileFeedCards(inDoc, liveDoc);
+      assert.deepEqual(res, { added: 0, updated: 1 });
+      assert.equal(injectedBadge.removed, true);
+      assert.equal(liveChildren.length, 1);
+      assert.equal(liveChildren[0].adopted, true);
+    });
+
     it('updates price and clears cache when an existing card has a changed price', () => {
       const liveCard = createMockCard('101', '149.00');
       liveCard._tpPriceInfo = { cached: true };

@@ -12,8 +12,7 @@ import {
   getProductCards,
   extractCardData,
   extractActiveStores,
-  getCardDealerRows,
-  scanEligibility
+  getCardDealerRows
 } from './page/cards.js';
 import {
   parseNegativeTerms,
@@ -77,7 +76,7 @@ import { enhanceCategorySidebar, disconnectCategoryObservers } from './features/
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.578
+// @version      2.18.579
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -107,8 +106,6 @@ import { enhanceCategorySidebar, disconnectCategoryObservers } from './features/
 
 (() => {
   'use strict';
-
-  const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ...args); };
 
   let styleEl = document.getElementById('tp-unified-settings-styles');
   if (!styleEl) {
@@ -162,7 +159,7 @@ import { enhanceCategorySidebar, disconnectCategoryObservers } from './features/
       const pageHasOffers = cardDataList.some(cd => cd.offerCount > 0);
 
       for (const cd of cardDataList) {
-        cd.filters = applyCardFilters(cd, termsList, CONFIG.MIN_OFFERS, pageHasOffers, isNeueFeed);
+        cd.filters = applyCardFilters(cd, termsList, CONFIG.MIN_OFFERS, pageHasOffers);
         // Dealer verdict before counting: scanner and counter must agree.
         cd.filters.isDealerLoser = dealerLoserFor(cd.card, activeStores);
         // Scan bucket from the shared resolver: fresh unavailable markers
@@ -283,6 +280,15 @@ import { enhanceCategorySidebar, disconnectCategoryObservers } from './features/
     if (typeof n.matches === 'function' && n.matches(TP_CARD_SEL)) return n;
     return n.closest?.(TP_CARD_SEL) ?? null;
   };
+  const NON_CARD_SEL = '.Plugin_ProductHeading, .productHeading, .product_title, h1, .priceContainer, .Plugin_Price, .Plugin_NewInfoMailForm, .AbstractDialog, .Plugin_NewInfoMailButton, .filters, .f_remove_filter, [data-tp-product-id]';
+  const STRUCTURAL_SEL = '.Plugin_Product, .mixedBrowsingListProduct, .Plugin_TopPriceReductionProductListFull, .standardList, .f_browsingListContainer, #Plugin_MixedBrowsingList, .Plugin_MixedBrowsingList, .f_MixedBrowsingList, #product-list, .Plugin_NewInfoMailForm, .AbstractDialog, .Page_DetailProduct, .Plugin_ProductHeading, .Plugin_Price, .priceContainer, .Plugin_NewInfoMailButton, .filters, .f_remove_filter';
+  const checkNode = node => {
+    if (!node) return false;
+    if (node.nodeType === 3) node = node.parentElement;
+    if (!node || node.nodeType !== 1) return false;
+    if (isOwnedNode(node)) return false;
+    return node.matches?.(STRUCTURAL_SEL) || !!node.querySelector?.(STRUCTURAL_SEL);
+  };
   mainObserver = new MutationObserver(mutations => {
     if (isModifyingDOM) return;
     if (typeof location !== 'undefined' && location.href !== lastKnownHref) {
@@ -292,18 +298,6 @@ import { enhanceCategorySidebar, disconnectCategoryObservers } from './features/
 
     let dirtyCard = false;
     let structural = false;
-    // Outside cards the interesting changes are text/attribute swaps (detail
-    // price, alarm controls, active filters, route attrs) — records without
-    // added/removed nodes. OBSERVE_OPTS.attributeFilter stays tight on purpose.
-    const NON_CARD_SEL = '.Plugin_ProductHeading, .productHeading, .product_title, h1, .priceContainer, .Plugin_Price, .Plugin_NewInfoMailForm, .AbstractDialog, .Plugin_NewInfoMailButton, .filters, .f_remove_filter, [data-tp-product-id]';
-    const checkNode = node => {
-      if (!node) return false;
-      if (node.nodeType === 3) node = node.parentElement;
-      if (!node || node.nodeType !== 1) return false;
-      if (isOwnedNode(node)) return false;
-      return node.matches?.('.Plugin_Product, .mixedBrowsingListProduct, .Plugin_TopPriceReductionProductListFull, .standardList, .f_browsingListContainer, #Plugin_MixedBrowsingList, .Plugin_MixedBrowsingList, .f_MixedBrowsingList, #product-list, .Plugin_NewInfoMailForm, .AbstractDialog, .Page_DetailProduct, .Plugin_ProductHeading, .Plugin_Price, .priceContainer, .Plugin_NewInfoMailButton, .filters, .f_remove_filter') ||
-             !!node.querySelector?.('.Plugin_Product, .mixedBrowsingListProduct, .Plugin_TopPriceReductionProductListFull, .standardList, .f_browsingListContainer, #Plugin_MixedBrowsingList, .Plugin_MixedBrowsingList, .f_MixedBrowsingList, #product-list, .Plugin_NewInfoMailForm, .AbstractDialog, .Page_DetailProduct, .Plugin_ProductHeading, .Plugin_Price, .priceContainer, .Plugin_NewInfoMailButton, .filters, .f_remove_filter');
-    };
 
     for (const m of mutations) {
       // Route-attribute swap on body matches no card selector: handle
@@ -439,11 +433,16 @@ import { enhanceCategorySidebar, disconnectCategoryObservers } from './features/
     checkPageProfileTransition();
     triggerProcessListings();
   }
+  const onRouteEvent = () => {
+    if (typeof location !== 'undefined' && location.href === lastKnownHref) return;
+    handleRouteTransition();
+  };
   if (self.navigation?.addEventListener) {
-    self.navigation.addEventListener('navigatesuccess', handleRouteTransition);
+    self.navigation.addEventListener('navigatesuccess', onRouteEvent);
+  } else {
+    window.addEventListener('popstate', onRouteEvent);
+    window.addEventListener('hashchange', onRouteEvent);
   }
-  window.addEventListener('popstate', handleRouteTransition);
-  window.addEventListener('hashchange', handleRouteTransition);
 
   async function safeProcessProductDetailPage() {
     try {
@@ -459,7 +458,7 @@ import { enhanceCategorySidebar, disconnectCategoryObservers } from './features/
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.578';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.579';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     const isFileFixture = typeof location !== 'undefined' && location.protocol === 'file:';
     if (isDebugHost) {

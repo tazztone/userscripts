@@ -150,6 +150,16 @@ describe('Page Adapter Layer', () => {
       assert.equal(isNeueToppreisePage(), true);
       assert.equal(isProductDetailPage(), false);
     });
+
+    it('recognizes French recherche-produits / catalogue URLs cleanly', async () => {
+      const { isSearchPage } = await import('../../src/page/adapter.js');
+      globalThis.location = { href: 'https://www.toppreise.ch/recherche-produits/Elektronik-c1' };
+      assert.equal(isSearchPage(), true);
+      assert.equal(isNeueToppreisePage(), false);
+
+      globalThis.document.body.getAttribute = k => k === 'data-current_url' ? '/catalogue/Notebooks-c2' : null;
+      assert.equal(isNeueToppreisePage(), false);
+    });
   });
 
   describe('getDetailLowestPrice selector priority', () => {

@@ -8,6 +8,7 @@ import {
   parseJsonLdOffer,
   parseProductOffers,
   fetchProductInfo,
+  fetchProductInfoDetailed,
 } from '../../src/page/product-offers.js';
 import { resetOriginCooldown } from '../../src/state/net.js';
 
@@ -163,6 +164,42 @@ describe('product-offers module', () => {
       const res404 = await fetchProductInfo('https://www.toppreise.ch/preisvergleich/Cat/Prod-p2', 2000, false);
       assert.equal(calls, 1);
       assert.deepEqual(res404, { dealer: '', offers: 0, dealerUrl: '', totalOffers: 0 });
+    } finally {
+      resetOriginCooldown();
+      globalThis.fetch = prevFetch;
+      if (prevParser === undefined) delete globalThis.DOMParser; else globalThis.DOMParser = prevParser;
+    }
+  });
+
+  it('rejects javascript: dealerUrl in fetchProductInfoDetailed', async () => {
+    const prevFetch = globalThis.fetch;
+    const prevParser = globalThis.DOMParser;
+    resetOriginCooldown();
+    globalThis.DOMParser = class {
+      parseFromString() {
+        return {
+          querySelectorAll: (sel) => {
+            if (sel === '.Plugin_Offer') {
+              return [{
+                querySelector: (s) => {
+                  if (s.includes('img[alt]')) return { getAttribute: () => 'ShopX' };
+                  if (s.includes('productPrice')) return { textContent: 'CHF 50.00' };
+                  if (s.includes('/ext_')) return { getAttribute: () => 'javascript:alert(1)' };
+                  return null;
+                },
+                getAttribute: () => null,
+              }];
+            }
+            return [];
+          },
+        };
+      }
+    };
+    try {
+      globalThis.fetch = async () => ({ ok: true, status: 200, text: async () => '<html></html>' });
+      const res = await fetchProductInfoDetailed('https://www.toppreise.ch/preisvergleich/Cat/Prod-p3', 2000, false);
+      assert.equal(res.info.dealer, 'ShopX');
+      assert.equal(res.info.dealerUrl, '');
     } finally {
       resetOriginCooldown();
       globalThis.fetch = prevFetch;

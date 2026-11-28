@@ -14,9 +14,9 @@ const normalizeName = name => name ? name.toLowerCase().replace(/[^a-z0-9]/g, ''
 
 export function getCardDealerRows(card) {
   if (!card._tpDealerRows) {
-    card._tpDealerRows = Array.from(card.querySelectorAll(SELECTORS.cards.dealerRows)).map(row => ({
+    card._tpDealerRows = Array.from(card.querySelectorAll?.(SELECTORS.cards.dealerRows) || []).map(row => ({
       row,
-      storeName: normalizeName(row.querySelector('.title')?.textContent || '')
+      storeName: normalizeName(row.querySelector?.('.title')?.textContent || '')
     }));
   }
   return card._tpDealerRows;
@@ -73,7 +73,7 @@ export function getProductCards(root = (typeof document !== 'undefined' ? docume
 
 export function extractOfferCount(card) {
   if (card.dataset?.tpOfferCount) return parseInt(card.dataset.tpOfferCount, 10);
-  const count = parseInt(card.textContent.match(/(\d+)\s*(?:Angebote?|offres?|offert[ae]|offers?)/i)?.[1] || card.querySelectorAll('.Plugin_DealerRelProdPriceInfo').length, 10);
+  const count = parseInt(card.textContent.match(/(\d+)\s*(?:Angebote?|offres?|offert[ae]|offers?)/i)?.[1] ?? getCardDealerRows(card).length, 10);
   if (card.dataset) card.dataset.tpOfferCount = String(count);
   return count;
 }
@@ -97,6 +97,7 @@ export function getCardProductId(card) {
 
 export function extractCardDiff(card) {
   if (card.dataset?.tpDiff !== undefined && card.dataset.tpDiff !== '') {
+    if (card.dataset.tpDiff === 'none') return null;
     const cached = parseFloat(card.dataset.tpDiff);
     return isNaN(cached) ? null : (cached === 0 ? 0 : cached);
   }
@@ -134,7 +135,7 @@ export function extractCardDiff(card) {
   // fall back to full card.textContent (specs like "40% Vol." or "99% sRGB"
   // would become phantom discounts).
   if (!badgeEl) {
-    if (card.dataset) card.dataset.tpDiff = '';
+    if (card.dataset) card.dataset.tpDiff = 'none';
     return null;
   }
   const text = badgeEl.textContent || '';
@@ -149,7 +150,7 @@ export function extractCardDiff(card) {
     }
   }
   if (card.dataset) {
-    card.dataset.tpDiff = '';
+    card.dataset.tpDiff = 'none';
   }
   return null;
 }
@@ -163,9 +164,9 @@ export function extractCardDiscount(card) {
 // (-40% mid discount) -> deep ruby/red (-100% max savings).
 // Markups and 0% deals return null (transparent / no heat effect).
 const HEAT_STOPS = [
-  { t: 0.00, base: [65, 38, 10],   acc: [180, 83, 9],    border: [245, 158, 11, 0.75] }, // Warm Amber (-1%)
-  { t: 0.40, base: [85, 28, 14],   acc: [200, 50, 15],   border: [234, 88, 12, 0.85] },  // Coral / Vermilion (-40%)
-  { t: 1.00, base: [110, 15, 35],  acc: [215, 25, 55],   border: [244, 63, 94, 0.95] }   // Blazing Ruby/Red (-100%)
+  { t: 0.00, acc: [180, 83, 9],  border: [245, 158, 11, 0.75] }, // Warm Amber (-1%)
+  { t: 0.40, acc: [200, 50, 15], border: [234, 88, 12, 0.85] },  // Coral / Vermilion (-40%)
+  { t: 1.00, acc: [215, 25, 55], border: [244, 63, 94, 0.95] }   // Blazing Ruby/Red (-100%)
 ];
 
 function heatRamp(t) {
@@ -175,7 +176,6 @@ function heatRamp(t) {
   const s0 = HEAT_STOPS[i], s1 = HEAT_STOPS[i + 1], factor = (clampedT - s0.t) / (s1.t - s0.t || 1);
   const lerp = (a, b) => Math.round(a + (b - a) * factor);
   return {
-    base: [lerp(s0.base[0], s1.base[0]), lerp(s0.base[1], s1.base[1]), lerp(s0.base[2], s1.base[2])],
     acc: [lerp(s0.acc[0], s1.acc[0]), lerp(s0.acc[1], s1.acc[1]), lerp(s0.acc[2], s1.acc[2])],
     borderRgb: [lerp(s0.border[0], s1.border[0]), lerp(s0.border[1], s1.border[1]), lerp(s0.border[2], s1.border[2])],
     borderAlpha: (s0.border[3] + (s1.border[3] - s0.border[3]) * factor)
@@ -294,7 +294,7 @@ export function extractCardData(card) {
   const cardPriceBasis = priceData.basis;
   const stats = getCardStats(pid, cardPriceBasis);
   const diffVal = extractCardDiff(card);
-  const discountVal = extractCardDiscount(card);
+  const discountVal = diffVal === null ? null : (diffVal === 0 ? 0 : -diffVal);
   const basisMatches = basisMatchesFor(stats, cardPriceBasis);
   const dealScore = (basisMatches && hasUsablePriceStats(stats) && cardPrice > 0) ? computeDealScore(stats, cardPrice) : null;
   // Display delta never gates on history quality: with just {tiefstpreis} +

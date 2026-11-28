@@ -5,23 +5,19 @@
  * instant subcategory search, and lazy hydration of native ✕/＋ exclusion tokens.
  */
 
-import { isNeueToppreisePage, triggerProcessListings } from '../page/adapter.js';
+import { isNeueToppreisePage } from '../page/adapter.js';
 import { showToast } from '../ui/toast.js';
 export * from './category-tree-model.js';
 export * from './category-tree-actions.js';
 import {
   getStoredIdents, getExpandedBranches, saveExpandedBranches,
-  toFeedUrl, harvestExistingIdents, isCategoryIgnored, getIgnoredVcatIds,
+  toFeedUrl, harvestExistingIdents, getIgnoredVcatIds,
   getDoc, loadNativeCategoryTree, getCachedCategoryTree, getAncestorsWithIgnored,
-  hydrateBranchIdents, ensureCategoryIdent,
-  evictStoredIdent, parseCategoryIdentsFromText, searchCategoryTree
+  hydrateBranchIdents, parseCategoryIdentsFromText, searchCategoryTree
 } from './category-tree-model.js';
 import {
   observeIgnoredCategoriesBar, disconnectIgnoredBarObserver,
-  updateIgnoredCategoriesBarWithServerHtml,
-  refreshProductFeed, executeServerCategoryToggle,
-  executeServerCategoryExclusion, executeServerCategoryRestore,
-  executeServerCategoryReset
+  executeServerCategoryToggle, executeServerCategoryReset
 } from './category-tree-actions.js';
 
 let flyoutObserver = null;
@@ -36,28 +32,16 @@ export function disconnectCategoryObservers() {
 }
 
 function applyIgnoredElementState(targetEl, span, isIgnored, toggle = null) {
-  if (isIgnored) {
-    targetEl.classList.add('ignoredCategoryEntry');
-    span.classList.remove('f_IgnoredCategories_Hide');
-    span.classList.add('f_IgnoredCategories_Show');
-    span.setAttribute('title', 'Kategorie einblenden');
-    const icon = span.querySelector('i');
-    if (icon) icon.className = 'TPIcons-plus';
-    if (toggle) {
-      toggle.disabled = false;
-      toggle.removeAttribute?.('aria-disabled');
-    }
-  } else {
-    targetEl.classList.remove('ignoredCategoryEntry');
-    span.classList.remove('f_IgnoredCategories_Show');
-    span.classList.add('f_IgnoredCategories_Hide');
-    span.setAttribute('title', 'Kategorie ausblenden');
-    const icon = span.querySelector('i');
-    if (icon) icon.className = 'TPIcons-cross';
-    if (toggle) {
-      toggle.disabled = false;
-      toggle.removeAttribute?.('aria-disabled');
-    }
+  const setClass = (el, cls, on) => (on ? el.classList.add(cls) : el.classList.remove(cls));
+  setClass(targetEl, 'ignoredCategoryEntry', isIgnored);
+  setClass(span, 'f_IgnoredCategories_Show', isIgnored);
+  setClass(span, 'f_IgnoredCategories_Hide', !isIgnored);
+  span.setAttribute('title', isIgnored ? 'Kategorie einblenden' : 'Kategorie ausblenden');
+  const icon = span.querySelector('i');
+  if (icon) icon.className = isIgnored ? 'TPIcons-plus' : 'TPIcons-cross';
+  if (toggle) {
+    toggle.disabled = false;
+    toggle.removeAttribute?.('aria-disabled');
   }
 }
 
@@ -251,10 +235,12 @@ export function renderChildList(children, parentEl, currentPath, expandedBranche
 }
 
 export function convertLeafTogglesToSpacers(sidebar) {
-  const rootLis = sidebar?.querySelectorAll?.('ul > li.category_level_0');
+  if (!sidebar || sidebar.dataset?.tpLeavesDone === '1') return;
+  const rootLis = sidebar.querySelectorAll?.('ul > li.category_level_0');
   if (!rootLis || !rootLis.length) return;
   loadNativeCategoryTree().then(tree => {
     if (!tree?.byId || tree.byId.size === 0) return;
+    if (sidebar.dataset) sidebar.dataset.tpLeavesDone = '1';
     rootLis.forEach(li => {
       const catId = li.dataset.catId;
       if (!catId || !tree.byId.has(catId)) return;
@@ -277,13 +263,15 @@ function ensureCategoryObservers() {
     flyoutObserver = new MutationObserver(mutations => {
       for (const m of mutations) {
         for (const node of m.addedNodes) {
-          if (node.nodeType === 1) {
-            const menu = node.classList?.contains('IgnoredCategoriesMenu')
-              ? node
-              : node.querySelector?.('.IgnoredCategoriesMenu');
-            if (menu) {
-              parseCategoryIdentsFromText(menu.outerHTML);
-            }
+          if (node.nodeType !== 1) continue;
+          const id = typeof node.id === 'string' ? node.id : '';
+          const cls = typeof node.className === 'string' ? node.className : '';
+          if (id.startsWith('tp-') || cls.includes('tp-')) continue;
+          const menu = node.classList?.contains('IgnoredCategoriesMenu')
+            ? node
+            : node.querySelector?.('.IgnoredCategoriesMenu');
+          if (menu) {
+            parseCategoryIdentsFromText(menu.outerHTML);
           }
         }
       }
@@ -548,7 +536,14 @@ export function enhanceCategorySidebar() {
             e.preventDefault?.();
             e.stopPropagation?.();
             e.stopImmediatePropagation?.();
-            executeServerCategoryReset(document);
+            if (resetBtn.classList?.contains?.('tp-cat-loading')) return;
+            resetBtn.classList?.add?.('tp-cat-loading');
+            try {
+              const ok = await executeServerCategoryReset(document);
+              if (!ok) showToast('Kategorien-Reset fehlgeschlagen');
+            } finally {
+              resetBtn.classList?.remove?.('tp-cat-loading');
+            }
           }
         }
       }, { capture: true });

@@ -1361,3 +1361,52 @@ test('enhanceCategorySidebar re-attaches observers on an already enhanced sideba
     if (prevLoc === undefined) delete globalThis.location; else globalThis.location = prevLoc;
   }
 });
+
+test('ensureCategoryIdent skips excludeIdent on HMAC retry and hydrateBranchIdents deduplicates concurrent fetches', async () => {
+  const { ensureCategoryIdent, saveStoredIdents, hydrateBranchIdents, resetHydratedFeedUrlsForTesting } = await import('../../src/features/category-tree-model.js');
+  const prevFetch = globalThis.fetch;
+  resetHydratedFeedUrlsForTesting();
+  try {
+    saveStoredIdents({ '777': 'stale-tok' });
+    const mockDoc = {
+      querySelector: sel => {
+        if (sel.includes('data-vcat-id="777"')) return { getAttribute: k => k === 'data-ident' ? 'stale-tok' : null };
+        return null;
+      }
+    };
+    const tree = {
+      byId: new Map([
+        ['c777', { id: 'c777', numericId: '777', parentID: 'c200', url: '/produktsuche/Sub-c777' }]
+      ]),
+      childrenOf: new Map()
+    };
+    let identFetchCalls = 0;
+    globalThis.fetch = async (url) => {
+      identFetchCalls++;
+      return {
+        ok: true,
+        text: async () => '<span data-vcat-id="777" data-ident="fresh-tok"></span>'
+      };
+    };
+    const fresh = await ensureCategoryIdent({ numericId: '777', vcatId: '777' }, tree, '', mockDoc, 'stale-tok');
+    assert.equal(fresh, 'fresh-tok');
+    assert.equal(identFetchCalls, 1);
+
+    let hydrateCalls = 0;
+    let release;
+    const gate = new Promise(r => { release = r; });
+    globalThis.fetch = async () => {
+      hydrateCalls++;
+      await gate;
+      return { ok: true, text: async () => '' };
+    };
+    const p1 = hydrateBranchIdents('https://www.toppreise.ch/neue-toppreise/Cat-c10');
+    const p2 = hydrateBranchIdents('https://www.toppreise.ch/neue-toppreise/Cat-c10');
+    release();
+    await Promise.all([p1, p2]);
+    assert.equal(hydrateCalls, 1);
+  } finally {
+    resetHydratedFeedUrlsForTesting();
+    globalThis.fetch = prevFetch;
+  }
+});

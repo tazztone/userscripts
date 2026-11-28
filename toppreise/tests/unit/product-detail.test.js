@@ -74,7 +74,7 @@ describe('Product Detail Page Feature Suite', () => {
     heading.textContent = 'MICROSOFT Surface Laptop 8';
     document.body.appendChild(heading);
 
-    renderDetailReviewButton(heading, 'MICROSOFT Surface Laptop 8', 1059.95, null, '867323');
+    renderDetailReviewButton(heading, 'MICROSOFT Surface Laptop 8', 1059.95, '867323');
     const btn = heading.querySelector('.tp-review-search-btn');
     assert.ok(btn, 'Review button should exist inside heading');
     assert.equal(btn.textContent, '🌐');
@@ -85,11 +85,11 @@ describe('Product Detail Page Feature Suite', () => {
   it('removes Web Search button when REVIEW_SEARCH_ENABLED is false', () => {
     const heading = mockNode('h1');
     document.body.appendChild(heading);
-    renderDetailReviewButton(heading, 'Test Product', 100, null, '123');
+    renderDetailReviewButton(heading, 'Test Product', 100, '123');
     assert.ok(heading.querySelector('.tp-review-search-btn'));
 
     withConfig('REVIEW_SEARCH_ENABLED', false, () => {
-      renderDetailReviewButton(heading, 'Test Product', 100, null, '123');
+      renderDetailReviewButton(heading, 'Test Product', 100, '123');
       assert.equal(heading.querySelector('.tp-review-search-btn'), null);
     });
   });
@@ -298,8 +298,8 @@ describe('Product Detail Page Feature Suite', () => {
     };
 
     // Review buttons and deal badges in both headings
-    renderDetailReviewButton(mobileH1, 'Surface Laptop', 1000, stats, '867323');
-    renderDetailReviewButton(desktopH1, 'Surface Laptop', 1000, stats, '867323');
+    renderDetailReviewButton(mobileH1, 'Surface Laptop', 1000, '867323');
+    renderDetailReviewButton(desktopH1, 'Surface Laptop', 1000, '867323');
     assert.ok(mobileH1.querySelector('.tp-review-search-btn'), 'Mobile H1 has review button');
     assert.ok(desktopH1.querySelector('.tp-review-search-btn'), 'Desktop H1 has review button');
 
@@ -468,12 +468,12 @@ describe('Product Detail Page Feature Suite', () => {
     const heading = mockNode('h1');
     document.body.appendChild(heading);
 
-    renderDetailReviewButton(heading, 'Product A', 100, null, '111');
+    renderDetailReviewButton(heading, 'Product A', 100, '111');
     const btn = heading.querySelector('.tp-detail-review-btn');
     assert.ok(btn);
     assert.deepEqual(btn._tpReviewPayload, { title: 'Product A', priceText: 'CHF 100.00', pid: '111' });
 
-    renderDetailReviewButton(heading, 'Product B', 200, null, '222');
+    renderDetailReviewButton(heading, 'Product B', 200, '222');
     assert.deepEqual(btn._tpReviewPayload, { title: 'Product B', priceText: 'CHF 200.00', pid: '222' });
 
     const chart = mockNode('div');
@@ -650,6 +650,57 @@ describe('Product Detail Page Feature Suite', () => {
       assert.equal(fetchCount, 0);
     } finally {
       closeSharePreviewModal();
+      globalThis.fetch = prevFetch;
+    }
+  });
+
+  it('preserves review and share buttons when stats are missing and invalidates sparkline sig on pid/basis change', async () => {
+    const prevFetch = globalThis.fetch;
+    globalThis.fetch = async () => ({ ok: false, status: 404, text: async () => '' });
+    try {
+      const h1 = mockNode('h1');
+      h1.textContent = 'AirPods Pro';
+      document.body.appendChild(h1);
+
+      const priceBox = mockNode('div');
+      priceBox.className = 'f_priceContainer';
+      const priceInfo = mockNode('div');
+      priceInfo.className = 'Plugin_PriceInformation price_information_product';
+      const priceEl = mockNode('div');
+      priceEl.className = 'Plugin_Price';
+      priceEl.textContent = '199';
+      priceInfo.appendChild(priceEl);
+      priceBox.appendChild(priceInfo);
+      document.body.appendChild(priceBox);
+
+      const bell = mockNode('div');
+      bell.className = 'Plugin_NewInfoMailButton';
+      document.body.appendChild(bell);
+
+      const staleSub = mockNode('div');
+      staleSub.id = 'tp-detail-subline';
+      staleSub.className = 'tp-detail-subline';
+      document.body.appendChild(staleSub);
+
+      await processProductDetailPage();
+      assert.ok(h1.querySelector('.tp-detail-review-btn'), 'review button preserved');
+      assert.ok(document.getElementById('tp-detail-share-btn'), 'share button rendered without stats');
+      assert.equal(document.getElementById('tp-detail-subline'), null, 'stats subline cleared');
+
+      const chart = mockNode('div');
+      chart.className = 'chartProductPrice';
+      document.body.appendChild(chart);
+      const stats = { timeSeries: [[1000, 120], [2000, 100]], tiefstpreis: 100, medianPrice: 120, time: 50 };
+      renderDetailSparkline('100', 'Item', 100, stats, 'product');
+      const spark = document.getElementById('tp-detail-sparkline');
+      const sig1 = spark.dataset.tpSparkSig;
+      renderDetailSparkline('100', 'Item', 100, stats, 'shipping');
+      const sig2 = spark.dataset.tpSparkSig;
+      renderDetailSparkline('200', 'Item', 100, stats, 'shipping');
+      const sig3 = spark.dataset.tpSparkSig;
+      assert.notEqual(sig1, sig2);
+      assert.notEqual(sig2, sig3);
+    } finally {
       globalThis.fetch = prevFetch;
     }
   });

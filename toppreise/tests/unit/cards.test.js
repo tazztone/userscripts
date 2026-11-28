@@ -797,4 +797,39 @@ describe('Min-Rabatt threshold filter core', () => {
       if (prevWin !== undefined) globalThis.window = prevWin;
     }
   });
+
+  it('extractCardDiff caches none sentinel for badge-less cards without re-querying', async () => {
+    const { extractCardDiff } = await import('../../src/page/cards.js');
+    let queries = 0;
+    const card = {
+      dataset: {},
+      querySelector: () => { queries++; return null; },
+    };
+    assert.equal(extractCardDiff(card), null);
+    assert.equal(card.dataset.tpDiff, 'none');
+    assert.equal(extractCardDiff(card), null);
+    assert.equal(queries, 1);
+  });
+
+  it('matchesNegativeTerms strips .tp-* elements on single fallback heading', () => {
+    const cloneWithTpStripped = {
+      querySelectorAll: () => [{ remove() {} }],
+      textContent: 'Clean Product Name'
+    };
+    const singleHeading = {
+      querySelector: () => ({ className: 'tp-dealer-name' }),
+      cloneNode: () => ({
+        childrenRemoved: false,
+        querySelectorAll: (sel) => sel.includes('tp-') ? [{ remove() {} }] : [],
+        textContent: 'Clean Product Name'
+      }),
+      textContent: 'Clean Product Name Mini'
+    };
+    const card = {
+      querySelectorAll: () => [],
+      querySelector: (sel) => sel.includes('ProductHeading') ? singleHeading : null
+    };
+    assert.equal(matchesNegativeTerms(card, ['mini']), false);
+    assert.equal(matchesNegativeTerms(card, ['clean']), true);
+  });
 });

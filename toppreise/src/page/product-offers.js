@@ -17,6 +17,17 @@ const isToppreiseProductUrl = u => {
   } catch { return false; }
 };
 
+function resolveHttpUrl(raw, fallbackBase = 'https://www.toppreise.ch/') {
+  if (!raw || typeof raw !== 'string') return '';
+  try {
+    const base = (typeof location !== 'undefined' && /^https?:/i.test(location.href)) ? location.href : fallbackBase;
+    const resolved = new URL(raw, base).href;
+    return /^https?:\/\//i.test(resolved) ? resolved : '';
+  } catch {
+    return '';
+  }
+}
+
 const PATH_LINK_PREFIXES = ['/preisvergleich/', '/price-comparison/', '/comparateur-de-prix/'];
 
 const TITLE_SELECTORS = [
@@ -82,18 +93,12 @@ export function extractShareData(card) {
   if (!url && typeof document !== 'undefined') {
     const curUrl = document.body?.getAttribute?.('data-current_url') || document.body?.getAttribute?.('data-current-url');
     if (curUrl) {
-      try {
-        const base = (typeof location !== 'undefined' && /^https?:/i.test(location.href)) ? location.href : 'https://www.toppreise.ch/';
-        const resolved = new URL(curUrl, base).href;
-        if (isToppreiseProductUrl(resolved)) url = resolved;
-      } catch {}
+      const resolved = resolveHttpUrl(curUrl);
+      if (resolved && isToppreiseProductUrl(resolved)) url = resolved;
     }
   }
-  if (url && !/^https?:\/\//i.test(url)) {
-    try {
-      const base = (typeof location !== 'undefined' && /^https?:/i.test(location.href)) ? location.href : 'https://www.toppreise.ch/';
-      url = new URL(url, base).href;
-    } catch { /* relativ lassen */ }
+  if (url) {
+    url = resolveHttpUrl(url);
   }
   const imgEl = queryFirst(card, IMG_SELECTORS);
   const candidates = [
@@ -103,13 +108,9 @@ export function extractShareData(card) {
     imgEl?.getAttribute?.('data-original'),
   ];
   let imageUrl = candidates.find(u => u && !/^\s*data:/i.test(u)) || '';
-  if (imageUrl && !/^https?:\/\//i.test(imageUrl)) {
-    try {
-      const base = (typeof location !== 'undefined' && /^https?:/i.test(location.href)) ? location.href : 'https://www.toppreise.ch/';
-      imageUrl = new URL(imageUrl, base).href;
-    } catch { imageUrl = ''; }
+  if (imageUrl) {
+    imageUrl = resolveHttpUrl(imageUrl);
   }
-  if (!/^https?:\/\//i.test(imageUrl)) imageUrl = '';
   if (url && !isToppreiseProductUrl(url)) url = '';
   return { title, url, imageUrl };
 }
@@ -138,14 +139,8 @@ export function extractDealer(card, useShipping = false) {
 // Direktlink zum Händlerangebot aus der Händlerzeile (Katalog), falls verlinkt.
 export function extractDealerUrl(card, useShipping = false) {
   const a = extractCheapestDealerRow(card, useShipping)?.querySelector?.('a[href]');
-  let url = a?.getAttribute?.('href') || a?.href || '';
-  if (url && !/^https?:\/\//i.test(url)) {
-    try {
-      const base = (typeof location !== 'undefined' && /^https?:/i.test(location.href)) ? location.href : 'https://www.toppreise.ch/';
-      url = new URL(url, base).href;
-    } catch { /* relativ lassen */ }
-  }
-  return /^https:/i.test(url) ? url : '';
+  const resolved = resolveHttpUrl(a?.getAttribute?.('href') || a?.href || '');
+  return /^https:/i.test(resolved) ? resolved : '';
 }
 
 // Schema.org-JSON-LD aus statischem HTML lesen: Händlerzeilen sind AJAX-gerendert
@@ -316,7 +311,7 @@ export async function fetchProductInfoDetailed(productUrl, timeoutMs = 10000, us
         const best = pickCheapestOffer(offers, useShipping);
         out.dealer = best ? best.dealer : '';
         if (best?.url) {
-          try { out.dealerUrl = new URL(best.url, productUrl).href; } catch { out.dealerUrl = best.url; }
+          out.dealerUrl = resolveHttpUrl(best.url, productUrl);
         }
         return { info: out, transient: false };
       }
@@ -391,6 +386,12 @@ export function clearMemoryAsinCache() {
 
 // Resolves the Amazon ASIN from a direct dealer link or /ext_de redirect URL.
 // Caches persistently per productId in localStorage and memory.
+function cacheAsin(productId, asin, storage) {
+  if (!asin || !productId) return;
+  lruSet(memoryAsinCache, productId, asin, 500);
+  setCachedAsin(productId, asin, storage);
+}
+
 export async function resolveAmazonAsin(directUrl, productId = null, storage = null, fetchFn = null) {
   if (productId) {
     if (memoryAsinCache.has(productId)) return memoryAsinCache.get(productId);
@@ -403,10 +404,7 @@ export async function resolveAmazonAsin(directUrl, productId = null, storage = n
 
   const inlineAsin = isAllowedAmazonUrl(directUrl) ? parseAmazonAsin(directUrl) : null;
   if (inlineAsin) {
-    if (productId) {
-      lruSet(memoryAsinCache, productId, inlineAsin, 500);
-      setCachedAsin(productId, inlineAsin, storage);
-    }
+    cacheAsin(productId, inlineAsin, storage);
     return inlineAsin;
   }
 
@@ -434,10 +432,7 @@ export async function resolveAmazonAsin(directUrl, productId = null, storage = n
         const res = await fetchFn(target);
         const resolvedUrl = res?.url || res?.location || (typeof res === 'string' ? res : '');
         const asin = isAllowedAmazonUrl(resolvedUrl) ? parseAmazonAsin(resolvedUrl) : null;
-        if (asin && productId) {
-          lruSet(memoryAsinCache, productId, asin, 500);
-          setCachedAsin(productId, asin, storage);
-        }
+        cacheAsin(productId, asin, storage);
         return asin || null;
       } catch {
         return null;
@@ -462,10 +457,7 @@ export async function resolveAmazonAsin(directUrl, productId = null, storage = n
         });
         const loc = res?.finalUrl || res?.responseHeaders?.match(/(?:^|\r?\n)location:\s*([^\r\n]+)/i)?.[1] || '';
         const asin = isAllowedAmazonUrl(loc) ? parseAmazonAsin(loc) : null;
-        if (asin && productId) {
-          lruSet(memoryAsinCache, productId, asin, 500);
-          setCachedAsin(productId, asin, storage);
-        }
+        cacheAsin(productId, asin, storage);
         return asin || null;
       }
       if (typeof fetch !== 'undefined') {
@@ -475,10 +467,7 @@ export async function resolveAmazonAsin(directUrl, productId = null, storage = n
           { timeoutMs: 6000, source: 'asin', label: 'HEAD', isOk: r => isAsinHeadOk(r, r?.url || '') }
         );
         const asin = isAllowedAmazonUrl(res.url) ? parseAmazonAsin(res.url) : null;
-        if (asin && productId) {
-          lruSet(memoryAsinCache, productId, asin, 500);
-          setCachedAsin(productId, asin, storage);
-        }
+        cacheAsin(productId, asin, storage);
         return asin || null;
       }
     } catch {
@@ -491,6 +480,8 @@ export async function resolveAmazonAsin(directUrl, productId = null, storage = n
   try {
     return await resolvePromise;
   } finally {
-    inFlightAsin.delete(inFlightKey);
+    if (inFlightAsin.get(inFlightKey) === resolvePromise) {
+      inFlightAsin.delete(inFlightKey);
+    }
   }
 }

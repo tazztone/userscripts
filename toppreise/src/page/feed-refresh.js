@@ -93,12 +93,17 @@ function replaceWithSanitized(target, source, targetDoc) {
   target.innerHTML = source.innerHTML;
 }
 
-export function reconcileFeedCards(incomingDoc, targetDoc = (typeof document !== 'undefined' ? document : null)) {
+const NATIVE_DIFF_BADGE_SEL = SELECTORS.cards.diffBadge
+  .split(',')
+  .map(s => `${s.trim()}:not(.tp-injected-badge)`)
+  .join(', ');
+
+export function reconcileFeedCards(incomingDoc, targetDoc = (typeof document !== 'undefined' ? document : null), preScannedIncoming = null) {
   if (!incomingDoc || !targetDoc) {
     return { added: 0, updated: 0 };
   }
 
-  const incomingCards = getProductCards(incomingDoc);
+  const incomingCards = Array.isArray(preScannedIncoming) ? preScannedIncoming : getProductCards(incomingDoc);
   if (incomingCards.length === 0) {
     return { added: 0, updated: 0 };
   }
@@ -149,9 +154,10 @@ export function reconcileFeedCards(incomingDoc, targetDoc = (typeof document !==
           // TP-owned children (alarm bell, sparkline) are re-created by the
           // triggerProcessListings pass that follows the merge.
           replaceWithSanitized(liveContainer, inContainer, targetDoc);
-          const inBadge = inCard.querySelector?.(SELECTORS.cards.diffBadge);
-          const liveBadge = existing.querySelector?.(SELECTORS.cards.diffBadge);
-          if (inBadge && liveBadge) {
+          const inBadge = inCard.querySelector?.(NATIVE_DIFF_BADGE_SEL);
+          const liveBadge = existing.querySelector?.(NATIVE_DIFF_BADGE_SEL);
+          const isInjected = el => el?.classList?.contains('tp-injected-badge') === true;
+          if (inBadge && liveBadge && !isInjected(liveBadge)) {
             replaceWithSanitized(liveBadge, inBadge, targetDoc);
             delete liveBadge._tpLastHtml;
             if (liveBadge.dataset) {
@@ -160,7 +166,21 @@ export function reconcileFeedCards(incomingDoc, targetDoc = (typeof document !==
               delete liveBadge.dataset.tpOriginalPid;
               delete liveBadge.dataset.tpPaintedText;
             }
-          } else if (!inBadge && liveBadge && !liveBadge.classList?.contains('tp-injected-badge')) {
+          } else if (inBadge) {
+            existing.querySelectorAll?.('.tp-injected-badge')?.forEach(el => el.remove());
+            const adoptedBadge = targetDoc.importNode
+              ? targetDoc.importNode(inBadge, true)
+              : inBadge.cloneNode?.(true);
+            if (adoptedBadge && sanitizeImportedNode(adoptedBadge) !== null) {
+              if (liveContainer.parentElement === existing && typeof existing.insertBefore === 'function') {
+                existing.insertBefore(adoptedBadge, liveContainer);
+              } else if (typeof existing.prepend === 'function') {
+                existing.prepend(adoptedBadge);
+              } else {
+                existing.appendChild?.(adoptedBadge);
+              }
+            }
+          } else if (liveBadge && !isInjected(liveBadge)) {
             liveBadge.remove();
           }
           deleteCachedDealer(pid);
@@ -241,7 +261,8 @@ export async function refreshFeed({ onStart, onEnd, onProgress, customFetch, tim
     emitProgress('parsing');
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, 'text/html');
-    const incomingCount = getProductCards(doc).length;
+    const incomingCards = getProductCards(doc);
+    const incomingCount = incomingCards.length;
     if (incomingCount === 0) {
       refreshState.lastOutcome = 'empty';
       logActivity('warn', 'feed-refresh', 'Antwort enthielt keine Produktkarten (Login-Wall/Captcha?)');
@@ -250,7 +271,7 @@ export async function refreshFeed({ onStart, onEnd, onProgress, customFetch, tim
     }
 
     emitProgress('reconciling');
-    const { added, updated } = reconcileFeedCards(doc, document);
+    const { added, updated } = reconcileFeedCards(doc, document, incomingCards);
     refreshState.lastOutcome = added > 0 || updated > 0 ? 'updated' : 'no-change';
     logActivity('info', 'feed-refresh', `Abgleich abgeschlossen: +${added} neu, ${updated} aktualisiert (${incomingCount} Karten)`);
 

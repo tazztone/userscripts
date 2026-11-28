@@ -35,6 +35,39 @@ export function getCardSortableUnit(card) {
 let nextInitialOrder = 0;
 let minInitialOrder = 0;
 
+function reconcileSectionSlots(primaryRow, sliceChildren, targetItems, sectionEndAnchor) {
+  const targetSet = new Set(targetItems);
+  const desired = [];
+  let cardCursor = 0;
+  for (const c of sliceChildren) {
+    if (targetSet.has(c)) {
+      if (cardCursor < targetItems.length) desired.push(targetItems[cardCursor++]);
+    } else {
+      desired.push(c);
+    }
+  }
+  while (cardCursor < targetItems.length) desired.push(targetItems[cardCursor++]);
+
+  if (sliceChildren.length === desired.length && sliceChildren.every((c, i) => c === desired[i])) return;
+
+  let anchor = sectionEndAnchor;
+  for (let i = desired.length - 1; i >= 0; i--) {
+    const node = desired[i];
+    if (!node) continue;
+    if (!targetSet.has(node)) {
+      anchor = node;
+      continue;
+    }
+    const children = primaryRow.children;
+    const idx = children.indexOf ? children.indexOf(node) : Array.prototype.indexOf.call(children, node);
+    const nextEl = idx !== -1 ? (children[idx + 1] || null) : undefined;
+    if (nextEl !== anchor) {
+      primaryRow.insertBefore(node, anchor);
+    }
+    anchor = node;
+  }
+}
+
 export function applySorting(cards, pageHasOffers, cardDataList = null) {
   const list = cards || [];
 
@@ -180,7 +213,6 @@ export function applySorting(cards, pageHasOffers, cardDataList = null) {
         fillUpSeparator.style.setProperty('order', '0');
       }
       fillUpSeparator.style.removeProperty('display');
-      fillUpSeparator.classList.remove('tp-fillup-separator-hidden');
 
       // Section 2 items: flex orders 1 to N2
       section2Entries.forEach((entry, rank) => {
@@ -196,48 +228,14 @@ export function applySorting(cards, pageHasOffers, cardDataList = null) {
         }
       });
 
-      // Maintain DOM slot positions within each section
-      const reconcileSectionSlots = (sliceChildren, targetItems, sectionEndAnchor) => {
-        const targetSet = new Set(targetItems);
-        const desired = [];
-        let cardCursor = 0;
-        for (const c of sliceChildren) {
-          if (targetSet.has(c)) {
-            if (cardCursor < targetItems.length) desired.push(targetItems[cardCursor++]);
-          } else {
-            desired.push(c);
-          }
-        }
-        while (cardCursor < targetItems.length) desired.push(targetItems[cardCursor++]);
-
-        if (sliceChildren.length === desired.length && sliceChildren.every((c, i) => c === desired[i])) return;
-
-        let anchor = sectionEndAnchor;
-        for (let i = desired.length - 1; i >= 0; i--) {
-          const node = desired[i];
-          if (!node) continue;
-          if (!targetSet.has(node)) {
-            anchor = node;
-            continue;
-          }
-          const children = primaryRow.children;
-          const idx = children.indexOf ? children.indexOf(node) : Array.prototype.indexOf.call(children, node);
-          const nextEl = idx !== -1 ? (children[idx + 1] || null) : undefined;
-          if (nextEl !== anchor) {
-            primaryRow.insertBefore(node, anchor);
-          }
-          anchor = node;
-        }
-      };
-
       let currentChildren = Array.from(primaryRow.children);
       let sepIndex = currentChildren.indexOf(fillUpSeparator);
       if (sepIndex !== -1) {
-        reconcileSectionSlots(currentChildren.slice(0, sepIndex), section1Entries.map(e => e.item).filter(Boolean), fillUpSeparator);
+        reconcileSectionSlots(primaryRow, currentChildren.slice(0, sepIndex), section1Entries.map(e => e.item).filter(Boolean), fillUpSeparator);
         currentChildren = Array.from(primaryRow.children);
         sepIndex = currentChildren.indexOf(fillUpSeparator);
         if (sepIndex !== -1) {
-          reconcileSectionSlots(currentChildren.slice(sepIndex + 1), section2Entries.map(e => e.item).filter(Boolean), null);
+          reconcileSectionSlots(primaryRow, currentChildren.slice(sepIndex + 1), section2Entries.map(e => e.item).filter(Boolean), null);
         }
       }
     } else {
@@ -381,19 +379,18 @@ export function applySorting(cards, pageHasOffers, cardDataList = null) {
     });
 
     // Clear any sort flex order and restore separators
+    const separators = new Set(
+      typeof document?.querySelectorAll === 'function' ? document.querySelectorAll('.fillUpSeparator') : []
+    );
     allOrigParents.forEach(row => {
-      const seps = row.querySelectorAll ? Array.from(row.querySelectorAll('.fillUpSeparator, .tp-fillup-separator-hidden')) : (Array.isArray(row.children) ? row.children.filter(c => c.classList?.contains?.('fillUpSeparator') || c.classList?.contains?.('tp-fillup-separator-hidden')) : []);
-      seps.forEach(sep => {
-        sep.style.removeProperty('order');
-        sep.style.removeProperty('display');
-        sep.classList.remove('tp-fillup-separator-hidden');
-      });
+      const seps = row.querySelectorAll
+        ? row.querySelectorAll('.fillUpSeparator')
+        : (Array.isArray(row.children) ? row.children.filter(c => c.classList?.contains?.('fillUpSeparator')) : []);
+      seps.forEach(sep => separators.add(sep));
     });
-    const separators = typeof document?.querySelectorAll === 'function' ? Array.from(document.querySelectorAll('.fillUpSeparator, .tp-fillup-separator-hidden')) : [];
     separators.forEach(sep => {
       sep.style.removeProperty('order');
       sep.style.removeProperty('display');
-      sep.classList.remove('tp-fillup-separator-hidden');
     });
   }
 }
