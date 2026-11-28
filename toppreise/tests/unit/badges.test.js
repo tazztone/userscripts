@@ -872,4 +872,42 @@ describe('dom-helpers setHtmlIfChanged / setTextIfChanged', () => {
       if (prevDoc === undefined) delete globalThis.document; else globalThis.document = prevDoc;
     }
   });
+
+  it('renderEmptyState inserts notice into getCardSortableUnit(cards[0]).parentElement instead of wrapper column', async () => {
+    const { renderEmptyState } = await import('../../src/ui/badges/card-chrome.js');
+    const prevDoc = globalThis.document;
+    const notice = { id: 'tp-empty-state-notice', className: '', dataset: {}, style: {}, innerHTML: '', querySelector: () => null };
+    const listRow = {
+      id: 'product-list',
+      classList: { contains: c => c === 'row' },
+      firstChild: null,
+      inserted: [],
+      insertBefore(el, ref) { this.inserted.push({ el, ref }); }
+    };
+    const colCls = new Set(['col-6']);
+    colCls.contains = c => colCls.has(c);
+    const colWrap = {
+      classList: colCls,
+      parentElement: listRow,
+      closest: () => null,
+      inserted: [],
+      insertBefore(el, ref) { this.inserted.push({ el, ref }); }
+    };
+    const card = {
+      parentElement: colWrap,
+      closest: () => null,
+    };
+    globalThis.document = {
+      getElementById: () => null,
+      createElement: () => notice,
+      body: null
+    };
+    try {
+      renderEmptyState([card], { filteredCount: 1 });
+      assert.equal(listRow.inserted.length, 1);
+      assert.equal(colWrap.inserted.length, 0);
+    } finally {
+      if (prevDoc === undefined) delete globalThis.document; else globalThis.document = prevDoc;
+    }
+  });
 });

@@ -4,7 +4,7 @@
  */
 
 import { showToast } from './toast.js';
-import { CONFIG, DEFAULTS, SECRET_KEYS, PAGE_SCOPED_KEYS, RESET_GROUPS, saveConfigKey, updateConfigs, resetConfigToDefaults, updateBodyClasses, clampIntensity01, clampMinPoints, sanitizeReviewKeyword, sanitizeConfigValue, _getValue, _setValue } from '../state/config.js';
+import { CONFIG, DEFAULTS, SECRET_KEYS, PAGE_SCOPED_KEYS, RESET_GROUPS, updateConfigs, resetConfigToDefaults, updateBodyClasses, clampIntensity01, clampMinPoints, sanitizeReviewKeyword, sanitizeConfigValue, _getValue, _setValue } from '../state/config.js';
 import { clearPriceStatsCache, recomputeCachedMedians, STATS_CACHE_PREFIX } from '../scanner/cache.js';
 import { clearDealerMemory } from './badges.js';
 import { triggerProcessListings, clearCardCache } from '../page/adapter.js';
@@ -20,7 +20,7 @@ import { discordForumFlagKey, isDiscordWebhookUrl } from '../features/share-disc
 import { syncFieldsFromConfig, scheduleLayoutPreview, getLayoutPresets, updateKeywordPreview, addExtraChannelRow } from './modal-bindings.js';
 import { bindDiagTrigger, openDiagModal } from './diag-modal.js';
 import { ensureSkeleton } from './shell.js';
-import { writeCollapsed, clearCollapsedState, syncCollapseAllBtn } from './modal-template.js';
+import { writeCollapsed, clearCollapsedState, applyCollapsed, syncCollapseAllBtn } from './modal-template.js';
 
 export function wireModalActions(els) {
   els.cacheClearBtn?.addEventListener('click', () => {
@@ -100,12 +100,21 @@ export function wireModalActions(els) {
 
   els.dataResetBtn?.addEventListener('click', () => {
     if (!window.confirm('Wirklich ALLE Suite-Daten löschen? Preis-/Händler-Cache und sämtliche Einstellungen (inkl. Discord-Webhook) werden auf Standard zurückgesetzt.')) return;
+    cancelBatchDealCheck();
     const removed = clearPriceStatsCache();
     clearDealerMemory();
     clearMemoryAsinCache();
     clearTavilyCache();
     clearOpenRouterCache();
     clearCollapsedState();
+    els.shadow?.querySelectorAll('section.tp-section-card.tp-collapsed').forEach(c => {
+      c.classList.remove('tp-collapsed');
+      c.querySelector('[data-collapse]')?.setAttribute('aria-expanded', 'true');
+    });
+    if (els.shadow) {
+      applyCollapsed(els.shadow);
+      syncCollapseAllBtn(els.shadow);
+    }
     getProductCards().forEach(clearCardCache);
     try { localStorage.removeItem('tp_vcat_ident_v1'); } catch (e) {}
     try { sessionStorage.removeItem('tp_cat_expanded_branches'); } catch (e) {}
@@ -197,6 +206,7 @@ export function wireModalActions(els) {
         const data = JSON.parse(reader.result);
         const importConfig = data.config || data;
         const prev = captureResetSnapshot();
+        const updates = {};
         let count = 0;
         for (const [key, val] of Object.entries(importConfig)) {
           if (!Object.hasOwn(DEFAULTS, key) || key === 'DEBUG' || SECRET_KEYS.has(key)) continue;
@@ -204,9 +214,10 @@ export function wireModalActions(els) {
           if (key === 'DISCORD_LAYOUT' && validateLayoutRecipe(String(val))) continue;
           const clean = sanitizeConfigValue(key, val);
           if (clean === undefined) continue;
-          saveConfigKey(key, clean);
+          updates[key] = clean;
           count++;
         }
+        if (count > 0) updateConfigs(updates, { skipRender: true });
         applyPostResetEffects(prev);
         showToast(`${count} Einstellungen importiert`);
       } catch (err) {
@@ -218,6 +229,7 @@ export function wireModalActions(els) {
   });
 
   const openModal = () => {
+    if (els.dialog.open || els.dialog.hasAttribute?.('open')) return;
     syncFieldsFromConfig(els);
     if (typeof els.dialog.showModal === 'function') els.dialog.showModal();
     else els.dialog.setAttribute('open', '');

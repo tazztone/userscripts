@@ -266,11 +266,11 @@ export function syncCalcControls() {
   // Skip while dragging: the input handler owns the label mid-drag.
   if (weightRange && document.activeElement !== weightRange) {
     weightRange.value = Math.round(curWeight * 100);
-  }
-  const weightLabel = document.getElementById('tp-bar-weight-label');
-  if (weightLabel) {
-    weightLabel.textContent = `⚖️ ${weightText(curWeight, 'short')}`;
-    weightLabel.title = weightText(curWeight, 'title');
+    const weightLabel = document.getElementById('tp-bar-weight-label');
+    if (weightLabel) {
+      weightLabel.textContent = `⚖️ ${weightText(curWeight, 'short')}`;
+      weightLabel.title = weightText(curWeight, 'title');
+    }
   }
   paintMinPoints();
   const horizonRange = document.getElementById('tp-bar-horizon-range');

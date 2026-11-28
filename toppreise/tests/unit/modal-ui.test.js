@@ -144,4 +144,71 @@ describe('UI modal & controls', () => {
     assert.deepEqual([...scanState.freshPids].sort(), ['p-fresh-1', 'p-fresh-2']);
     scanState.freshPids.clear();
   });
+
+  it('diag-modal backdrop click uses bounding rect instead of closing on internal clicks', async () => {
+    const { openDiagModal } = await import('../../src/ui/diag-modal.js');
+    const shadow = createMockNode('div');
+    const dialog = createMockNode('dialog');
+    const subEls = new Map();
+    dialog.querySelector = sel => {
+      if (!subEls.has(sel)) subEls.set(sel, createMockNode('div'));
+      return subEls.get(sel);
+    };
+    let closedCount = 0;
+    dialog.close = () => { closedCount++; dialog.open = false; };
+    dialog.showModal = () => { dialog.open = true; };
+    dialog.getBoundingClientRect = () => ({ left: 100, right: 500, top: 100, bottom: 400 });
+    const inner = createMockNode('pre');
+    shadow.querySelector = sel => (sel === '#tp-diag-modal' ? dialog : null);
+    const prevDoc = globalThis.document;
+    globalThis.document = {
+      createElement: () => dialog,
+      getElementById: () => null,
+    };
+    try {
+      openDiagModal(shadow);
+      const clickHandler = dialog._listeners.click?.[0];
+      assert.ok(clickHandler);
+      clickHandler({ target: inner, clientX: 20, clientY: 20 });
+      assert.equal(closedCount, 0);
+      clickHandler({ target: dialog, clientX: 200, clientY: 200 });
+      assert.equal(closedCount, 0);
+      clickHandler({ target: dialog, clientX: 50, clientY: 200 });
+      assert.equal(closedCount, 1);
+    } finally {
+      if (prevDoc === undefined) delete globalThis.document; else globalThis.document = prevDoc;
+    }
+  });
+
+  it('openAiLauncherPopover registers click listener in bubble phase and closes on outside click', async () => {
+    const { openAiLauncherPopover, closeAiLauncherPopover } = await import('../../src/ui/ai-launcher-popover.js');
+    const prevDoc = globalThis.document;
+    const listeners = [];
+    const mk = tag => {
+      const n = createMockNode(tag);
+      n.append = (...xs) => xs.forEach(x => n.appendChild(x));
+      n.focus = () => {};
+      n.getBoundingClientRect = () => ({ left: 10, right: 40, top: 10, bottom: 30, width: 200, height: 150 });
+      return n;
+    };
+    const anchor = mk('button');
+    const body = mk('body');
+    globalThis.document = {
+      body,
+      activeElement: anchor,
+      createElement: mk,
+      getElementById: () => null,
+      addEventListener: (ev, fn, cap) => listeners.push({ ev, fn, cap }),
+      removeEventListener: () => {},
+    };
+    try {
+      openAiLauncherPopover({ mode: 'single', anchorEl: anchor, title: 'Test', priceText: '' });
+      const clickEntry = listeners.find(l => l.ev === 'click');
+      assert.ok(clickEntry);
+      assert.equal(clickEntry.cap, false);
+    } finally {
+      closeAiLauncherPopover();
+      if (prevDoc === undefined) delete globalThis.document; else globalThis.document = prevDoc;
+    }
+  });
 });

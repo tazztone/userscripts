@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.579
+// @version      2.18.580
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -304,107 +304,6 @@ const STYLES_CARDS = `
     bottom: -5px !important;
     left: -4px !important;
     right: -4px !important;
-  }
-  /* Touch visibility & hit area expansion for hover-only card actions */
-  @media (hover: none), (pointer: coarse) {
-    .tp-share-btn:not(.tp-share-done):not(:disabled),
-    .tp-review-search-btn,
-    button.tp-dealer-name.tp-dealer-btn:not(:disabled),
-    .tp-card-alarm-group,
-    button.tp-card-alarm-btn:not(:disabled) {
-      opacity: 0.45 !important;
-      pointer-events: auto !important;
-      touch-action: manipulation !important;
-    }
-    .tp-sparkline-container,
-    .tp-alarm-cog,
-    .tp-detail-sparkline,
-    .tp-detail-share-btn,
-    .badge-dif.tp-deal-pill {
-      position: relative !important;
-      touch-action: manipulation !important;
-    }
-    .tp-card-alarm-group * {
-      pointer-events: auto !important;
-    }
-    .tp-review-search-btn,
-    button.tp-dealer-name.tp-dealer-btn {
-      position: relative !important;
-    }
-    button.tp-card-alarm-btn {
-      min-width: 26px !important;
-      min-height: 26px !important;
-      display: inline-flex !important;
-      align-items: center !important;
-      justify-content: center !important;
-    }
-    .tp-share-btn:not(:disabled):active,
-    .tp-review-search-btn:active,
-    button.tp-dealer-name.tp-dealer-btn:not(:disabled):active,
-    .tp-card-alarm-group:active,
-    button.tp-card-alarm-btn:not(:disabled):active {
-      opacity: 1 !important;
-    }
-    .tp-card-subline-row .tp-sparkline-container::after {
-      content: "" !important;
-      position: absolute !important;
-      top: -15px !important;
-      bottom: -5px !important;
-      left: -8px !important;
-      right: -6px !important;
-    }
-    .tp-detail-sparkline::after {
-      content: "" !important;
-      position: absolute !important;
-      top: -8px !important;
-      bottom: -8px !important;
-      left: -6px !important;
-      right: -6px !important;
-    }
-    .tp-share-btn::after {
-      content: "" !important;
-      position: absolute !important;
-      top: -11px !important;
-      bottom: -5px !important;
-      left: -5px !important;
-      right: -6px !important;
-    }
-    .tp-detail-share-btn::after {
-      content: "" !important;
-      position: absolute !important;
-      inset: -8px !important;
-    }
-    .tp-review-search-btn::after,
-    button.tp-dealer-name.tp-dealer-btn::after {
-      content: "" !important;
-      position: absolute !important;
-      inset: -10px !important;
-    }
-    /* Alarm bell ::after renders .tp-alarm-auto lightning badge; expand bell hit area on ::before */
-    button.tp-card-alarm-btn::before {
-      content: "" !important;
-      position: absolute !important;
-      top: -9px !important;
-      bottom: -9px !important;
-      left: -9px !important;
-      right: -2px !important;
-    }
-    .tp-alarm-cog::after {
-      content: "" !important;
-      position: absolute !important;
-      top: -10px !important;
-      bottom: -10px !important;
-      left: -2px !important;
-      right: -10px !important;
-    }
-    .badge-dif.tp-deal-pill::after {
-      content: "" !important;
-      position: absolute !important;
-      top: -9px !important;
-      bottom: -9px !important;
-      left: -4px !important;
-      right: -4px !important;
-    }
   }
   .Plugin_ProductCollectionRelProductsList .Plugin_Product {
     padding-top: 4px !important;
@@ -814,7 +713,7 @@ const STYLES_BADGES = `
   .tp-card-dealer-row > .tp-dealer-name {
     display: inline-flex !important;
     justify-content: flex-end !important;
-    max-width: none !important;
+    max-width: 100% !important;
     margin-right: 0 !important;
     flex: 1 1 auto !important;
     text-align: right !important;
@@ -876,7 +775,7 @@ const STYLES_BADGES = `
     margin-right: 4px !important;
   }
   :is(.mixedBrowsingList, .mixedList, .priceAvailabilityContainer, .price-availability) .tp-card-dealer-row :is(span.tp-dealer-name, a.tp-dealer-name) {
-    max-width: none !important;
+    max-width: 100% !important;
     margin-right: 0 !important;
   }
   a.tp-dealer-name:hover {
@@ -1065,6 +964,109 @@ const STYLES_BADGES = `
   .tp-alarm-cog { position: relative; display: inline-flex; align-items: center; justify-content: center; min-width: 24px; min-height: 24px; margin-left: 6px; padding: 2px 4px; border: none; border-radius: 4px; background: transparent; color: inherit; font-size: 14px; line-height: 1; cursor: pointer; opacity: .75; }
   .tp-alarm-cog:hover, .tp-alarm-cog:focus-visible { opacity: 1; }
   .tp-alarm-cog:focus-visible { outline: 2px solid var(--tp-focus, #3b82f6); outline-offset: 2px; }
+  /* Touch visibility & hit area expansion for hover-only card actions (after base badge/pill rules) */
+  @media (hover: none), (pointer: coarse) {
+    .tp-share-btn:not(.tp-share-done):not(:disabled),
+    .tp-review-search-btn,
+    button.tp-dealer-name.tp-dealer-btn:not(:disabled),
+    .tp-card-alarm-group,
+    button.tp-card-alarm-btn:not(:disabled) {
+      opacity: 0.45 !important;
+      pointer-events: auto !important;
+      touch-action: manipulation !important;
+    }
+    .tp-sparkline-container,
+    .tp-alarm-cog,
+    .tp-detail-sparkline,
+    .tp-detail-share-btn,
+    .badge.badge-dif.tp-deal-pill,
+    .badge-dif.tp-deal-pill {
+      position: relative !important;
+      touch-action: manipulation !important;
+    }
+    .tp-card-alarm-group * {
+      pointer-events: auto !important;
+    }
+    .tp-review-search-btn,
+    button.tp-dealer-name.tp-dealer-btn {
+      position: relative !important;
+    }
+    button.tp-card-alarm-btn {
+      min-width: 26px !important;
+      min-height: 26px !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+    }
+    .tp-share-btn:not(:disabled):active,
+    .tp-review-search-btn:active,
+    button.tp-dealer-name.tp-dealer-btn:not(:disabled):active,
+    .tp-card-alarm-group:active,
+    button.tp-card-alarm-btn:not(:disabled):active {
+      opacity: 1 !important;
+    }
+    .tp-card-subline-row .tp-sparkline-container::after {
+      content: "" !important;
+      position: absolute !important;
+      top: -15px !important;
+      bottom: -5px !important;
+      left: -8px !important;
+      right: -6px !important;
+    }
+    .tp-detail-sparkline::after {
+      content: "" !important;
+      position: absolute !important;
+      top: -8px !important;
+      bottom: -8px !important;
+      left: -6px !important;
+      right: -6px !important;
+    }
+    .tp-share-btn::after {
+      content: "" !important;
+      position: absolute !important;
+      top: -11px !important;
+      bottom: -5px !important;
+      left: -5px !important;
+      right: -6px !important;
+    }
+    .tp-detail-share-btn::after {
+      content: "" !important;
+      position: absolute !important;
+      inset: -8px !important;
+    }
+    .tp-review-search-btn::after,
+    button.tp-dealer-name.tp-dealer-btn::after {
+      content: "" !important;
+      position: absolute !important;
+      inset: -10px !important;
+    }
+    /* Alarm bell ::after renders .tp-alarm-auto lightning badge; expand bell hit area on ::before */
+    button.tp-card-alarm-btn::before {
+      content: "" !important;
+      position: absolute !important;
+      top: -9px !important;
+      bottom: -9px !important;
+      left: -9px !important;
+      right: -2px !important;
+    }
+    .tp-alarm-cog::after {
+      content: "" !important;
+      position: absolute !important;
+      top: -10px !important;
+      bottom: -10px !important;
+      left: -2px !important;
+      right: -10px !important;
+    }
+    .badge.badge-dif.tp-deal-pill::after,
+    .badge-dif.tp-deal-pill::after {
+      content: "" !important;
+      position: absolute !important;
+      top: -9px !important;
+      bottom: -9px !important;
+      left: -4px !important;
+      right: -4px !important;
+    }
+  }
 `;
 
 /** Chrome part (split from ui/styles.js): bestpreise controls, empty state, detail badge, filter bar. */
@@ -12552,7 +12554,7 @@ const SHADOW_MODAL_STYLES = `
   const origPlacement = new WeakMap();
   function getCardSortableUnit(card) {
     if (!card) return null;
-    const collItem = card.closest('.Plugin_ProductCollItem');
+    const collItem = card.closest?.('.Plugin_ProductCollItem');
     if (collItem) return collItem;
     const parent = card.parentElement;
     const docBody = card.ownerDocument?.body || (typeof document !== 'undefined' ? document.body : null);
@@ -15207,25 +15209,6 @@ const SHADOW_MODAL_STYLES = `
   const AI_LAUNCHER_POPOVER_ID = 'tp-ai-launcher-popover';
   const CUSTOM_MODEL_SENTINEL = '__custom__';
 
-  function openSearchTab(url, { active = true } = {}) {
-    if (!url || !/^https?:\/\//i.test(url)) return false;
-    if (typeof GM_openInTab === 'function') {
-      try {
-        GM_openInTab(url, { active: !!active, insert: true });
-        return true;
-      } catch { /* fallback below */ }
-    }
-    if (typeof window !== 'undefined' && typeof window.open === 'function') {
-      try {
-        const w = window.open(url, '_blank', 'noopener');
-        return !!w;
-      } catch {
-        return false;
-      }
-    }
-    return false;
-  }
-
   let activeCleanup = null;
 
   function buildLauncherModelOptions(cfg = CONFIG) {
@@ -15583,7 +15566,7 @@ const SHADOW_MODAL_STYLES = `
     activeCleanup = () => {
       if (closed) return;
       closed = true;
-      document.removeEventListener('click', onDocClick, true);
+      document.removeEventListener('click', onDocClick, false);
       document.removeEventListener('keydown', onDocKeydown, true);
       el.remove();
       try {
@@ -15595,7 +15578,7 @@ const SHADOW_MODAL_STYLES = `
     refreshCacheBadge();
     positionLauncher(el, anchorEl);
 
-    document.addEventListener('click', onDocClick, true);
+    document.addEventListener('click', onDocClick, false);
     document.addEventListener('keydown', onDocKeydown, true);
     closeBtn.focus?.();
     return el;
@@ -15918,6 +15901,8 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
+
   // Mini price-trend sparkline + history strip (step 5).
   function renderSparklineRow(ctx) {
     const { card, pid: rawPid, cardPrice, cardPriceEl, stats } = ctx;
@@ -16074,9 +16059,9 @@ const SHADOW_MODAL_STYLES = `
             priceText: aiCtx.priceText || '',
             onLaunch: ({ engine, model }) => {
               if (engine === 'google') {
-                openSearchTab(baseGoogle);
+                openTabUrl(baseGoogle, { active: true });
               } else if (engine === 'google-ai') {
-                openSearchTab(`${baseGoogle}&udm=50`);
+                openTabUrl(`${baseGoogle}&udm=50`, { active: true });
               } else if (engine === 'openrouter' || engine === 'tavily') {
                 openAiPopover({
                   title: aiCtx.title || reviewName,
@@ -16136,7 +16121,7 @@ const SHADOW_MODAL_STYLES = `
         emptyNotice = document.createElement('div');
         emptyNotice.id = 'tp-empty-state-notice';
         emptyNotice.className = 'tp-empty-state-notice';
-        const listParent = cards[0]?.parentElement;
+        const listParent = getCardSortableUnit(cards[0])?.parentElement || cards[0]?.parentElement;
         if (listParent) {
           listParent.insertBefore(emptyNotice, listParent.firstChild);
         }
@@ -16397,7 +16382,11 @@ const SHADOW_MODAL_STYLES = `
         }
       });
       dialog.addEventListener('click', (e) => {
-        if (e.target === dialog) dialog.close();
+        if (e.target !== dialog) return;
+        const rect = dialog.getBoundingClientRect();
+        if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) {
+          dialog.close();
+        }
       });
     }
 
@@ -17989,12 +17978,21 @@ const SHADOW_MODAL_STYLES = `
 
     els.dataResetBtn?.addEventListener('click', () => {
       if (!window.confirm('Wirklich ALLE Suite-Daten löschen? Preis-/Händler-Cache und sämtliche Einstellungen (inkl. Discord-Webhook) werden auf Standard zurückgesetzt.')) return;
+      cancelBatchDealCheck();
       const removed = clearPriceStatsCache();
       clearDealerMemory();
       clearMemoryAsinCache();
       clearTavilyCache();
       clearOpenRouterCache();
       clearCollapsedState();
+      els.shadow?.querySelectorAll('section.tp-section-card.tp-collapsed').forEach(c => {
+        c.classList.remove('tp-collapsed');
+        c.querySelector('[data-collapse]')?.setAttribute('aria-expanded', 'true');
+      });
+      if (els.shadow) {
+        applyCollapsed(els.shadow);
+        syncCollapseAllBtn(els.shadow);
+      }
       getProductCards().forEach(clearCardCache);
       try { localStorage.removeItem('tp_vcat_ident_v1'); } catch (e) {}
       try { sessionStorage.removeItem('tp_cat_expanded_branches'); } catch (e) {}
@@ -18086,6 +18084,7 @@ const SHADOW_MODAL_STYLES = `
           const data = JSON.parse(reader.result);
           const importConfig = data.config || data;
           const prev = captureResetSnapshot();
+          const updates = {};
           let count = 0;
           for (const [key, val] of Object.entries(importConfig)) {
             if (!Object.hasOwn(DEFAULTS, key) || key === 'DEBUG' || SECRET_KEYS.has(key)) continue;
@@ -18093,9 +18092,10 @@ const SHADOW_MODAL_STYLES = `
             if (key === 'DISCORD_LAYOUT' && validateLayoutRecipe(String(val))) continue;
             const clean = sanitizeConfigValue(key, val);
             if (clean === undefined) continue;
-            saveConfigKey(key, clean);
+            updates[key] = clean;
             count++;
           }
+          if (count > 0) updateConfigs(updates, { skipRender: true });
           applyPostResetEffects(prev);
           showToast(`${count} Einstellungen importiert`);
         } catch (err) {
@@ -18107,6 +18107,7 @@ const SHADOW_MODAL_STYLES = `
     });
 
     const openModal = () => {
+      if (els.dialog.open || els.dialog.hasAttribute?.('open')) return;
       syncFieldsFromConfig(els);
       if (typeof els.dialog.showModal === 'function') els.dialog.showModal();
       else els.dialog.setAttribute('open', '');
@@ -18385,11 +18386,11 @@ const SHADOW_MODAL_STYLES = `
 
   let activeSharePreviewCancel = null;
 
-  function closeSharePreviewModal() {
+  function closeSharePreviewModal({ force = true } = {}) {
     if (activeSharePreviewCancel) {
       const fn = activeSharePreviewCancel;
       activeSharePreviewCancel = null;
-      fn();
+      fn(force);
     } else {
       uiShadowRoot?.getElementById('tp-modal-share-preview')?.remove();
     }
@@ -18401,7 +18402,7 @@ const SHADOW_MODAL_STYLES = `
     if (!shadow) return null;
 
     // Clean up any stale preview dialog
-    closeSharePreviewModal();
+    closeSharePreviewModal({ force: true });
 
     const dialog = document.createElement('dialog');
     dialog.id = 'tp-modal-share-preview';
@@ -18498,16 +18499,16 @@ const SHADOW_MODAL_STYLES = `
     };
 
     let cancelledOrClosed = false;
-    const handleCancel = () => {
-      if (isSending || cancelledOrClosed) return;
+    const handleCancel = (force = false) => {
+      if ((isSending && !force) || cancelledOrClosed) return;
       cancelledOrClosed = true;
       close();
       onCancel?.();
     };
     activeSharePreviewCancel = handleCancel;
 
-    closeBtn?.addEventListener('click', handleCancel);
-    cancelBtn?.addEventListener('click', handleCancel);
+    closeBtn?.addEventListener('click', () => handleCancel(false));
+    cancelBtn?.addEventListener('click', () => handleCancel(false));
 
     const updateCount = () => {
       if (commentCount && commentInput) {
@@ -18549,12 +18550,12 @@ const SHADOW_MODAL_STYLES = `
         e.clientY < rect.top ||
         e.clientY > rect.bottom
       );
-      if (isBackdrop) handleCancel();
+      if (isBackdrop) handleCancel(false);
     });
 
     dialog.addEventListener('cancel', e => {
       e.preventDefault();
-      handleCancel();
+      handleCancel(false);
     });
 
     const controller = {
@@ -19349,11 +19350,11 @@ const SHADOW_MODAL_STYLES = `
     // Skip while dragging: the input handler owns the label mid-drag.
     if (weightRange && document.activeElement !== weightRange) {
       weightRange.value = Math.round(curWeight * 100);
-    }
-    const weightLabel = document.getElementById('tp-bar-weight-label');
-    if (weightLabel) {
-      weightLabel.textContent = `⚖️ ${weightText(curWeight, 'short')}`;
-      weightLabel.title = weightText(curWeight, 'title');
+      const weightLabel = document.getElementById('tp-bar-weight-label');
+      if (weightLabel) {
+        weightLabel.textContent = `⚖️ ${weightText(curWeight, 'short')}`;
+        weightLabel.title = weightText(curWeight, 'title');
+      }
     }
     paintMinPoints();
     const horizonRange = document.getElementById('tp-bar-horizon-range');
@@ -23202,7 +23203,7 @@ let styleEl = document.getElementById('tp-unified-settings-styles');
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.579';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.580';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     const isFileFixture = typeof location !== 'undefined' && location.protocol === 'file:';
     if (isDebugHost) {

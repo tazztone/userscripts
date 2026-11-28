@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { getDistinctProductIds, extractCardDiff, extractCardDiscount, getInsetHeatStyle, getBadgeHeatStyle, extractOfferCount, extractCardData, scanEligibility, getCardEffectiveDiscount } from '../../src/page/cards.js';
 import { applyCardFilters, isCardFilteredOut, parseNegativeTerms, matchesNegativeTerms, dealerLoserFor, FILTER_CAUSE_DEFS } from '../../src/page/card-filters.js';
 import { STYLES_CARDS } from '../../src/ui/styles/cards.js';
+import { STYLES_BADGES } from '../../src/ui/styles/badges.js';
 import { setCachedPriceStats, memoryCache, statsKey } from '../../src/scanner/cache.js';
 import { withConfig, withConfigs } from './helpers.js';
 
@@ -738,27 +739,28 @@ describe('Min-Rabatt threshold filter core', () => {
     });
   });
 
-  describe('Touch visibility & hit targets in STYLES_CARDS', () => {
-    it('defines @media (hover: none), (pointer: coarse) rules for hover actions', () => {
-      assert.ok(STYLES_CARDS.includes('@media (hover: none), (pointer: coarse)'));
-      assert.ok(STYLES_CARDS.includes('.tp-share-btn:not(.tp-share-done):not(:disabled)'));
-      assert.ok(STYLES_CARDS.includes('.tp-review-search-btn'));
-      assert.ok(STYLES_CARDS.includes('button.tp-dealer-name.tp-dealer-btn:not(:disabled)'));
-      assert.ok(STYLES_CARDS.includes('opacity: 0.45 !important'));
-      assert.ok(STYLES_CARDS.includes('pointer-events: auto !important'));
+  describe('Touch visibility & hit targets in STYLES_BADGES / STYLES_CARDS', () => {
+    it('defines @media (hover: none), (pointer: coarse) rules for hover actions after badge rules', () => {
+      assert.ok(STYLES_BADGES.includes('@media (hover: none), (pointer: coarse)'));
+      assert.ok(STYLES_BADGES.includes('.badge.badge-dif.tp-deal-pill'));
+      assert.ok(STYLES_BADGES.includes('.tp-share-btn:not(.tp-share-done):not(:disabled)'));
+      assert.ok(STYLES_BADGES.includes('.tp-review-search-btn'));
+      assert.ok(STYLES_BADGES.includes('button.tp-dealer-name.tp-dealer-btn:not(:disabled)'));
+      assert.ok(STYLES_BADGES.includes('opacity: 0.45 !important'));
+      assert.ok(STYLES_BADGES.includes('pointer-events: auto !important'));
     });
 
     it('defines :active state at full opacity', () => {
-      assert.ok(STYLES_CARDS.includes('.tp-share-btn:not(:disabled):active'));
-      assert.ok(STYLES_CARDS.includes('opacity: 1 !important'));
+      assert.ok(STYLES_BADGES.includes('.tp-share-btn:not(:disabled):active'));
+      assert.ok(STYLES_BADGES.includes('opacity: 1 !important'));
     });
 
     it('expands touch hit targets via pseudo-elements', () => {
-      assert.ok(STYLES_CARDS.includes('.tp-share-btn::after'));
-      assert.ok(STYLES_CARDS.includes('.tp-review-search-btn::after,'));
-      assert.ok(STYLES_CARDS.includes('button.tp-dealer-name.tp-dealer-btn::after'));
-      assert.ok(STYLES_CARDS.includes('button.tp-card-alarm-btn::before'));
-      assert.ok(STYLES_CARDS.includes('.tp-sparkline-container::after'));
+      assert.ok(STYLES_BADGES.includes('.tp-share-btn::after'));
+      assert.ok(STYLES_BADGES.includes('.tp-review-search-btn::after,'));
+      assert.ok(STYLES_BADGES.includes('button.tp-dealer-name.tp-dealer-btn::after'));
+      assert.ok(STYLES_BADGES.includes('button.tp-card-alarm-btn::before'));
+      assert.ok(STYLES_BADGES.includes('.tp-card-subline-row .tp-sparkline-container::after'));
     });
 
     it('enforces >= 24px desktop hit targets, touch-action, and focus-visible rings', () => {

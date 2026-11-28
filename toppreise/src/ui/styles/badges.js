@@ -380,7 +380,7 @@ export const STYLES_BADGES = `
   .tp-card-dealer-row > .tp-dealer-name {
     display: inline-flex !important;
     justify-content: flex-end !important;
-    max-width: none !important;
+    max-width: 100% !important;
     margin-right: 0 !important;
     flex: 1 1 auto !important;
     text-align: right !important;
@@ -442,7 +442,7 @@ export const STYLES_BADGES = `
     margin-right: 4px !important;
   }
   :is(.mixedBrowsingList, .mixedList, .priceAvailabilityContainer, .price-availability) .tp-card-dealer-row :is(span.tp-dealer-name, a.tp-dealer-name) {
-    max-width: none !important;
+    max-width: 100% !important;
     margin-right: 0 !important;
   }
   a.tp-dealer-name:hover {
@@ -631,4 +631,107 @@ export const STYLES_BADGES = `
   .tp-alarm-cog { position: relative; display: inline-flex; align-items: center; justify-content: center; min-width: 24px; min-height: 24px; margin-left: 6px; padding: 2px 4px; border: none; border-radius: 4px; background: transparent; color: inherit; font-size: 14px; line-height: 1; cursor: pointer; opacity: .75; }
   .tp-alarm-cog:hover, .tp-alarm-cog:focus-visible { opacity: 1; }
   .tp-alarm-cog:focus-visible { outline: 2px solid var(--tp-focus, #3b82f6); outline-offset: 2px; }
+  /* Touch visibility & hit area expansion for hover-only card actions (after base badge/pill rules) */
+  @media (hover: none), (pointer: coarse) {
+    .tp-share-btn:not(.tp-share-done):not(:disabled),
+    .tp-review-search-btn,
+    button.tp-dealer-name.tp-dealer-btn:not(:disabled),
+    .tp-card-alarm-group,
+    button.tp-card-alarm-btn:not(:disabled) {
+      opacity: 0.45 !important;
+      pointer-events: auto !important;
+      touch-action: manipulation !important;
+    }
+    .tp-sparkline-container,
+    .tp-alarm-cog,
+    .tp-detail-sparkline,
+    .tp-detail-share-btn,
+    .badge.badge-dif.tp-deal-pill,
+    .badge-dif.tp-deal-pill {
+      position: relative !important;
+      touch-action: manipulation !important;
+    }
+    .tp-card-alarm-group * {
+      pointer-events: auto !important;
+    }
+    .tp-review-search-btn,
+    button.tp-dealer-name.tp-dealer-btn {
+      position: relative !important;
+    }
+    button.tp-card-alarm-btn {
+      min-width: 26px !important;
+      min-height: 26px !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+    }
+    .tp-share-btn:not(:disabled):active,
+    .tp-review-search-btn:active,
+    button.tp-dealer-name.tp-dealer-btn:not(:disabled):active,
+    .tp-card-alarm-group:active,
+    button.tp-card-alarm-btn:not(:disabled):active {
+      opacity: 1 !important;
+    }
+    .tp-card-subline-row .tp-sparkline-container::after {
+      content: "" !important;
+      position: absolute !important;
+      top: -15px !important;
+      bottom: -5px !important;
+      left: -8px !important;
+      right: -6px !important;
+    }
+    .tp-detail-sparkline::after {
+      content: "" !important;
+      position: absolute !important;
+      top: -8px !important;
+      bottom: -8px !important;
+      left: -6px !important;
+      right: -6px !important;
+    }
+    .tp-share-btn::after {
+      content: "" !important;
+      position: absolute !important;
+      top: -11px !important;
+      bottom: -5px !important;
+      left: -5px !important;
+      right: -6px !important;
+    }
+    .tp-detail-share-btn::after {
+      content: "" !important;
+      position: absolute !important;
+      inset: -8px !important;
+    }
+    .tp-review-search-btn::after,
+    button.tp-dealer-name.tp-dealer-btn::after {
+      content: "" !important;
+      position: absolute !important;
+      inset: -10px !important;
+    }
+    /* Alarm bell ::after renders .tp-alarm-auto lightning badge; expand bell hit area on ::before */
+    button.tp-card-alarm-btn::before {
+      content: "" !important;
+      position: absolute !important;
+      top: -9px !important;
+      bottom: -9px !important;
+      left: -9px !important;
+      right: -2px !important;
+    }
+    .tp-alarm-cog::after {
+      content: "" !important;
+      position: absolute !important;
+      top: -10px !important;
+      bottom: -10px !important;
+      left: -2px !important;
+      right: -10px !important;
+    }
+    .badge.badge-dif.tp-deal-pill::after,
+    .badge-dif.tp-deal-pill::after {
+      content: "" !important;
+      position: absolute !important;
+      top: -9px !important;
+      bottom: -9px !important;
+      left: -4px !important;
+      right: -4px !important;
+    }
+  }
 `;

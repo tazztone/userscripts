@@ -20,7 +20,7 @@ import { hasUsablePriceStats } from '../scanner/cache.js';
 const origPlacement = new WeakMap();
 export function getCardSortableUnit(card) {
   if (!card) return null;
-  const collItem = card.closest('.Plugin_ProductCollItem');
+  const collItem = card.closest?.('.Plugin_ProductCollItem');
   if (collItem) return collItem;
   const parent = card.parentElement;
   const docBody = card.ownerDocument?.body || (typeof document !== 'undefined' ? document.body : null);

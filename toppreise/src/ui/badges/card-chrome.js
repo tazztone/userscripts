@@ -14,6 +14,8 @@ import { withLivePrice } from '../../features/share-discord.js';
 import { extractShareData, extractDealer, extractDealerUrl, findCardTitleElement } from '../../page/product-offers.js';
 import { showToast } from '../toast.js';
 import { renderSparkline, openSparklinePopout } from '../sparkline.js';
+import { getCardSortableUnit } from '../../page/sort.js';
+import { openTabUrl } from '../../utils/common.js';
 import { isShippingPriceActive, scheduleProcessListings } from '../../page/adapter.js';
 import { scanState } from '../../state/store.js';
 import { startBatchCheck } from '../floating-cta.js';
@@ -22,7 +24,7 @@ import { renderHeat, renderFilterVerdict } from './deal-badge.js';
 import { renderBadgeVerdict } from './deal-verdict.js';
 import { renderShareButton } from './card-share.js';
 import { openAiPopover } from './card-ai-popover.js';
-import { openAiLauncherPopover, openSearchTab } from '../ai-launcher-popover.js';
+import { openAiLauncherPopover } from '../ai-launcher-popover.js';
 import { expandKeywordWithPrice, formatSearchQuery, formatReviewTooltip } from '../../features/tavily-search.js';
 import { ensureDealerInfo, renderDealerName } from './card-dealer.js';
 import { renderAlarmBell } from './card-alarm.js';
@@ -185,9 +187,9 @@ export function renderReviewButton(ctx) {
           priceText: aiCtx.priceText || '',
           onLaunch: ({ engine, model }) => {
             if (engine === 'google') {
-              openSearchTab(baseGoogle);
+              openTabUrl(baseGoogle, { active: true });
             } else if (engine === 'google-ai') {
-              openSearchTab(`${baseGoogle}&udm=50`);
+              openTabUrl(`${baseGoogle}&udm=50`, { active: true });
             } else if (engine === 'openrouter' || engine === 'tavily') {
               openAiPopover({
                 title: aiCtx.title || reviewName,
@@ -247,7 +249,7 @@ export function renderEmptyState(cards, counts) {
       emptyNotice = document.createElement('div');
       emptyNotice.id = 'tp-empty-state-notice';
       emptyNotice.className = 'tp-empty-state-notice';
-      const listParent = cards[0]?.parentElement;
+      const listParent = getCardSortableUnit(cards[0])?.parentElement || cards[0]?.parentElement;
       if (listParent) {
         listParent.insertBefore(emptyNotice, listParent.firstChild);
       }

@@ -154,7 +154,11 @@ export function openDiagModal(shadow) {
       }
     });
     dialog.addEventListener('click', (e) => {
-      if (e.target === dialog) dialog.close();
+      if (e.target !== dialog) return;
+      const rect = dialog.getBoundingClientRect();
+      if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) {
+        dialog.close();
+      }
     });
   }
 

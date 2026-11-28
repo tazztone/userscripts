@@ -10,11 +10,11 @@ import { escapeHtml } from '../utils/common.js';
 
 let activeSharePreviewCancel = null;
 
-export function closeSharePreviewModal() {
+export function closeSharePreviewModal({ force = true } = {}) {
   if (activeSharePreviewCancel) {
     const fn = activeSharePreviewCancel;
     activeSharePreviewCancel = null;
-    fn();
+    fn(force);
   } else {
     uiShadowRoot?.getElementById('tp-modal-share-preview')?.remove();
   }
@@ -26,7 +26,7 @@ export function openSharePreviewModal({ channels = [], onSend, onCancel, onComme
   if (!shadow) return null;
 
   // Clean up any stale preview dialog
-  closeSharePreviewModal();
+  closeSharePreviewModal({ force: true });
 
   const dialog = document.createElement('dialog');
   dialog.id = 'tp-modal-share-preview';
@@ -123,16 +123,16 @@ export function openSharePreviewModal({ channels = [], onSend, onCancel, onComme
   };
 
   let cancelledOrClosed = false;
-  const handleCancel = () => {
-    if (isSending || cancelledOrClosed) return;
+  const handleCancel = (force = false) => {
+    if ((isSending && !force) || cancelledOrClosed) return;
     cancelledOrClosed = true;
     close();
     onCancel?.();
   };
   activeSharePreviewCancel = handleCancel;
 
-  closeBtn?.addEventListener('click', handleCancel);
-  cancelBtn?.addEventListener('click', handleCancel);
+  closeBtn?.addEventListener('click', () => handleCancel(false));
+  cancelBtn?.addEventListener('click', () => handleCancel(false));
 
   const updateCount = () => {
     if (commentCount && commentInput) {
@@ -174,12 +174,12 @@ export function openSharePreviewModal({ channels = [], onSend, onCancel, onComme
       e.clientY < rect.top ||
       e.clientY > rect.bottom
     );
-    if (isBackdrop) handleCancel();
+    if (isBackdrop) handleCancel(false);
   });
 
   dialog.addEventListener('cancel', e => {
     e.preventDefault();
-    handleCancel();
+    handleCancel(false);
   });
 
   const controller = {
