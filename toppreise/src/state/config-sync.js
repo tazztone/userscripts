@@ -8,7 +8,7 @@ import { syncMiniToggle, paintCycleButton } from '../ui/mini-toggle.js';
 import { updateComparePreview } from '../ui/modal-ai-section.js';
 import { updateKeywordPreview } from '../ui/modal-bindings.js';
 import { weightText, horizonText, horizonStoredToUi, DEFAULTS } from './config-store.js';
-import { CONFIG, FILTER_CYCLE, paintMinPoints, notifyAlarmConfig, paintCycleButtons } from './config.js';
+import { paintMinPoints, notifyAlarmConfig, paintCycleButtons } from './config.js';
 import { getPageProfileType, getPageProfileLabel } from '../page/adapter.js';
 
 export function syncUiControl(key, val, opts = {}, shadowRoot = null) {
@@ -333,6 +333,11 @@ export function syncUiControl(key, val, opts = {}, shadowRoot = null) {
         barLabel.textContent = horizonText(stored);
         barLabel.title = horizonText(stored, 'title');
       }
+    } else if (key === 'REAL_DEAL_MIN_DISCOUNT' && doc) {
+      const floatingThreshInput = doc.getElementById('tp-floating-threshold-input');
+      if (floatingThreshInput && doc.activeElement !== floatingThreshInput) {
+        floatingThreshInput.value = `≥${val}%`;
+      }
     } else if (
       (key === 'ALARM_ENABLED' || key === 'ALARM_TARGET_PERCENT' || key === 'ALARM_DURATION_DAYS' || key === 'ALARM_AUTO_SUBMIT')
       && !opts.silent
@@ -484,14 +489,6 @@ export function syncUiControl(key, val, opts = {}, shadowRoot = null) {
           case 'MIN_DEAL_DISCOUNT': {
             const discVal = bar.querySelector('#tp-bar-deal-disc-val');
             if (discVal) discVal.textContent = `${val}%`;
-            break;
-          }
-          case 'REAL_DEAL_MIN_DISCOUNT': {
-            // Threshold lives in the floating CTA text input.
-            const floatingThreshInput = doc?.getElementById('tp-floating-threshold-input');
-            if (floatingThreshInput && doc?.activeElement !== floatingThreshInput) {
-              floatingThreshInput.value = `≥${val}%`;
-            }
             break;
           }
         }

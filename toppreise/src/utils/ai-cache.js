@@ -13,6 +13,7 @@ export function createPersistentAiCache({
   normalizeEntry = parsed => parsed
 }) {
   const memCache = new Map();
+  let writeCount = 0;
   const keysWithPrefix = store => {
     const keys = [];
     for (let i = 0; i < store.length; i++) {
@@ -26,8 +27,9 @@ export function createPersistentAiCache({
     if (!key) return null;
     const now = Date.now();
     const mem = memCache.get(key);
-    if (mem && (now - mem.timestamp < ttlMs)) {
-      return mem;
+    if (mem) {
+      if (now - mem.timestamp < ttlMs) return mem;
+      memCache.delete(key);
     }
     if (typeof localStorage !== 'undefined') {
       try {
@@ -93,9 +95,9 @@ export function createPersistentAiCache({
       const payload = JSON.stringify(entry);
       try {
         store.setItem(prefix + key, payload);
-        prune(maxDisk, store);
+        if (++writeCount % 10 === 0 || store.length > maxDisk) prune(maxDisk, store);
       } catch {
-        prune(50, store);
+        prune(Math.min(50, Math.floor(maxDisk / 2)), store);
         try {
           store.setItem(prefix + key, payload);
         } catch { /* ignore storage full or quota errors */ }

@@ -131,13 +131,16 @@ export function isSignificantRecord(display) {
  * all three consume this number so they can never disagree. 0 when there is
  * no previous low to measure against.
  */
-export function vortiefDropPct(cardPrice, stats) {
-  const display = getDisplayDelta(cardPrice, stats);
+const vortiefFromDisplay = (cardPrice, display) => {
   if (display.kind === 'new-low') return display.dRecord || 0;
   if (display.kind === 'at-low' && display.prevLow > cardPrice) {
     return pctDrop(display.prevLow, cardPrice);
   }
   return 0;
+};
+
+export function vortiefDropPct(cardPrice, stats) {
+  return vortiefFromDisplay(cardPrice, getDisplayDelta(cardPrice, stats));
 }
 /**
  * Ø discount vs median, positive = below median (deal), 0 = at/above median
@@ -203,7 +206,7 @@ export function getHeatInput(cardPrice, stats, siteDiff, _mode, precomputed = un
     // blind inset wash like every other heat. Heatmap is a dumb view mode:
     // paints whatever the badge % says (Vortief-Abstand or siteDiff).
     if (!dealData) {
-      const vortief = vortiefDropPct(cardPrice, stats);
+      const vortief = vortiefFromDisplay(cardPrice, display);
       if (vortief >= HEAT_NEUTRAL_DEADBAND_PCT) {
         return { value: -vortief, provisional: false, pct: vortief, kind: 'vortief' };
       }

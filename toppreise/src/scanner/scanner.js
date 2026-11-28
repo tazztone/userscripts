@@ -6,8 +6,8 @@
 
 import { getCachedPriceStats, setCachedPriceStats, currentCacheGen } from './cache.js';
 import { analyzePriceTimeSeries, parsePriceStatsFromHtml, extractCanonicalPrice } from '../domain/price.js';
-import { getProductCards, getCardProductId, extractCardDiscount, extractCardData, extractActiveStores, extractOfferCount, scanEligibility } from '../page/cards.js';
-import { dealerLoserFor, applyCardFilters, isCardFilteredOut, parseNegativeTerms, scanCandidateState } from '../page/card-filters.js';
+import { getProductCards, getCardProductId, extractCardData, extractActiveStores, extractOfferCount, scanEligibility } from '../page/cards.js';
+import { dealerLoserFor, applyCardFilters, parseNegativeTerms, scanCandidateState } from '../page/card-filters.js';
 import { isShippingPriceActive, isNeueToppreisePage, triggerProcessListings } from '../page/adapter.js';
 import { CONFIG } from '../state/config.js';
 import { scanState } from '../state/store.js';
@@ -257,12 +257,15 @@ export async function runProductScanner(options = {}) {
 
   const total = targets.length;
   let completed = 0;
+  Object.assign(scanState, { progress: { completed: 0, total } });
   const newlyVerified = [];
   const pendingIndices = targets.map((_, i) => i);
   let abortedByCooldown = false;
   const effectiveCancel = () => abortedByCooldown || isCancelled(signal, shouldCancelFn);
   let cooldownToastShown = false;
   const pidInFlightCount = new Map();
+  const cooldownRetries = new Map();
+  let consecutiveCooldowns = 0;
   let lastRenderAt = 0;
 
   async function worker() {
@@ -337,7 +340,10 @@ export async function runProductScanner(options = {}) {
       const postCooldownMs = getOriginCooldownUntil() - Date.now();
       if (!stats && cardValid && postCooldownMs > 0) {
         triggerProcessListings();
-        if (postCooldownMs > 15000) {
+        const itemRetries = (cooldownRetries.get(idx) || 0) + 1;
+        cooldownRetries.set(idx, itemRetries);
+        consecutiveCooldowns++;
+        if (postCooldownMs > 15000 || itemRetries > 3 || consecutiveCooldowns > 5) {
           abortedByCooldown = true;
           if (!cooldownToastShown) {
             cooldownToastShown = true;
@@ -349,6 +355,7 @@ export async function runProductScanner(options = {}) {
         await interruptibleSleep(postCooldownMs + 250, () => abortedByCooldown || isCancelled(signal, shouldCancelFn), signal);
         continue;
       }
+      consecutiveCooldowns = 0;
 
       completed++;
       Object.assign(scanState, { progress: { completed, total } });
@@ -395,7 +402,7 @@ async function runScan({ minDiscount = 30, onProgress = null, onComplete = null 
 
   try {
     const isFeed = isNeueToppreisePage();
-    const res = await runProductScanner({
+    await runProductScanner({
       isFeed,
       minDiscount,
       sortByDiscount: false,
@@ -404,7 +411,6 @@ async function runScan({ minDiscount = 30, onProgress = null, onComplete = null 
       onComplete,
       signal: batchController.signal
     });
-    if (res?.abortedByCooldown) scanState.batchCancelRequested = true;
   } finally {
     Object.assign(scanState, { isBatchChecking: false, batchCancelRequested: false });
     triggerProcessListings();

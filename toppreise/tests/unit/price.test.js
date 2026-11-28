@@ -846,6 +846,9 @@ describe('Price Domain Module', () => {
       assert.equal(glitchRes.cleanPoints.length, 2);
       assert.equal(glitchRes.filteredOutliers.length, 1);
 
+      const twoPts = sanitizeTimeSeries([[3000, 90], [1000, 100]]);
+      assert.deepEqual(twoPts.cleanPoints, [[1000, 100], [3000, 90]]);
+
       const objRes = analyzePriceTimeSeries([
         { timestamp: 1000, price: 100 },
         { timestamp: 2000, price: -5 },

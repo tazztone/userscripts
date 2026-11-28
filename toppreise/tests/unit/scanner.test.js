@@ -473,4 +473,41 @@ describe('runProductScanner 429 cooldown & price filter', () => {
       CONFIG.FILTER_PRICE_MODE = prevPriceMode;
     }
   });
+
+  it('caps repeated short 429 cooldown re-queues instead of looping forever', async () => {
+    const card = makeScanCard('cooldown-loop-1');
+    globalThis.document = {
+      body: { getAttribute: () => null, appendChild: () => {}, classList: { contains: () => false } },
+      head: { appendChild: () => {} },
+      visibilityState: 'visible',
+      getElementById: () => null,
+      createElement: () => ({
+        id: '',
+        style: {},
+        classList: { add: () => {}, remove: () => {} },
+        setAttribute: () => {},
+        appendChild: () => {},
+        attachShadow: () => ({
+          innerHTML: '',
+          getElementById: () => null,
+          querySelector: () => null,
+          querySelectorAll: () => [],
+          appendChild: () => {}
+        })
+      }),
+      querySelectorAll: sel => (sel.includes('Plugin_Product') ? [card] : []),
+      querySelector: () => null
+    };
+    let calls = 0;
+    globalThis.fetch = async () => {
+      calls++;
+      setOriginCooldownUntil(Date.now() + 5);
+      return { ok: false, status: 429, headers: { get: () => '0' } };
+    };
+
+    const res = await runProductScanner({ isFeed: false, shouldCancelFn: () => scanState.batchCancelRequested });
+    assert.equal(res.abortedByCooldown, true);
+    assert.equal(res.completed, 0);
+    assert.ok(calls >= 4 && calls <= 12, `expected bounded retries, got ${calls}`);
+  });
 });

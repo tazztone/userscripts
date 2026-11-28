@@ -55,11 +55,6 @@ export const clampIntensity01 = v => {
 // product keys. Stored old value seeds both new keys once; stale key unread.
 const legacySuppressEmbeds = _getValue('DISCORD_SUPPRESS_EMBEDS', null);
 const _layoutRaw = _getValue('DISCORD_LAYOUT', DEFAULTS.DISCORD_LAYOUT);
-// Filter modes: 'dim' dims, 'highlight' highlights, everything else hides.
-const _modeValue = k => {
-  const v = _getValue(k, DEFAULTS[k]);
-  return (v === 'dim' || v === 'highlight') ? v : 'hide';
-};
 // 4-state filter cycle: each cause row pairs an enable key with a mode key.
 // The cycle button derives Normal/Dimmen/Verbergen/Hervorheben from the pair —
 // storage keys unchanged, no migration. Dealer row excluded (preset).
@@ -102,9 +97,7 @@ export const paintCycleButtons = (bar, modeKey) => {
 export const CONFIG = Object.fromEntries(
   Object.entries(DEFAULTS).map(([k, defaultVal]) => {
     let val;
-    if (k.endsWith('_MODE') && k !== 'REVIEW_SEARCH_AI_MODE') {
-      val = _modeValue(k);
-    } else if (k === 'DISCORD_SUPPRESS_DEALER_EMBED' || k === 'DISCORD_SUPPRESS_PRODUCT_EMBED') {
+    if (k === 'DISCORD_SUPPRESS_DEALER_EMBED' || k === 'DISCORD_SUPPRESS_PRODUCT_EMBED') {
       val = _getValue(k, legacySuppressEmbeds ?? defaultVal);
     } else if (k === 'DISCORD_LAYOUT') {
       val = (typeof _layoutRaw === 'string' && _layoutRaw.trim()) ? _layoutRaw : defaultVal;
@@ -118,9 +111,6 @@ export const sanitizeReviewKeyword = raw => String(raw ?? '').replace(/\s+/g, ' 
 // 0% is a legitimate threshold (check everything): only non-numeric storage
 // falls back to 30 — `|| 30` would silently discard an explicit 0.
 export const realDealMinDiscount = () => (Number.isFinite(CONFIG.REAL_DEAL_MIN_DISCOUNT) ? CONFIG.REAL_DEAL_MIN_DISCOUNT : 30);
-// Corrupt storage must never silently break fills: fall back to defaults on
-// NaN/unknown durations.
-if (!['90', '180', '365', '730'].includes(CONFIG.ALARM_DURATION_DAYS)) CONFIG.ALARM_DURATION_DAYS = '730';
 if (CONFIG.REVIEW_SEARCH_KEYWORD === 'KI-Modus') { CONFIG.REVIEW_SEARCH_KEYWORD = DEFAULTS.REVIEW_SEARCH_KEYWORD; CONFIG.REVIEW_SEARCH_AI_MODE = true; }
 // Old defaults bump to new default (KI-Modus precedent above).
 if (
@@ -132,7 +122,6 @@ if (
   CONFIG.REVIEW_SEARCH_KEYWORD = DEFAULTS.REVIEW_SEARCH_KEYWORD;
 }
 CONFIG.REVIEW_SEARCH_KEYWORD = sanitizeReviewKeyword(CONFIG.REVIEW_SEARCH_KEYWORD);
-if (typeof CONFIG.REVIEW_SEARCH_AI_MODE !== 'boolean') CONFIG.REVIEW_SEARCH_AI_MODE = DEFAULTS.REVIEW_SEARCH_AI_MODE;
 
 let activeProfileType = null;
 export function getActiveProfileType() {
@@ -186,9 +175,9 @@ export function initPageProfiles(forceType = null) {
 }
 
 export const saveConfigKey = (key, val, options = {}) => {
-  if (SECRET_KEYS.has(key)) return;
+  if (SECRET_KEYS.has(key)) return undefined;
   const clean = sanitizeConfigValue(key, val);
-  if (clean === undefined) return;
+  if (clean === undefined) return undefined;
   CONFIG[key] = clean;
   _setValue(key, clean);
 
@@ -204,6 +193,7 @@ export const saveConfigKey = (key, val, options = {}) => {
     profiles[profileType][key] = clean;
     _setValue('PAGE_PROFILES', profiles);
   }
+  return clean;
 };
 // Bell-decor repaint hook: price-alarm.js registers refreshAlarmBellDecor
 // here (a static import would cycle config ← price-alarm; the concat-IIFE
@@ -243,15 +233,15 @@ export const getDiscordChannels = () => {
 };
 export function updateConfig(key, val, options = {}) {
   if (SECRET_KEYS.has(key)) {
-    const clean = key === 'DISCORD_CHANNELS' ? (sanitizeConfigValue(key, val) ?? []) : val;
-    CONFIG[key] = clean;
-    _setValue(key, clean);
-  }
-  else {
     const clean = sanitizeConfigValue(key, val);
     if (clean === undefined) return;
     val = clean;
-    saveConfigKey(key, val, options);
+    CONFIG[key] = clean;
+    _setValue(key, clean);
+  } else {
+    const clean = saveConfigKey(key, val, options);
+    if (clean === undefined) return;
+    val = clean;
   }
   if (!options.skipUiSync) {
     syncUiControl(key, val);

@@ -9,14 +9,25 @@ import { logActivity } from '../state/activity-log.js';
 import { getOriginCooldownUntil, setOriginCooldownUntil, parseRetryAfterMs, backoffMs } from '../state/net.js';
 
 export async function interruptibleSleep(ms, shouldCancelFn = null, signal = null) {
-  const step = 100;
-  let elapsed = 0;
-  while (elapsed < ms) {
-    if (signal?.aborted) return;
-    if (shouldCancelFn && shouldCancelFn()) break;
-    const wait = Math.min(step, ms - elapsed);
-    await new Promise(r => setTimeout(r, wait));
-    elapsed += wait;
+  if (!(ms > 0)) return;
+  const deadline = Date.now() + ms;
+  while (true) {
+    if (signal?.aborted || shouldCancelFn?.()) return;
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) return;
+    const wait = shouldCancelFn ? Math.min(100, remaining) : remaining;
+    await new Promise(resolve => {
+      let done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        signal?.removeEventListener('abort', finish);
+        resolve();
+      };
+      const timer = setTimeout(finish, wait);
+      signal?.addEventListener('abort', finish, { once: true });
+    });
   }
 }
 
@@ -52,7 +63,8 @@ export async function requestWithRetry(makeRequest, { retries = 1, shouldCancelF
         if (attempt === 0 && retries > 0 && wait <= 5000) {
           setOriginCooldownUntil(Date.now() + wait);
           logActivity('warn', 'scanner', `429 Cooldown aktiviert (${wait}ms) — Retry (1/${retries})`);
-          await interruptibleSleep(wait, shouldCancelFn, signal);
+          const sleepMs = Math.max(wait, getOriginCooldownUntil() - Date.now()) + 25;
+          await interruptibleSleep(sleepMs, shouldCancelFn, signal);
           continue;
         }
         const cooldownMs = Math.max(wait, baseDelayMs);
@@ -169,8 +181,8 @@ export async function fetchPriceTimeSeries(productId, retries = 1, shouldCancelF
         signal: linkedSignal
       });
       // No .catch swallow: body-read aborts must reach the retry classifier
-      // (timeout path), malformed JSON the generic branch (retried, then
-      // invalid-response below). 4xx other than 429 arrive here with res.
+      // (timeout path), malformed JSON maps to invalid-json (not retried).
+      // 4xx other than 429 arrive here with res.
       const json = res.ok ? await res.json() : null;
       return { res, data: json };
     }, { retries, shouldCancelFn, signal, baseDelayMs: 1500, timeoutMs: 6000 });
@@ -185,8 +197,7 @@ export async function fetchPriceTimeSeries(productId, retries = 1, shouldCancelF
   } catch (err) {
     // Typed failures propagate so the caller skips the HTML fallback; only
     // the empty signal (absent/invalid) falls through to it.
-    if (err?.cancelled || err?.timeout || err?.cooldown || err?.unauthorized) throw err;
-    if (err?.transient && err?.cause?.name !== 'SyntaxError') throw err;
+    if (err?.cancelled || err?.timeout || err?.cooldown || err?.unauthorized || err?.transient) throw err;
     if (CONFIG.DEBUG) console.warn('[Toppreise Suite] Failed fetching time series for product', productId, err);
   }
   return null;

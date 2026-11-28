@@ -172,6 +172,11 @@ describe('persistent activity-log', () => {
     ], { includeDate: true });
     assert.ok(txt.includes('[2026-11-24 12:34:56.789] WARN [net] (v2.5.0 /de/search) [×4] slow | 1200ms'));
   });
+
+  it('formatActivityLogText handles non-numeric timestamps without throwing', () => {
+    const txt = formatActivityLogText([{ ts: 'invalid', level: 'warn', source: 'net', message: 'bad-ts' }]);
+    assert.ok(txt.includes('WARN [net] bad-ts'));
+  });
 });
 
 describe('net helpers', () => {
@@ -315,5 +320,19 @@ describe('net helpers', () => {
       () => fetchWithTimeout('https://example.com/race', {}, { signal: ac.signal, timeoutMs: 500 }),
       (err) => err?.cancelled === true && !err?.timeout
     );
+  });
+
+  it('fetchWithTimeout re-throws abort during !res.ok JSON body read', async () => {
+    const ac = new AbortController();
+    globalThis.fetch = async (_url, opts) => ({
+      ok: false,
+      status: 500,
+      json: () => new Promise((_resolve, reject) => {
+        opts.signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
+      }),
+    });
+    const p = fetchWithTimeout('https://example.com/err-json-abort', {}, { signal: ac.signal, timeoutMs: 5000, readAs: 'json' });
+    setTimeout(() => ac.abort(), 5);
+    await assert.rejects(() => p, (err) => err?.cancelled === true);
   });
 });

@@ -191,6 +191,15 @@ describe('Bounded Cache Module', () => {
       const marked = getCachedPriceStats('p3', false, null);
       assert.equal(marked.unavailable, true);
     });
+
+    it('allows median-less fallback write when previous memoryCache entry is expired', () => {
+      setCachedPriceStats('p4', { tiefstpreis: 100, medianPrice: 150 }, false, null);
+      const prevEntry = memoryCache.get(statsKey('p4'));
+      prevEntry.time = Date.now() - 49 * HOUR;
+      setCachedPriceStats('p4', { tiefstpreis: 85 }, false, null);
+      const next = getCachedPriceStats('p4', false, null);
+      assert.equal(next?.tiefstpreis, 85);
+    });
   });
 
   describe('shipping-mode guard', () => {

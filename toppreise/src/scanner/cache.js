@@ -61,8 +61,12 @@ export function decodeTimeSeries(stored) {
   }
   return out;
 }
+const resolveShipping = v => (
+  typeof v === 'boolean' ? v
+    : (typeof v === 'string' ? v === 'shipping' : isShippingPriceActive())
+);
 export const statsKey = (productId, useShippingOverride) => {
-  try { const s = typeof useShippingOverride === 'boolean' ? useShippingOverride : isShippingPriceActive(); return `${STATS_CACHE_PREFIX}${productId}_${s ? 's' : 'p'}`; }
+  try { const s = resolveShipping(useShippingOverride); return `${STATS_CACHE_PREFIX}${productId}_${s ? 's' : 'p'}`; }
   catch { return `${STATS_CACHE_PREFIX}${productId}_p`; }
 };
 export const DEALER_CACHE_PREFIX = 'tp_dealer_v1_';
@@ -249,9 +253,7 @@ export function prunePriceStatsCache(storage = null, forceEvict = false) {
 export function getCachedPriceStats(productId, ignoreNegativeCache = false, storage = null, useShippingOverride = null) {
   if (!productId) return null;
   storage = resolveStorage(storage);
-  const targetShipping = typeof useShippingOverride === 'boolean'
-    ? useShippingOverride
-    : (typeof useShippingOverride === 'string' ? useShippingOverride === 'shipping' : isShippingPriceActive());
+  const targetShipping = resolveShipping(useShippingOverride);
   const isModeMatch = entry => {
     if (typeof entry?.isShippingPrice !== 'boolean') return true;
     try {
@@ -322,7 +324,7 @@ export function setCachedPriceStats(productId, stats, isUnavailable = false, sto
   if (!isUnavailable && stats && !stats.medianPrice) {
     if (memoryCache.has(key)) {
       const prev = memoryCache.get(key);
-      if (prev && !prev.unavailable && prev.medianPrice) return;
+      if (prev && !prev.unavailable && prev.medianPrice && isCacheEntryFresh(prev)) return;
     } else if (storage) {
       try {
         const raw = storage.getItem(key);
@@ -335,7 +337,7 @@ export function setCachedPriceStats(productId, stats, isUnavailable = false, sto
       } catch {}
     }
   }
-  const s = typeof useShippingOverride === 'boolean' ? useShippingOverride : isShippingPriceActive();
+  const s = resolveShipping(useShippingOverride);
   const { time: _t, medianSig: _m, ...rest } = stats || {};
   const payload = isUnavailable
     ? { time: Date.now(), unavailable: true, isShippingPrice: s }
@@ -346,7 +348,7 @@ export function setCachedPriceStats(productId, stats, isUnavailable = false, sto
   const persistPayload = serializeStatsForDisk(payload);
   statsWriteCount++;
   const diskLimit = CONFIG?.CACHE_DISK_LIMIT ?? 300;
-  if (statsWriteCount === 1 || (statsWriteCount % 25 === 0 && (storage?.length ?? 0) > Math.min(diskLimit * 0.8, 20))) {
+  if (statsWriteCount === 1 || (statsWriteCount % 25 === 0 && (storage?.length ?? 0) > Math.max(20, Math.round(diskLimit * 0.8)))) {
     prunePriceStatsCache(storage);
   }
   safeStorageSet(storage, key, JSON.stringify(persistPayload));
@@ -513,7 +515,7 @@ export function getSharedDeal(productId, priceCents, storage = null) {
 export function setSharedDeal(productId, priceCents, storage = null) {
   if (!productId || priceCents == null) return;
   storage = resolveStorage(storage);
-  safeStorageSet(storage, SHARED_CACHE_PREFIX + productId, JSON.stringify({ priceCents, time: Date.now() }));
+  safeStorageSet(storage, SHARED_CACHE_PREFIX + productId, JSON.stringify({ time: Date.now(), priceCents }));
 }
 
 export function getCachedAsin(productId, storage = null) {
@@ -533,5 +535,5 @@ export function getCachedAsin(productId, storage = null) {
 export function setCachedAsin(productId, asin, storage = null) {
   if (!productId || !asin) return;
   storage = resolveStorage(storage);
-  safeStorageSet(storage, ASIN_CACHE_PREFIX + productId, JSON.stringify({ asin: String(asin).toUpperCase(), time: Date.now() }));
+  safeStorageSet(storage, ASIN_CACHE_PREFIX + productId, JSON.stringify({ time: Date.now(), asin: String(asin).toUpperCase() }));
 }

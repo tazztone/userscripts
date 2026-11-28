@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.576
+// @version      2.18.577
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -4531,6 +4531,38 @@ const SHADOW_MODAL_STYLES = `
     return result;
   }
 
+  function minOf(arr, pick = x => x) {
+    let m = Infinity;
+    for (let i = 0; i < arr.length; i++) {
+      const v = pick(arr[i]);
+      if (v < m) m = v;
+    }
+    return m === Infinity ? 0 : m;
+  }
+  function maxOf(arr, pick = x => x) {
+    let m = -Infinity;
+    for (let i = 0; i < arr.length; i++) {
+      const v = pick(arr[i]);
+      if (v > m) m = v;
+    }
+    return m === -Infinity ? 0 : m;
+  }
+
+  // Trailing-plateau walk: excludes points already <= anchorCents at the series end
+  // and returns the minimum positive price in the remaining prefix (or null if none).
+  function trailingPlateauLow(items, anchorCents, priceOf = x => x) {
+    let idx = items.length - 1;
+    while (idx > 0 && priceToCents(priceOf(items[idx])) <= anchorCents) {
+      idx--;
+    }
+    let m = Infinity;
+    for (let i = 0; i <= idx; i++) {
+      const p = priceOf(items[i]);
+      if (typeof p === 'number' && p > 0 && p < m) m = p;
+    }
+    return m === Infinity ? null : m;
+  }
+
   function sanitizeTimeSeries(points, band = CONFIG.OUTLIER_DEVIATION_BAND, maxGlitchHours = CONFIG.OUTLIER_MAX_GLITCH_HOURS, currentPrice = null) {
     const isLiveAnchored = p => {
       if (typeof currentPrice !== 'number' || !(currentPrice > 0)) return false;
@@ -4552,9 +4584,9 @@ const SHADOW_MODAL_STYLES = `
     } else {
       sorted0 = [];
     }
-    const rawMin = sorted0.length ? Math.min(...sorted0.map(p => p[1])) : 0;
+    const rawMin = sorted0.length ? minOf(sorted0, p => p[1]) : 0;
     if (!Array.isArray(points) || points.length < 3) {
-      return { cleanPoints: Array.isArray(points) ? points : [], filteredOutliers: [], rawMedian: 0, rawMin };
+      return { cleanPoints: sorted0, filteredOutliers: [], rawMedian: 0, rawMin };
     }
 
     const sorted = sorted0;
@@ -4597,7 +4629,6 @@ const SHADOW_MODAL_STYLES = `
       const runH = (rightTs - leftTs) / 3600000;
       let isGlitch = runH <= maxGlitchHours + 0.5;
       if (isGlitch) for (let m = j; m < k; m++) if (!isLocallySharp(m)) { isGlitch = false; break; }
-      if (isGlitch && k - j === 1 && (j === 0 || k === n) && n > 1) { const nb = j === 0 ? 1 : n - 2; if (!isNormalAt(nb)) isGlitch = false; }
       if (isGlitch && k === n) for (let m = j; m < k; m++) if (isLiveAnchored(sorted[m][1])) { isGlitch = false; break; }
       for (let m = j; m < k; m++) {
         const [ts, price] = sorted[m];
@@ -4656,15 +4687,15 @@ const SHADOW_MODAL_STYLES = `
     const outlierRejectionEnabled = (CONFIG.OUTLIER_REJECTION_ENABLED !== false);
     const sanitizeResult = outlierRejectionEnabled
       ? sanitizeTimeSeries(normPoints, CONFIG.OUTLIER_DEVIATION_BAND, CONFIG.OUTLIER_MAX_GLITCH_HOURS, currentPrice)
-      : { cleanPoints: normPoints, filteredOutliers: [], rawMin: Math.min(...normPoints.map(p => p[1])) };
+      : { cleanPoints: normPoints, filteredOutliers: [], rawMin: minOf(normPoints, p => p[1]) };
 
     const points = sanitizeResult.cleanPoints;
     const filteredOutliers = sanitizeResult.filteredOutliers;
 
     const prices = points.map(p => p[1]);
     const curr = (typeof currentPrice === 'number' && currentPrice > 0) ? currentPrice : prices[prices.length - 1];
-    const allTimeLow = Math.min(...prices);
-    const allTimeHigh = Math.max(...prices);
+    const allTimeLow = minOf(prices);
+    const allTimeHigh = maxOf(prices);
 
     // Trailing-plateau walk: only points already AT (or below) the current price
     // belong to the current regime. Strict cent comparison — the old 1% band
@@ -4673,17 +4704,9 @@ const SHADOW_MODAL_STYLES = `
     // be a new record; previousLow is the allTimeLow.
     const currCents = priceToCents(curr);
     const allTimeLowCents = priceToCents(allTimeLow);
-    let previousLow;
-    if (currCents > allTimeLowCents) {
-      previousLow = allTimeLow;
-    } else {
-      let idx = prices.length - 1;
-      while (idx > 0 && priceToCents(prices[idx]) <= currCents) {
-        idx--;
-      }
-      const historicalPrices = prices.slice(0, idx + 1);
-      previousLow = historicalPrices.length > 0 ? Math.min(...historicalPrices) : allTimeLow;
-    }
+    const previousLow = currCents > allTimeLowCents
+      ? allTimeLow
+      : (trailingPlateauLow(prices, currCents) ?? allTimeLow);
 
     const horizonDays = typeof horizonOverride === 'number'
       ? horizonOverride
@@ -4735,7 +4758,7 @@ const SHADOW_MODAL_STYLES = `
       timeSeries: points,
       anchorPrice: curr,
       ...(sanitizeResult.filteredOutliers.length ? { rawTimeSeries: normPoints } : null),
-      rawTiefstpreis: sanitizeResult.rawMin ?? Math.min(...normPoints.map(p => p[1]))
+      rawTiefstpreis: sanitizeResult.rawMin ?? minOf(normPoints, p => p[1])
     };
   }
 
@@ -4760,15 +4783,16 @@ const SHADOW_MODAL_STYLES = `
     }
     const cCents = priceToCents(cardPrice);
     const priceOf = p => (Array.isArray(p) ? p[1] : p?.price);
-    const allTimeLowCents = Math.min(...pts.map(p => priceToCents(priceOf(p))).filter(c => c > 0));
+    let allTimeLowCents = Infinity;
+    for (let i = 0; i < pts.length; i++) {
+      const c = priceToCents(priceOf(pts[i]));
+      if (c > 0 && c < allTimeLowCents) allTimeLowCents = c;
+    }
     if (cCents > allTimeLowCents) {
       return { previousLow: allTimeLowCents / 100, isNewRecord: false };
     }
-    let idx = pts.length - 1;
-    while (idx > 0 && priceToCents(priceOf(pts[idx])) <= cCents) idx--;
-    const hist = pts.slice(0, idx + 1).map(priceOf).filter(p => typeof p === 'number' && p > 0);
-    if (hist.length === 0) return stored;
-    const prevLow = Math.min(...hist);
+    const prevLow = trailingPlateauLow(pts, cCents, priceOf);
+    if (prevLow === null) return stored;
     return { previousLow: prevLow, isNewRecord: prevLow > 0 && cCents < priceToCents(prevLow) };
   }
 
@@ -4905,13 +4929,16 @@ const SHADOW_MODAL_STYLES = `
    * all three consume this number so they can never disagree. 0 when there is
    * no previous low to measure against.
    */
-  function vortiefDropPct(cardPrice, stats) {
-    const display = getDisplayDelta(cardPrice, stats);
+  const vortiefFromDisplay = (cardPrice, display) => {
     if (display.kind === 'new-low') return display.dRecord || 0;
     if (display.kind === 'at-low' && display.prevLow > cardPrice) {
       return pctDrop(display.prevLow, cardPrice);
     }
     return 0;
+  };
+
+  function vortiefDropPct(cardPrice, stats) {
+    return vortiefFromDisplay(cardPrice, getDisplayDelta(cardPrice, stats));
   }
   /**
    * Ø discount vs median, positive = below median (deal), 0 = at/above median
@@ -4977,7 +5004,7 @@ const SHADOW_MODAL_STYLES = `
       // blind inset wash like every other heat. Heatmap is a dumb view mode:
       // paints whatever the badge % says (Vortief-Abstand or siteDiff).
       if (!dealData) {
-        const vortief = vortiefDropPct(cardPrice, stats);
+        const vortief = vortiefFromDisplay(cardPrice, display);
         if (vortief >= HEAT_NEUTRAL_DEADBAND_PCT) {
           return { value: -vortief, provisional: false, pct: vortief, kind: 'vortief' };
         }
@@ -5069,8 +5096,12 @@ const SHADOW_MODAL_STYLES = `
     }
     return out;
   }
+  const resolveShipping = v => (
+    typeof v === 'boolean' ? v
+      : (typeof v === 'string' ? v === 'shipping' : isShippingPriceActive())
+  );
   const statsKey = (productId, useShippingOverride) => {
-    try { const s = typeof useShippingOverride === 'boolean' ? useShippingOverride : isShippingPriceActive(); return `${STATS_CACHE_PREFIX}${productId}_${s ? 's' : 'p'}`; }
+    try { const s = resolveShipping(useShippingOverride); return `${STATS_CACHE_PREFIX}${productId}_${s ? 's' : 'p'}`; }
     catch { return `${STATS_CACHE_PREFIX}${productId}_p`; }
   };
   const DEALER_CACHE_PREFIX = 'tp_dealer_v1_';
@@ -5257,9 +5288,7 @@ const SHADOW_MODAL_STYLES = `
   function getCachedPriceStats(productId, ignoreNegativeCache = false, storage = null, useShippingOverride = null) {
     if (!productId) return null;
     storage = resolveStorage(storage);
-    const targetShipping = typeof useShippingOverride === 'boolean'
-      ? useShippingOverride
-      : (typeof useShippingOverride === 'string' ? useShippingOverride === 'shipping' : isShippingPriceActive());
+    const targetShipping = resolveShipping(useShippingOverride);
     const isModeMatch = entry => {
       if (typeof entry?.isShippingPrice !== 'boolean') return true;
       try {
@@ -5330,7 +5359,7 @@ const SHADOW_MODAL_STYLES = `
     if (!isUnavailable && stats && !stats.medianPrice) {
       if (memoryCache.has(key)) {
         const prev = memoryCache.get(key);
-        if (prev && !prev.unavailable && prev.medianPrice) return;
+        if (prev && !prev.unavailable && prev.medianPrice && isCacheEntryFresh(prev)) return;
       } else if (storage) {
         try {
           const raw = storage.getItem(key);
@@ -5343,7 +5372,7 @@ const SHADOW_MODAL_STYLES = `
         } catch {}
       }
     }
-    const s = typeof useShippingOverride === 'boolean' ? useShippingOverride : isShippingPriceActive();
+    const s = resolveShipping(useShippingOverride);
     const { time: _t, medianSig: _m, ...rest } = stats || {};
     const payload = isUnavailable
       ? { time: Date.now(), unavailable: true, isShippingPrice: s }
@@ -5354,7 +5383,7 @@ const SHADOW_MODAL_STYLES = `
     const persistPayload = serializeStatsForDisk(payload);
     statsWriteCount++;
     const diskLimit = CONFIG?.CACHE_DISK_LIMIT ?? 300;
-    if (statsWriteCount === 1 || (statsWriteCount % 25 === 0 && (storage?.length ?? 0) > Math.min(diskLimit * 0.8, 20))) {
+    if (statsWriteCount === 1 || (statsWriteCount % 25 === 0 && (storage?.length ?? 0) > Math.max(20, Math.round(diskLimit * 0.8)))) {
       prunePriceStatsCache(storage);
     }
     safeStorageSet(storage, key, JSON.stringify(persistPayload));
@@ -5521,7 +5550,7 @@ const SHADOW_MODAL_STYLES = `
   function setSharedDeal(productId, priceCents, storage = null) {
     if (!productId || priceCents == null) return;
     storage = resolveStorage(storage);
-    safeStorageSet(storage, SHARED_CACHE_PREFIX + productId, JSON.stringify({ priceCents, time: Date.now() }));
+    safeStorageSet(storage, SHARED_CACHE_PREFIX + productId, JSON.stringify({ time: Date.now(), priceCents }));
   }
 
   function getCachedAsin(productId, storage = null) {
@@ -5541,7 +5570,7 @@ const SHADOW_MODAL_STYLES = `
   function setCachedAsin(productId, asin, storage = null) {
     if (!productId || !asin) return;
     storage = resolveStorage(storage);
-    safeStorageSet(storage, ASIN_CACHE_PREFIX + productId, JSON.stringify({ asin: String(asin).toUpperCase(), time: Date.now() }));
+    safeStorageSet(storage, ASIN_CACHE_PREFIX + productId, JSON.stringify({ time: Date.now(), asin: String(asin).toUpperCase() }));
   }
 
   // ─── MODULE: src/ui/mini-toggle.js ──────────────────────────────────────────
@@ -5588,86 +5617,94 @@ const SHADOW_MODAL_STYLES = `
     'Vergleiche folgende {anzahl} Angebote von Toppreise.ch (Preise in CHF) und bewerte Preis-Leistung, Stärken/Schwächen sowie welches Angebot der beste Deal ist (kurz auf Deutsch):';
   const DEFAULT_BATCH_COMPARE_ITEM_TEMPLATE =
     '{nr}. {titel} | Preis: {preis} | Rabatt: {rabatt} | Bisheriges Tief: {tief} | {median} | Händler: {haendler} | Specs: {specs}';
+  // mirror of DEFAULT_LAYOUT in features/share-discord.js (drift-checked in share-discord.test.js)
+  const DEFAULT_DISCORD_LAYOUT = '## {title}\n# {price}\n# {dealer} +{offers}\n{prevlow}\n{median}\n{ai}\n{comment}\n{link}';
 
-  const DEFAULTS = Object.freeze({
-    FILTER_NEG_ENABLED: false,
-    FILTER_MIN_ENABLED: false,
-    FILTER_DEAL_DISCOUNT_ENABLED: false,
-    FILTER_PRICE_ENABLED: false,
-    FILTER_PRICE_MIN: 0,
-    FILTER_PRICE_MAX: 0,
-    FILTER_SAVINGS_ENABLED: false,
-    FILTER_SAVINGS_MIN: 0,
-    FILTERS_ENABLED: true,
-    FILTER_REMEMBER_PER_PAGE_TYPE: true,
-    FILTER_NEG_MODE: 'dim',
-    FILTER_MIN_MODE: 'dim',
-    FILTER_DEAL_DISCOUNT_MODE: 'dim',
-    FILTER_PRICE_MODE: 'dim',
-    FILTER_SAVINGS_MODE: 'dim',
-    HIDE_UNCHECKED_MODE: 'dim',
-    VORTIEF_MODE: 'dim',
-    DEALER_MODE: 'dim',
-    MIN_DEAL_DISCOUNT: 0,
-    MARGIN_PERCENT: 0.0,
-    DIM_OPACITY: 0.25,
-    HIDE_ADS: true,
-    USE_SHIPPING_PRICE: true,
-    HEATMAP_ENABLED: true,
-    HEATMAP_INTENSITY: 1.0,
-    REAL_DEAL_MIN_DISCOUNT: 30,
-    REAL_DEAL_CACHE_HOURS: 48,
-    NEGATIVE_CACHE_HOURS: 2,
-    CACHE_MEMORY_LIMIT: 500,
-    CACHE_DISK_LIMIT: 300,
-    BESTPREISE_MODE_ACTIVE: false,
-    BESTPREISE_HIDE_UNCHECKED: false,
-    BESTPREISE_INCLUDE_VORTIEF: true,
-    BESTPREISE_WEIGHT_RECORD: 0.50,
-    BESTPREISE_MIN_POINTS: 5,
-    BESTPREISE_MEDIAN_HORIZON_DAYS: 365,
-    OUTLIER_REJECTION_ENABLED: true,
-    OUTLIER_DEVIATION_BAND: 0.50,
-    OUTLIER_MAX_GLITCH_HOURS: 48,
-    ENABLE_SPARKLINES: true,
-    KEEPA_CHART_ENABLED: true,
-    REVIEW_SEARCH_ENABLED: true,
-    REVIEW_SEARCH_KEYWORD: 'Testberichte zu: [Produkt]. Ist der Preis von {preis} ein guter Deal? Bewerte Preis-Leistung, Stärken und Schwächen kurz auf Deutsch.',
-    REVIEW_SEARCH_AI_MODE: false,
-    AI_SEARCH_PROVIDER: 'google',
-    TAVILY_ENABLED: false,
-    TAVILY_API_KEY: '',
-    TAVILY_SEARCH_DEPTH: 'basic',
-    TAVILY_MAX_RESULTS: 5,
-    OPENROUTER_API_KEY: '',
-    OPENROUTER_MODEL: DEFAULT_OPENROUTER_MODEL,
-    OPENROUTER_PAID_MODEL: '',
-    OPENROUTER_SEARCH_ENGINE: 'auto',
-    OPENROUTER_MAX_RESULTS: 5,
-    BATCH_CONFIRM_THRESHOLD: 10,
-    BATCH_SCOPE_DEFAULT: 'non-dimmed',
-    BATCH_COPY_FORMAT: 'markdown',
-    BATCH_COMPARE_PROMPT: DEFAULT_BATCH_COMPARE_PROMPT,
-    BATCH_COMPARE_ITEM_TEMPLATE: DEFAULT_BATCH_COMPARE_ITEM_TEMPLATE,
-    DEALER_AUTOFETCH: false,
-    NEGATIVE_TERMS: '',
-    DISCORD_WEBHOOK_URL: '',
-    DISCORD_CHANNELS: [],
-    DISCORD_SUPPRESS_DEALER_EMBED: true,
-    DISCORD_SUPPRESS_PRODUCT_EMBED: true,
-    DISCORD_FORUM_TITLE: false,
-    // mirror of DEFAULT_LAYOUT in features/share-discord.js (drift-checked in share-discord.test.js)
-    DISCORD_LAYOUT: '## {title}\n# {price}\n# {dealer} +{offers}\n{prevlow}\n{median}\n{ai}\n{comment}\n{link}',
-    MIN_OFFERS: 0,
-    SORT_BY_OFFERS: 'none',
-    ALARM_ENABLED: true,
-    ALARM_TARGET_PERCENT: 0.60,
-    ALARM_DURATION_DAYS: '730',
-    ALARM_AUTO_SUBMIT: false,
-    ALARM_FALLBACK_TIMEOUT_MS: 5000,
-    OBSERVER_DEBOUNCE_MS: 200,
-    DEBUG: false
-  });
+  // Single config schema: every DEFAULTS key validates/coerces through
+  // sanitizeConfigValue (init, updateConfig(s), settings import). Unknown keys
+  // are rejected (undefined → caller ignores). Bounds below are authoritative.
+  const SETTING_SCHEMA = {
+    FILTER_NEG_ENABLED: { type: 'bool', default: false },
+    FILTER_MIN_ENABLED: { type: 'bool', default: false },
+    FILTER_DEAL_DISCOUNT_ENABLED: { type: 'bool', default: false },
+    FILTER_PRICE_ENABLED: { type: 'bool', default: false },
+    FILTER_PRICE_MIN: { type: 'float', default: 0, min: 0, max: 1000000 },
+    FILTER_PRICE_MAX: { type: 'float', default: 0, min: 0, max: 1000000 },
+    FILTER_SAVINGS_ENABLED: { type: 'bool', default: false },
+    FILTER_SAVINGS_MIN: { type: 'float', default: 0, min: 0, max: 1000000 },
+    FILTERS_ENABLED: { type: 'bool', default: true },
+    FILTER_REMEMBER_PER_PAGE_TYPE: { type: 'bool', default: true },
+    FILTER_NEG_MODE: { type: 'mode', default: 'dim' },
+    FILTER_MIN_MODE: { type: 'mode', default: 'dim' },
+    FILTER_DEAL_DISCOUNT_MODE: { type: 'mode', default: 'dim' },
+    FILTER_PRICE_MODE: { type: 'mode', default: 'dim' },
+    FILTER_SAVINGS_MODE: { type: 'mode', default: 'dim' },
+    HIDE_UNCHECKED_MODE: { type: 'mode', default: 'dim' },
+    VORTIEF_MODE: { type: 'mode', default: 'dim' },
+    DEALER_MODE: { type: 'mode', default: 'dim' },
+    MIN_DEAL_DISCOUNT: { type: 'int', default: 0, min: 0, max: 50 },
+    MARGIN_PERCENT: { type: 'float', default: 0.0, min: 0, max: 50 },
+    DIM_OPACITY: { type: 'float', default: 0.25, min: 0.05, max: 1 },
+    HIDE_ADS: { type: 'bool', default: true },
+    USE_SHIPPING_PRICE: { type: 'bool', default: true },
+    HEATMAP_ENABLED: { type: 'heatmap_mode', default: true },
+    HEATMAP_INTENSITY: { type: 'float', default: 1.0, min: 0.2, max: 1 },
+    REAL_DEAL_MIN_DISCOUNT: { type: 'int', default: 30, min: 0, max: 90 },
+    REAL_DEAL_CACHE_HOURS: { type: 'int', default: 48, min: 1, max: 336 },
+    NEGATIVE_CACHE_HOURS: { type: 'float', default: 2, min: 0.25, max: 24 },
+    CACHE_MEMORY_LIMIT: { type: 'int', default: 500, min: 100, max: 2000 },
+    CACHE_DISK_LIMIT: { type: 'int', default: 300, min: 100, max: 1000 },
+    BESTPREISE_MODE_ACTIVE: { type: 'bool', default: false },
+    BESTPREISE_HIDE_UNCHECKED: { type: 'bool', default: false },
+    BESTPREISE_INCLUDE_VORTIEF: { type: 'bool', default: true },
+    BESTPREISE_WEIGHT_RECORD: { type: 'float', default: 0.50, min: 0, max: 1 },
+    BESTPREISE_MIN_POINTS: { type: 'int', default: 5, min: 1, max: 100 },
+    BESTPREISE_MEDIAN_HORIZON_DAYS: { type: 'int', default: 365, min: 0, max: 3650 },
+    OUTLIER_REJECTION_ENABLED: { type: 'bool', default: true },
+    OUTLIER_DEVIATION_BAND: { type: 'float', default: 0.50, min: 0.01, max: 0.50 },
+    OUTLIER_MAX_GLITCH_HOURS: { type: 'int', default: 48, min: 24, max: 168 },
+    ENABLE_SPARKLINES: { type: 'bool', default: true },
+    KEEPA_CHART_ENABLED: { type: 'bool', default: true },
+    REVIEW_SEARCH_ENABLED: { type: 'bool', default: true },
+    REVIEW_SEARCH_KEYWORD: { type: 'string', default: 'Testberichte zu: [Produkt]. Ist der Preis von {preis} ein guter Deal? Bewerte Preis-Leistung, Stärken und Schwächen kurz auf Deutsch.' },
+    REVIEW_SEARCH_AI_MODE: { type: 'bool', default: false },
+    AI_SEARCH_PROVIDER: { type: 'enum', default: 'google', allowed: ['google', 'openrouter', 'tavily'] },
+    TAVILY_ENABLED: { type: 'bool', default: false },
+    TAVILY_API_KEY: { type: 'string', default: '' },
+    TAVILY_SEARCH_DEPTH: { type: 'enum', default: 'basic', allowed: ['basic', 'advanced'] },
+    TAVILY_MAX_RESULTS: { type: 'int', default: 5, min: 1, max: 10 },
+    OPENROUTER_API_KEY: { type: 'string', default: '' },
+    OPENROUTER_MODEL: { type: 'string', default: DEFAULT_OPENROUTER_MODEL },
+    OPENROUTER_PAID_MODEL: { type: 'string', default: '' },
+    OPENROUTER_SEARCH_ENGINE: { type: 'enum', default: 'auto', allowed: ['auto', 'native', 'exa', 'parallel', 'perplexity', 'firecrawl'] },
+    OPENROUTER_MAX_RESULTS: { type: 'int', default: 5, min: 1, max: 10 },
+    BATCH_CONFIRM_THRESHOLD: { type: 'int', default: 10, min: 1, max: 100 },
+    BATCH_SCOPE_DEFAULT: { type: 'enum', default: 'non-dimmed', allowed: ['non-dimmed', 'visible', 'deals'] },
+    BATCH_COPY_FORMAT: { type: 'enum', default: 'markdown', allowed: ['markdown', 'tsv'] },
+    BATCH_COMPARE_PROMPT: { type: 'string', default: DEFAULT_BATCH_COMPARE_PROMPT },
+    BATCH_COMPARE_ITEM_TEMPLATE: { type: 'string', default: DEFAULT_BATCH_COMPARE_ITEM_TEMPLATE },
+    DEALER_AUTOFETCH: { type: 'bool', default: false },
+    NEGATIVE_TERMS: { type: 'string', default: '' },
+    DISCORD_WEBHOOK_URL: { type: 'string', default: '' },
+    DISCORD_CHANNELS: { type: 'channels', default: [] },
+    DISCORD_SUPPRESS_DEALER_EMBED: { type: 'bool', default: true },
+    DISCORD_SUPPRESS_PRODUCT_EMBED: { type: 'bool', default: true },
+    DISCORD_FORUM_TITLE: { type: 'bool', default: false },
+    DISCORD_LAYOUT: { type: 'string', default: DEFAULT_DISCORD_LAYOUT },
+    MIN_OFFERS: { type: 'int', default: 0, min: 0, max: 99 },
+    SORT_BY_OFFERS: { type: 'enum', default: 'none', allowed: ['none', 'desc', 'asc', 'discount-desc'] },
+    ALARM_ENABLED: { type: 'bool', default: true },
+    ALARM_TARGET_PERCENT: { type: 'float', default: 0.60, min: 0.05, max: 0.99 },
+    ALARM_DURATION_DAYS: { type: 'enum', default: '730', allowed: ['90', '180', '365', '730'] },
+    ALARM_AUTO_SUBMIT: { type: 'bool', default: false },
+    ALARM_FALLBACK_TIMEOUT_MS: { type: 'int', default: 5000, min: 1000, max: 30000 },
+    OBSERVER_DEBOUNCE_MS: { type: 'int', default: 200, min: 0, max: 2000 },
+    DEBUG: { type: 'bool', default: false }
+  };
+
+  const DEFAULTS = Object.freeze(
+    Object.fromEntries(Object.entries(SETTING_SCHEMA).map(([k, r]) => [k, r.default]))
+  );
 
   // Keys partitioned per page type when FILTER_REMEMBER_PER_PAGE_TYPE is enabled:
   // covers filter controls, filter cycle modes, heatmap, and deal sorting.
@@ -5798,87 +5835,6 @@ const SHADOW_MODAL_STYLES = `
     try { if (typeof GM_setValue !== 'undefined') GM_setValue(k, v); } catch { /* ignore */ }
     // Secrets nie ins page-lesbare localStorage spiegeln (GM bleibt privat).
     if (!SECRET_KEYS.has(k)) try { if (typeof localStorage !== 'undefined') localStorage.setItem('tp_suite_v2_' + k, JSON.stringify(v)); } catch { /* storage full/private mode */ }
-  };
-  // Single config schema: every DEFAULTS key validates/coerces through
-  // sanitizeConfigValue (init, updateConfig(s), settings import). Unknown keys
-  // are rejected (undefined → caller ignores). Bounds below are authoritative.
-  const SETTING_SCHEMA = {
-    FILTER_NEG_ENABLED: { type: 'bool', default: false },
-    FILTER_MIN_ENABLED: { type: 'bool', default: false },
-    FILTER_DEAL_DISCOUNT_ENABLED: { type: 'bool', default: false },
-    FILTER_PRICE_ENABLED: { type: 'bool', default: false },
-    FILTER_PRICE_MIN: { type: 'float', default: 0, min: 0, max: 1000000 },
-    FILTER_PRICE_MAX: { type: 'float', default: 0, min: 0, max: 1000000 },
-    FILTER_SAVINGS_ENABLED: { type: 'bool', default: false },
-    FILTER_SAVINGS_MIN: { type: 'float', default: 0, min: 0, max: 1000000 },
-    FILTERS_ENABLED: { type: 'bool', default: true },
-    FILTER_REMEMBER_PER_PAGE_TYPE: { type: 'bool', default: true },
-    FILTER_NEG_MODE: { type: 'mode', default: 'dim' },
-    FILTER_MIN_MODE: { type: 'mode', default: 'dim' },
-    FILTER_DEAL_DISCOUNT_MODE: { type: 'mode', default: 'dim' },
-    FILTER_PRICE_MODE: { type: 'mode', default: 'dim' },
-    FILTER_SAVINGS_MODE: { type: 'mode', default: 'dim' },
-    HIDE_UNCHECKED_MODE: { type: 'mode', default: 'dim' },
-    VORTIEF_MODE: { type: 'mode', default: 'dim' },
-    DEALER_MODE: { type: 'mode', default: 'dim' },
-    MIN_DEAL_DISCOUNT: { type: 'int', default: 0, min: 0, max: 50 },
-    MARGIN_PERCENT: { type: 'float', default: 0.0, min: 0, max: 50 },
-    DIM_OPACITY: { type: 'float', default: 0.25, min: 0.05, max: 1 },
-    HIDE_ADS: { type: 'bool', default: true },
-    USE_SHIPPING_PRICE: { type: 'bool', default: true },
-    HEATMAP_ENABLED: { type: 'heatmap_mode', default: true },
-    HEATMAP_INTENSITY: { type: 'float', default: 1.0, min: 0.2, max: 1 },
-    REAL_DEAL_MIN_DISCOUNT: { type: 'int', default: 30, min: 0, max: 90 },
-    REAL_DEAL_CACHE_HOURS: { type: 'int', default: 48, min: 1, max: 336 },
-    NEGATIVE_CACHE_HOURS: { type: 'float', default: 2, min: 0.25, max: 24 },
-    CACHE_MEMORY_LIMIT: { type: 'int', default: 500, min: 100, max: 2000 },
-    CACHE_DISK_LIMIT: { type: 'int', default: 300, min: 100, max: 1000 },
-    BESTPREISE_MODE_ACTIVE: { type: 'bool', default: false },
-    BESTPREISE_HIDE_UNCHECKED: { type: 'bool', default: false },
-    BESTPREISE_INCLUDE_VORTIEF: { type: 'bool', default: true },
-    BESTPREISE_WEIGHT_RECORD: { type: 'float', default: 0.50, min: 0, max: 1 },
-    BESTPREISE_MIN_POINTS: { type: 'int', default: 5, min: 1, max: 100 },
-    BESTPREISE_MEDIAN_HORIZON_DAYS: { type: 'int', default: 365, min: 0, max: 3650 },
-    OUTLIER_REJECTION_ENABLED: { type: 'bool', default: true },
-    OUTLIER_DEVIATION_BAND: { type: 'float', default: 0.50, min: 0.01, max: 0.50 },
-    OUTLIER_MAX_GLITCH_HOURS: { type: 'int', default: 48, min: 24, max: 168 },
-    ENABLE_SPARKLINES: { type: 'bool', default: true },
-    KEEPA_CHART_ENABLED: { type: 'bool', default: true },
-    REVIEW_SEARCH_ENABLED: { type: 'bool', default: true },
-    REVIEW_SEARCH_KEYWORD: { type: 'string', default: 'Testberichte zu: [Produkt]. Ist der Preis von {preis} ein guter Deal? Bewerte Preis-Leistung, Stärken und Schwächen kurz auf Deutsch.' },
-    REVIEW_SEARCH_AI_MODE: { type: 'bool', default: false },
-    AI_SEARCH_PROVIDER: { type: 'enum', default: 'google', allowed: ['google', 'openrouter', 'tavily'] },
-    TAVILY_ENABLED: { type: 'bool', default: false },
-    TAVILY_API_KEY: { type: 'string', default: '' },
-    TAVILY_SEARCH_DEPTH: { type: 'enum', default: 'basic', allowed: ['basic', 'advanced'] },
-    TAVILY_MAX_RESULTS: { type: 'int', default: 5, min: 1, max: 10 },
-    OPENROUTER_API_KEY: { type: 'string', default: '' },
-    OPENROUTER_MODEL: { type: 'string', default: DEFAULT_OPENROUTER_MODEL },
-    OPENROUTER_PAID_MODEL: { type: 'string', default: '' },
-    OPENROUTER_SEARCH_ENGINE: { type: 'enum', default: 'auto', allowed: ['auto', 'native', 'exa', 'parallel', 'perplexity', 'firecrawl'] },
-    OPENROUTER_MAX_RESULTS: { type: 'int', default: 5, min: 1, max: 10 },
-    BATCH_CONFIRM_THRESHOLD: { type: 'int', default: 10, min: 1, max: 100 },
-    BATCH_SCOPE_DEFAULT: { type: 'enum', default: 'non-dimmed', allowed: ['non-dimmed', 'visible', 'deals'] },
-    BATCH_COPY_FORMAT: { type: 'enum', default: 'markdown', allowed: ['markdown', 'tsv'] },
-    BATCH_COMPARE_PROMPT: { type: 'string', default: DEFAULT_BATCH_COMPARE_PROMPT },
-    BATCH_COMPARE_ITEM_TEMPLATE: { type: 'string', default: DEFAULT_BATCH_COMPARE_ITEM_TEMPLATE },
-    DEALER_AUTOFETCH: { type: 'bool', default: false },
-    NEGATIVE_TERMS: { type: 'string', default: '' },
-    DISCORD_WEBHOOK_URL: { type: 'string', default: '' },
-    DISCORD_CHANNELS: { type: 'channels', default: [] },
-    DISCORD_SUPPRESS_DEALER_EMBED: { type: 'bool', default: true },
-    DISCORD_SUPPRESS_PRODUCT_EMBED: { type: 'bool', default: true },
-    DISCORD_FORUM_TITLE: { type: 'bool', default: false },
-    DISCORD_LAYOUT: { type: 'string', default: DEFAULTS.DISCORD_LAYOUT },
-    MIN_OFFERS: { type: 'int', default: 0, min: 0, max: 99 },
-    SORT_BY_OFFERS: { type: 'enum', default: 'none', allowed: ['none', 'desc', 'asc', 'discount-desc'] },
-    ALARM_ENABLED: { type: 'bool', default: true },
-    ALARM_TARGET_PERCENT: { type: 'float', default: 0.60, min: 0.05, max: 0.99 },
-    ALARM_DURATION_DAYS: { type: 'enum', default: '730', allowed: ['90', '180', '365', '730'] },
-    ALARM_AUTO_SUBMIT: { type: 'bool', default: false },
-    ALARM_FALLBACK_TIMEOUT_MS: { type: 'int', default: 5000, min: 1000, max: 30000 },
-    OBSERVER_DEBOUNCE_MS: { type: 'int', default: 200, min: 0, max: 2000 },
-    DEBUG: { type: 'bool', default: false }
   };
   const coerceNumber = raw => {
     if (typeof raw === 'number') return raw;
@@ -6103,11 +6059,6 @@ const SHADOW_MODAL_STYLES = `
   // product keys. Stored old value seeds both new keys once; stale key unread.
   const legacySuppressEmbeds = _getValue('DISCORD_SUPPRESS_EMBEDS', null);
   const _layoutRaw = _getValue('DISCORD_LAYOUT', DEFAULTS.DISCORD_LAYOUT);
-  // Filter modes: 'dim' dims, 'highlight' highlights, everything else hides.
-  const _modeValue = k => {
-    const v = _getValue(k, DEFAULTS[k]);
-    return (v === 'dim' || v === 'highlight') ? v : 'hide';
-  };
   // 4-state filter cycle: each cause row pairs an enable key with a mode key.
   // The cycle button derives Normal/Dimmen/Verbergen/Hervorheben from the pair —
   // storage keys unchanged, no migration. Dealer row excluded (preset).
@@ -6150,9 +6101,7 @@ const SHADOW_MODAL_STYLES = `
   const CONFIG = Object.fromEntries(
     Object.entries(DEFAULTS).map(([k, defaultVal]) => {
       let val;
-      if (k.endsWith('_MODE') && k !== 'REVIEW_SEARCH_AI_MODE') {
-        val = _modeValue(k);
-      } else if (k === 'DISCORD_SUPPRESS_DEALER_EMBED' || k === 'DISCORD_SUPPRESS_PRODUCT_EMBED') {
+      if (k === 'DISCORD_SUPPRESS_DEALER_EMBED' || k === 'DISCORD_SUPPRESS_PRODUCT_EMBED') {
         val = _getValue(k, legacySuppressEmbeds ?? defaultVal);
       } else if (k === 'DISCORD_LAYOUT') {
         val = (typeof _layoutRaw === 'string' && _layoutRaw.trim()) ? _layoutRaw : defaultVal;
@@ -6166,9 +6115,6 @@ const SHADOW_MODAL_STYLES = `
   // 0% is a legitimate threshold (check everything): only non-numeric storage
   // falls back to 30 — `|| 30` would silently discard an explicit 0.
   const realDealMinDiscount = () => (Number.isFinite(CONFIG.REAL_DEAL_MIN_DISCOUNT) ? CONFIG.REAL_DEAL_MIN_DISCOUNT : 30);
-  // Corrupt storage must never silently break fills: fall back to defaults on
-  // NaN/unknown durations.
-  if (!['90', '180', '365', '730'].includes(CONFIG.ALARM_DURATION_DAYS)) CONFIG.ALARM_DURATION_DAYS = '730';
   if (CONFIG.REVIEW_SEARCH_KEYWORD === 'KI-Modus') { CONFIG.REVIEW_SEARCH_KEYWORD = DEFAULTS.REVIEW_SEARCH_KEYWORD; CONFIG.REVIEW_SEARCH_AI_MODE = true; }
   // Old defaults bump to new default (KI-Modus precedent above).
   if (
@@ -6180,7 +6126,6 @@ const SHADOW_MODAL_STYLES = `
     CONFIG.REVIEW_SEARCH_KEYWORD = DEFAULTS.REVIEW_SEARCH_KEYWORD;
   }
   CONFIG.REVIEW_SEARCH_KEYWORD = sanitizeReviewKeyword(CONFIG.REVIEW_SEARCH_KEYWORD);
-  if (typeof CONFIG.REVIEW_SEARCH_AI_MODE !== 'boolean') CONFIG.REVIEW_SEARCH_AI_MODE = DEFAULTS.REVIEW_SEARCH_AI_MODE;
 
   let activeProfileType = null;
   function getActiveProfileType() {
@@ -6234,9 +6179,9 @@ const SHADOW_MODAL_STYLES = `
   }
 
   const saveConfigKey = (key, val, options = {}) => {
-    if (SECRET_KEYS.has(key)) return;
+    if (SECRET_KEYS.has(key)) return undefined;
     const clean = sanitizeConfigValue(key, val);
-    if (clean === undefined) return;
+    if (clean === undefined) return undefined;
     CONFIG[key] = clean;
     _setValue(key, clean);
 
@@ -6252,6 +6197,7 @@ const SHADOW_MODAL_STYLES = `
       profiles[profileType][key] = clean;
       _setValue('PAGE_PROFILES', profiles);
     }
+    return clean;
   };
   // Bell-decor repaint hook: price-alarm.js registers refreshAlarmBellDecor
   // here (a static import would cycle config ← price-alarm; the concat-IIFE
@@ -6290,15 +6236,15 @@ const SHADOW_MODAL_STYLES = `
   };
   function updateConfig(key, val, options = {}) {
     if (SECRET_KEYS.has(key)) {
-      const clean = key === 'DISCORD_CHANNELS' ? (sanitizeConfigValue(key, val) ?? []) : val;
-      CONFIG[key] = clean;
-      _setValue(key, clean);
-    }
-    else {
       const clean = sanitizeConfigValue(key, val);
       if (clean === undefined) return;
       val = clean;
-      saveConfigKey(key, val, options);
+      CONFIG[key] = clean;
+      _setValue(key, clean);
+    } else {
+      const clean = saveConfigKey(key, val, options);
+      if (clean === undefined) return;
+      val = clean;
     }
     if (!options.skipUiSync) {
       syncUiControl(key, val);
@@ -6730,6 +6676,11 @@ const SHADOW_MODAL_STYLES = `
           barLabel.textContent = horizonText(stored);
           barLabel.title = horizonText(stored, 'title');
         }
+      } else if (key === 'REAL_DEAL_MIN_DISCOUNT' && doc) {
+        const floatingThreshInput = doc.getElementById('tp-floating-threshold-input');
+        if (floatingThreshInput && doc.activeElement !== floatingThreshInput) {
+          floatingThreshInput.value = `≥${val}%`;
+        }
       } else if (
         (key === 'ALARM_ENABLED' || key === 'ALARM_TARGET_PERCENT' || key === 'ALARM_DURATION_DAYS' || key === 'ALARM_AUTO_SUBMIT')
         && !opts.silent
@@ -6883,14 +6834,6 @@ const SHADOW_MODAL_STYLES = `
               if (discVal) discVal.textContent = `${val}%`;
               break;
             }
-            case 'REAL_DEAL_MIN_DISCOUNT': {
-              // Threshold lives in the floating CTA text input.
-              const floatingThreshInput = doc?.getElementById('tp-floating-threshold-input');
-              if (floatingThreshInput && doc?.activeElement !== floatingThreshInput) {
-                floatingThreshInput.value = `≥${val}%`;
-              }
-              break;
-            }
           }
         } catch (err) {
           console.warn('[Toppreise-Suite] syncUiControl bar error', err);
@@ -7005,23 +6948,40 @@ const SHADOW_MODAL_STYLES = `
     return out;
   }
 
+  let persistentCache = null;
+  let persistentCacheReader = null;
+
   function readPersistentBuffer() {
+    const reader = typeof GM_getValue === 'function'
+      ? GM_getValue
+      : (typeof localStorage !== 'undefined' ? localStorage : null);
+    if (persistentCache !== null && persistentCacheReader === reader) {
+      return persistentCache;
+    }
+    persistentCacheReader = reader;
     try {
       if (typeof GM_getValue === 'function') {
-        return sanitizePersistentList(GM_getValue(PERSISTENT_LOG_KEY, []));
+        persistentCache = sanitizePersistentList(GM_getValue(PERSISTENT_LOG_KEY, []));
+        return persistentCache;
       }
     } catch {}
     try {
       if (typeof localStorage !== 'undefined') {
         const raw = localStorage.getItem(PERSISTENT_LS_KEY);
-        return raw ? sanitizePersistentList(raw) : [];
+        persistentCache = raw ? sanitizePersistentList(raw) : [];
+        return persistentCache;
       }
     } catch {}
-    return [];
+    persistentCache = [];
+    return persistentCache;
   }
 
   function writePersistentBuffer(entries) {
     const trimmed = Array.isArray(entries) ? entries.slice(-PERSISTENT_LOG_MAX) : [];
+    persistentCache = trimmed;
+    persistentCacheReader = typeof GM_getValue === 'function'
+      ? GM_getValue
+      : (typeof localStorage !== 'undefined' ? localStorage : null);
     try {
       if (typeof GM_setValue === 'function') {
         GM_setValue(PERSISTENT_LOG_KEY, trimmed);
@@ -7037,7 +6997,7 @@ const SHADOW_MODAL_STYLES = `
 
   function appendPersistentEntry(entry) {
     if (entry.level !== 'warn' && entry.level !== 'error') return;
-    const list = readPersistentBuffer();
+    const list = readPersistentBuffer().slice();
     const next = {
       ts: entry.ts,
       level: entry.level,
@@ -7112,6 +7072,8 @@ const SHADOW_MODAL_STYLES = `
   }
 
   function clearPersistentActivityLog() {
+    persistentCache = null;
+    persistentCacheReader = null;
     try {
       if (typeof GM_deleteValue === 'function') {
         GM_deleteValue(PERSISTENT_LOG_KEY);
@@ -7145,7 +7107,7 @@ const SHADOW_MODAL_STYLES = `
     const rows = Array.isArray(snapshot) ? snapshot : activityBuffer;
     const includeDate = Boolean(opts && opts.includeDate);
     return rows.map((e) => {
-      const iso = new Date(e.ts || 0).toISOString();
+      const iso = new Date(Number.isFinite(e.ts) ? e.ts : 0).toISOString();
       const time = includeDate ? `${iso.slice(0, 10)} ${iso.slice(11, 23)}` : iso.slice(11, 23);
       const det = e.detail ? ` | ${e.detail}` : '';
       if (!includeDate) {
@@ -7179,15 +7141,19 @@ const SHADOW_MODAL_STYLES = `
   const backoffMs = (attempt, baseDelayMs = 400) =>
     Math.min(8000, baseDelayMs * 2 ** attempt) + Math.random() * 250;
 
-  const parseRetryAfterMs = (header, baseDelayMs = 400, attempt = 0) => {
-    if (header != null && String(header).trim() !== '') {
-      const secs = Number(String(header).trim());
-      if (Number.isFinite(secs)) return Math.max(0, Math.min(60000, secs * 1000));
-      const at = Date.parse(String(header).trim());
-      if (Number.isFinite(at)) return Math.max(0, Math.min(60000, at - Date.now()));
-    }
-    return backoffMs(attempt, baseDelayMs);
+  const parseRetryHeaderMs = header => {
+    if (header == null) return null;
+    const trimmed = String(header).trim();
+    if (trimmed === '') return null;
+    const secs = Number(trimmed);
+    if (Number.isFinite(secs)) return Math.max(0, Math.min(60000, secs * 1000));
+    const at = Date.parse(trimmed);
+    if (Number.isFinite(at)) return Math.max(0, Math.min(60000, at - Date.now()));
+    return null;
   };
+
+  const parseRetryAfterMs = (header, baseDelayMs = 400, attempt = 0) =>
+    parseRetryHeaderMs(header) ?? backoffMs(attempt, baseDelayMs);
 
   function makeTypedError(message, props = {}) {
     const err = new Error(message);
@@ -7251,7 +7217,12 @@ const SHADOW_MODAL_STYLES = `
         let body = null;
         if (typeof res?.[readAs] === 'function') {
           if (readAs === 'json' && !res.ok) {
-            try { body = await res.json(); } catch { body = null; }
+            try {
+              body = await res.json();
+            } catch (err) {
+              if (externalAborted || timedOut || err?.name === 'AbortError') throw err;
+              body = null;
+            }
           } else {
             body = await res[readAs]();
           }
@@ -7386,7 +7357,7 @@ const SHADOW_MODAL_STYLES = `
             reject(makeTypedError('GM_xmlhttpRequest aborted', { cancelled: true }));
           },
         });
-      } catch (err) {
+        } catch (err) {
         if (!settled) {
           settled = true;
           cleanup();
@@ -7395,6 +7366,33 @@ const SHADOW_MODAL_STYLES = `
         }
       }
     });
+  }
+
+  function postJsonTransport({ url, headers, body, timeoutMs = 60000, signal = null, source = 'net', label = '' }) {
+    if (typeof GM_xmlhttpRequest !== 'undefined') {
+      return gmRequestWithTimeout({
+        method: 'POST',
+        url,
+        headers,
+        data: body,
+      }, { timeoutMs, signal, source, label }).then(res => ({
+        status: res.status,
+        ok: res.status >= 200 && res.status < 300,
+        text: res.responseText,
+      }));
+    }
+    if (typeof fetch !== 'undefined') {
+      return fetchWithTimeout(url, {
+        method: 'POST',
+        headers,
+        body,
+      }, { timeoutMs, signal, source, label, readAs: 'text' }).then(({ res, body: text }) => ({
+        status: res.status,
+        ok: Boolean(res?.ok),
+        text,
+      }));
+    }
+    return Promise.reject(makeTypedError('Kein HTTP-Transport verfügbar', { network: true, noTransport: true }));
   }
 
   // ─── MODULE: src/page/adapter.js ────────────────────────────────────────────
@@ -11113,6 +11111,7 @@ const SHADOW_MODAL_STYLES = `
     normalizeEntry = parsed => parsed
   }) {
     const memCache = new Map();
+    let writeCount = 0;
     const keysWithPrefix = store => {
       const keys = [];
       for (let i = 0; i < store.length; i++) {
@@ -11126,8 +11125,9 @@ const SHADOW_MODAL_STYLES = `
       if (!key) return null;
       const now = Date.now();
       const mem = memCache.get(key);
-      if (mem && (now - mem.timestamp < ttlMs)) {
-        return mem;
+      if (mem) {
+        if (now - mem.timestamp < ttlMs) return mem;
+        memCache.delete(key);
       }
       if (typeof localStorage !== 'undefined') {
         try {
@@ -11193,9 +11193,9 @@ const SHADOW_MODAL_STYLES = `
         const payload = JSON.stringify(entry);
         try {
           store.setItem(prefix + key, payload);
-          prune(maxDisk, store);
+          if (++writeCount % 10 === 0 || store.length > maxDisk) prune(maxDisk, store);
         } catch {
-          prune(50, store);
+          prune(Math.min(50, Math.floor(maxDisk / 2)), store);
           try {
             store.setItem(prefix + key, payload);
           } catch { /* ignore storage full or quota errors */ }
@@ -13225,14 +13225,25 @@ const SHADOW_MODAL_STYLES = `
 
 
   async function interruptibleSleep(ms, shouldCancelFn = null, signal = null) {
-    const step = 100;
-    let elapsed = 0;
-    while (elapsed < ms) {
-      if (signal?.aborted) return;
-      if (shouldCancelFn && shouldCancelFn()) break;
-      const wait = Math.min(step, ms - elapsed);
-      await new Promise(r => setTimeout(r, wait));
-      elapsed += wait;
+    if (!(ms > 0)) return;
+    const deadline = Date.now() + ms;
+    while (true) {
+      if (signal?.aborted || shouldCancelFn?.()) return;
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) return;
+      const wait = shouldCancelFn ? Math.min(100, remaining) : remaining;
+      await new Promise(resolve => {
+        let done = false;
+        const finish = () => {
+          if (done) return;
+          done = true;
+          clearTimeout(timer);
+          signal?.removeEventListener('abort', finish);
+          resolve();
+        };
+        const timer = setTimeout(finish, wait);
+        signal?.addEventListener('abort', finish, { once: true });
+      });
     }
   }
 
@@ -13268,7 +13279,8 @@ const SHADOW_MODAL_STYLES = `
           if (attempt === 0 && retries > 0 && wait <= 5000) {
             setOriginCooldownUntil(Date.now() + wait);
             logActivity('warn', 'scanner', `429 Cooldown aktiviert (${wait}ms) — Retry (1/${retries})`);
-            await interruptibleSleep(wait, shouldCancelFn, signal);
+            const sleepMs = Math.max(wait, getOriginCooldownUntil() - Date.now()) + 25;
+            await interruptibleSleep(sleepMs, shouldCancelFn, signal);
             continue;
           }
           const cooldownMs = Math.max(wait, baseDelayMs);
@@ -13385,8 +13397,8 @@ const SHADOW_MODAL_STYLES = `
           signal: linkedSignal
         });
         // No .catch swallow: body-read aborts must reach the retry classifier
-        // (timeout path), malformed JSON the generic branch (retried, then
-        // invalid-response below). 4xx other than 429 arrive here with res.
+        // (timeout path), malformed JSON maps to invalid-json (not retried).
+        // 4xx other than 429 arrive here with res.
         const json = res.ok ? await res.json() : null;
         return { res, data: json };
       }, { retries, shouldCancelFn, signal, baseDelayMs: 1500, timeoutMs: 6000 });
@@ -13401,8 +13413,7 @@ const SHADOW_MODAL_STYLES = `
     } catch (err) {
       // Typed failures propagate so the caller skips the HTML fallback; only
       // the empty signal (absent/invalid) falls through to it.
-      if (err?.cancelled || err?.timeout || err?.cooldown || err?.unauthorized) throw err;
-      if (err?.transient && err?.cause?.name !== 'SyntaxError') throw err;
+      if (err?.cancelled || err?.timeout || err?.cooldown || err?.unauthorized || err?.transient) throw err;
       if (CONFIG.DEBUG) console.warn('[Toppreise Suite] Failed fetching time series for product', productId, err);
     }
     return null;
@@ -13665,12 +13676,15 @@ const SHADOW_MODAL_STYLES = `
 
     const total = targets.length;
     let completed = 0;
+    Object.assign(scanState, { progress: { completed: 0, total } });
     const newlyVerified = [];
     const pendingIndices = targets.map((_, i) => i);
     let abortedByCooldown = false;
     const effectiveCancel = () => abortedByCooldown || isCancelled(signal, shouldCancelFn);
     let cooldownToastShown = false;
     const pidInFlightCount = new Map();
+    const cooldownRetries = new Map();
+    let consecutiveCooldowns = 0;
     let lastRenderAt = 0;
 
     async function worker() {
@@ -13745,7 +13759,10 @@ const SHADOW_MODAL_STYLES = `
         const postCooldownMs = getOriginCooldownUntil() - Date.now();
         if (!stats && cardValid && postCooldownMs > 0) {
           triggerProcessListings();
-          if (postCooldownMs > 15000) {
+          const itemRetries = (cooldownRetries.get(idx) || 0) + 1;
+          cooldownRetries.set(idx, itemRetries);
+          consecutiveCooldowns++;
+          if (postCooldownMs > 15000 || itemRetries > 3 || consecutiveCooldowns > 5) {
             abortedByCooldown = true;
             if (!cooldownToastShown) {
               cooldownToastShown = true;
@@ -13757,6 +13774,7 @@ const SHADOW_MODAL_STYLES = `
           await interruptibleSleep(postCooldownMs + 250, () => abortedByCooldown || isCancelled(signal, shouldCancelFn), signal);
           continue;
         }
+        consecutiveCooldowns = 0;
 
         completed++;
         Object.assign(scanState, { progress: { completed, total } });
@@ -13803,7 +13821,7 @@ const SHADOW_MODAL_STYLES = `
 
     try {
       const isFeed = isNeueToppreisePage();
-      const res = await runProductScanner({
+      await runProductScanner({
         isFeed,
         minDiscount,
         sortByDiscount: false,
@@ -13812,7 +13830,6 @@ const SHADOW_MODAL_STYLES = `
         onComplete,
         signal: batchController.signal
       });
-      if (res?.abortedByCooldown) scanState.batchCancelRequested = true;
     } finally {
       Object.assign(scanState, { isBatchChecking: false, batchCancelRequested: false });
       triggerProcessListings();
@@ -23165,7 +23182,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.576';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.577';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     const isFileFixture = typeof location !== 'undefined' && location.protocol === 'file:';
     if (isDebugHost) {

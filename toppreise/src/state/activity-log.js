@@ -80,23 +80,40 @@ function sanitizePersistentList(raw) {
   return out;
 }
 
+let persistentCache = null;
+let persistentCacheReader = null;
+
 function readPersistentBuffer() {
+  const reader = typeof GM_getValue === 'function'
+    ? GM_getValue
+    : (typeof localStorage !== 'undefined' ? localStorage : null);
+  if (persistentCache !== null && persistentCacheReader === reader) {
+    return persistentCache;
+  }
+  persistentCacheReader = reader;
   try {
     if (typeof GM_getValue === 'function') {
-      return sanitizePersistentList(GM_getValue(PERSISTENT_LOG_KEY, []));
+      persistentCache = sanitizePersistentList(GM_getValue(PERSISTENT_LOG_KEY, []));
+      return persistentCache;
     }
   } catch {}
   try {
     if (typeof localStorage !== 'undefined') {
       const raw = localStorage.getItem(PERSISTENT_LS_KEY);
-      return raw ? sanitizePersistentList(raw) : [];
+      persistentCache = raw ? sanitizePersistentList(raw) : [];
+      return persistentCache;
     }
   } catch {}
-  return [];
+  persistentCache = [];
+  return persistentCache;
 }
 
 function writePersistentBuffer(entries) {
   const trimmed = Array.isArray(entries) ? entries.slice(-PERSISTENT_LOG_MAX) : [];
+  persistentCache = trimmed;
+  persistentCacheReader = typeof GM_getValue === 'function'
+    ? GM_getValue
+    : (typeof localStorage !== 'undefined' ? localStorage : null);
   try {
     if (typeof GM_setValue === 'function') {
       GM_setValue(PERSISTENT_LOG_KEY, trimmed);
@@ -112,7 +129,7 @@ function writePersistentBuffer(entries) {
 
 function appendPersistentEntry(entry) {
   if (entry.level !== 'warn' && entry.level !== 'error') return;
-  const list = readPersistentBuffer();
+  const list = readPersistentBuffer().slice();
   const next = {
     ts: entry.ts,
     level: entry.level,
@@ -187,6 +204,8 @@ export function clearActivityLog() {
 }
 
 export function clearPersistentActivityLog() {
+  persistentCache = null;
+  persistentCacheReader = null;
   try {
     if (typeof GM_deleteValue === 'function') {
       GM_deleteValue(PERSISTENT_LOG_KEY);
@@ -220,7 +239,7 @@ export function formatActivityLogText(snapshot = null, opts = {}) {
   const rows = Array.isArray(snapshot) ? snapshot : activityBuffer;
   const includeDate = Boolean(opts && opts.includeDate);
   return rows.map((e) => {
-    const iso = new Date(e.ts || 0).toISOString();
+    const iso = new Date(Number.isFinite(e.ts) ? e.ts : 0).toISOString();
     const time = includeDate ? `${iso.slice(0, 10)} ${iso.slice(11, 23)}` : iso.slice(11, 23);
     const det = e.detail ? ` | ${e.detail}` : '';
     if (!includeDate) {

@@ -17,15 +17,19 @@ export function resetOriginCooldown() { originCooldownUntil = 0; }
 export const backoffMs = (attempt, baseDelayMs = 400) =>
   Math.min(8000, baseDelayMs * 2 ** attempt) + Math.random() * 250;
 
-export const parseRetryAfterMs = (header, baseDelayMs = 400, attempt = 0) => {
-  if (header != null && String(header).trim() !== '') {
-    const secs = Number(String(header).trim());
-    if (Number.isFinite(secs)) return Math.max(0, Math.min(60000, secs * 1000));
-    const at = Date.parse(String(header).trim());
-    if (Number.isFinite(at)) return Math.max(0, Math.min(60000, at - Date.now()));
-  }
-  return backoffMs(attempt, baseDelayMs);
+export const parseRetryHeaderMs = header => {
+  if (header == null) return null;
+  const trimmed = String(header).trim();
+  if (trimmed === '') return null;
+  const secs = Number(trimmed);
+  if (Number.isFinite(secs)) return Math.max(0, Math.min(60000, secs * 1000));
+  const at = Date.parse(trimmed);
+  if (Number.isFinite(at)) return Math.max(0, Math.min(60000, at - Date.now()));
+  return null;
 };
+
+export const parseRetryAfterMs = (header, baseDelayMs = 400, attempt = 0) =>
+  parseRetryHeaderMs(header) ?? backoffMs(attempt, baseDelayMs);
 
 function makeTypedError(message, props = {}) {
   const err = new Error(message);
@@ -89,7 +93,12 @@ export async function fetchWithTimeout(url, fetchOpts = {}, opts = {}) {
       let body = null;
       if (typeof res?.[readAs] === 'function') {
         if (readAs === 'json' && !res.ok) {
-          try { body = await res.json(); } catch { body = null; }
+          try {
+            body = await res.json();
+          } catch (err) {
+            if (externalAborted || timedOut || err?.name === 'AbortError') throw err;
+            body = null;
+          }
         } else {
           body = await res[readAs]();
         }
@@ -224,7 +233,7 @@ export function gmRequestWithTimeout(gmOpts = {}, opts = {}) {
           reject(makeTypedError('GM_xmlhttpRequest aborted', { cancelled: true }));
         },
       });
-    } catch (err) {
+      } catch (err) {
       if (!settled) {
         settled = true;
         cleanup();
@@ -233,4 +242,31 @@ export function gmRequestWithTimeout(gmOpts = {}, opts = {}) {
       }
     }
   });
+}
+
+export function postJsonTransport({ url, headers, body, timeoutMs = 60000, signal = null, source = 'net', label = '' }) {
+  if (typeof GM_xmlhttpRequest !== 'undefined') {
+    return gmRequestWithTimeout({
+      method: 'POST',
+      url,
+      headers,
+      data: body,
+    }, { timeoutMs, signal, source, label }).then(res => ({
+      status: res.status,
+      ok: res.status >= 200 && res.status < 300,
+      text: res.responseText,
+    }));
+  }
+  if (typeof fetch !== 'undefined') {
+    return fetchWithTimeout(url, {
+      method: 'POST',
+      headers,
+      body,
+    }, { timeoutMs, signal, source, label, readAs: 'text' }).then(({ res, body: text }) => ({
+      status: res.status,
+      ok: Boolean(res?.ok),
+      text,
+    }));
+  }
+  return Promise.reject(makeTypedError('Kein HTTP-Transport verfügbar', { network: true, noTransport: true }));
 }

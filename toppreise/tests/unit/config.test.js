@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { _getValue, _setValue, weightText, horizonUiToStored, horizonStoredToUi, DEFAULTS, CONFIG, SECRET_KEYS, RESET_GROUPS, effectiveAiProvider, migrateLegacyDebug, migrateHideToDimDefaults, migrateDiscordChannels, getDiscordChannels, sanitizeChannels, realDealMinDiscount, sanitizeConfigValue, sanitizeReviewKeyword, FILTER_CYCLE, cycleStateOf, syncUiControl, initPageProfiles, saveConfigKey, resetConfigToDefaults } from '../../src/state/config.js';
+import { _getValue, _setValue, weightText, horizonUiToStored, horizonStoredToUi, DEFAULTS, CONFIG, SECRET_KEYS, RESET_GROUPS, effectiveAiProvider, migrateLegacyDebug, migrateHideToDimDefaults, migrateDiscordChannels, getDiscordChannels, sanitizeChannels, realDealMinDiscount, sanitizeConfigValue, sanitizeReviewKeyword, FILTER_CYCLE, cycleStateOf, syncUiControl, initPageProfiles, saveConfigKey, updateConfig, resetConfigToDefaults } from '../../src/state/config.js';
 import { SETTING_SCHEMA } from '../../src/state/config-store.js';
 
 describe('Config dual-layer storage', () => {
@@ -151,6 +151,25 @@ describe('Config dual-layer storage', () => {
 
     resetConfigToDefaults({ includeSecrets: true, skipRender: true });
     assert.equal(CONFIG.DISCORD_WEBHOOK_URL, DEFAULTS.DISCORD_WEBHOOK_URL);
+  });
+
+  it('updateConfig sanitizes SECRET_KEYS against non-string/invalid values', () => {
+    const prevHook = CONFIG.DISCORD_WEBHOOK_URL;
+    const prevTav = CONFIG.TAVILY_API_KEY;
+    const prevCh = CONFIG.DISCORD_CHANNELS;
+    try {
+      updateConfig('DISCORD_WEBHOOK_URL', null, { skipUiSync: true, skipRender: true });
+      updateConfig('TAVILY_API_KEY', 12345, { skipUiSync: true, skipRender: true });
+      updateConfig('DISCORD_CHANNELS', 'not-an-array', { skipUiSync: true, skipRender: true });
+      assert.equal(CONFIG.DISCORD_WEBHOOK_URL, '');
+      assert.equal(CONFIG.TAVILY_API_KEY, '');
+      assert.deepEqual(CONFIG.DISCORD_CHANNELS, []);
+      assert.doesNotThrow(() => getDiscordChannels());
+    } finally {
+      CONFIG.DISCORD_WEBHOOK_URL = prevHook;
+      CONFIG.TAVILY_API_KEY = prevTav;
+      CONFIG.DISCORD_CHANNELS = prevCh;
+    }
   });
 });
 

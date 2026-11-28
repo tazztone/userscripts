@@ -230,6 +230,38 @@ export function rollingMedians(points) {
   return result;
 }
 
+function minOf(arr, pick = x => x) {
+  let m = Infinity;
+  for (let i = 0; i < arr.length; i++) {
+    const v = pick(arr[i]);
+    if (v < m) m = v;
+  }
+  return m === Infinity ? 0 : m;
+}
+function maxOf(arr, pick = x => x) {
+  let m = -Infinity;
+  for (let i = 0; i < arr.length; i++) {
+    const v = pick(arr[i]);
+    if (v > m) m = v;
+  }
+  return m === -Infinity ? 0 : m;
+}
+
+// Trailing-plateau walk: excludes points already <= anchorCents at the series end
+// and returns the minimum positive price in the remaining prefix (or null if none).
+function trailingPlateauLow(items, anchorCents, priceOf = x => x) {
+  let idx = items.length - 1;
+  while (idx > 0 && priceToCents(priceOf(items[idx])) <= anchorCents) {
+    idx--;
+  }
+  let m = Infinity;
+  for (let i = 0; i <= idx; i++) {
+    const p = priceOf(items[i]);
+    if (typeof p === 'number' && p > 0 && p < m) m = p;
+  }
+  return m === Infinity ? null : m;
+}
+
 export function sanitizeTimeSeries(points, band = CONFIG.OUTLIER_DEVIATION_BAND, maxGlitchHours = CONFIG.OUTLIER_MAX_GLITCH_HOURS, currentPrice = null) {
   const isLiveAnchored = p => {
     if (typeof currentPrice !== 'number' || !(currentPrice > 0)) return false;
@@ -251,9 +283,9 @@ export function sanitizeTimeSeries(points, band = CONFIG.OUTLIER_DEVIATION_BAND,
   } else {
     sorted0 = [];
   }
-  const rawMin = sorted0.length ? Math.min(...sorted0.map(p => p[1])) : 0;
+  const rawMin = sorted0.length ? minOf(sorted0, p => p[1]) : 0;
   if (!Array.isArray(points) || points.length < 3) {
-    return { cleanPoints: Array.isArray(points) ? points : [], filteredOutliers: [], rawMedian: 0, rawMin };
+    return { cleanPoints: sorted0, filteredOutliers: [], rawMedian: 0, rawMin };
   }
 
   const sorted = sorted0;
@@ -296,7 +328,6 @@ export function sanitizeTimeSeries(points, band = CONFIG.OUTLIER_DEVIATION_BAND,
     const runH = (rightTs - leftTs) / 3600000;
     let isGlitch = runH <= maxGlitchHours + 0.5;
     if (isGlitch) for (let m = j; m < k; m++) if (!isLocallySharp(m)) { isGlitch = false; break; }
-    if (isGlitch && k - j === 1 && (j === 0 || k === n) && n > 1) { const nb = j === 0 ? 1 : n - 2; if (!isNormalAt(nb)) isGlitch = false; }
     if (isGlitch && k === n) for (let m = j; m < k; m++) if (isLiveAnchored(sorted[m][1])) { isGlitch = false; break; }
     for (let m = j; m < k; m++) {
       const [ts, price] = sorted[m];
@@ -355,15 +386,15 @@ export function analyzePriceTimeSeries(series, currentPrice = null, horizonOverr
   const outlierRejectionEnabled = (CONFIG.OUTLIER_REJECTION_ENABLED !== false);
   const sanitizeResult = outlierRejectionEnabled
     ? sanitizeTimeSeries(normPoints, CONFIG.OUTLIER_DEVIATION_BAND, CONFIG.OUTLIER_MAX_GLITCH_HOURS, currentPrice)
-    : { cleanPoints: normPoints, filteredOutliers: [], rawMin: Math.min(...normPoints.map(p => p[1])) };
+    : { cleanPoints: normPoints, filteredOutliers: [], rawMin: minOf(normPoints, p => p[1]) };
 
   const points = sanitizeResult.cleanPoints;
   const filteredOutliers = sanitizeResult.filteredOutliers;
 
   const prices = points.map(p => p[1]);
   const curr = (typeof currentPrice === 'number' && currentPrice > 0) ? currentPrice : prices[prices.length - 1];
-  const allTimeLow = Math.min(...prices);
-  const allTimeHigh = Math.max(...prices);
+  const allTimeLow = minOf(prices);
+  const allTimeHigh = maxOf(prices);
 
   // Trailing-plateau walk: only points already AT (or below) the current price
   // belong to the current regime. Strict cent comparison — the old 1% band
@@ -372,17 +403,9 @@ export function analyzePriceTimeSeries(series, currentPrice = null, horizonOverr
   // be a new record; previousLow is the allTimeLow.
   const currCents = priceToCents(curr);
   const allTimeLowCents = priceToCents(allTimeLow);
-  let previousLow;
-  if (currCents > allTimeLowCents) {
-    previousLow = allTimeLow;
-  } else {
-    let idx = prices.length - 1;
-    while (idx > 0 && priceToCents(prices[idx]) <= currCents) {
-      idx--;
-    }
-    const historicalPrices = prices.slice(0, idx + 1);
-    previousLow = historicalPrices.length > 0 ? Math.min(...historicalPrices) : allTimeLow;
-  }
+  const previousLow = currCents > allTimeLowCents
+    ? allTimeLow
+    : (trailingPlateauLow(prices, currCents) ?? allTimeLow);
 
   const horizonDays = typeof horizonOverride === 'number'
     ? horizonOverride
@@ -434,7 +457,7 @@ export function analyzePriceTimeSeries(series, currentPrice = null, horizonOverr
     timeSeries: points,
     anchorPrice: curr,
     ...(sanitizeResult.filteredOutliers.length ? { rawTimeSeries: normPoints } : null),
-    rawTiefstpreis: sanitizeResult.rawMin ?? Math.min(...normPoints.map(p => p[1]))
+    rawTiefstpreis: sanitizeResult.rawMin ?? minOf(normPoints, p => p[1])
   };
 }
 
@@ -459,14 +482,15 @@ export function recordRefForPrice(stats, cardPrice) {
   }
   const cCents = priceToCents(cardPrice);
   const priceOf = p => (Array.isArray(p) ? p[1] : p?.price);
-  const allTimeLowCents = Math.min(...pts.map(p => priceToCents(priceOf(p))).filter(c => c > 0));
+  let allTimeLowCents = Infinity;
+  for (let i = 0; i < pts.length; i++) {
+    const c = priceToCents(priceOf(pts[i]));
+    if (c > 0 && c < allTimeLowCents) allTimeLowCents = c;
+  }
   if (cCents > allTimeLowCents) {
     return { previousLow: allTimeLowCents / 100, isNewRecord: false };
   }
-  let idx = pts.length - 1;
-  while (idx > 0 && priceToCents(priceOf(pts[idx])) <= cCents) idx--;
-  const hist = pts.slice(0, idx + 1).map(priceOf).filter(p => typeof p === 'number' && p > 0);
-  if (hist.length === 0) return stored;
-  const prevLow = Math.min(...hist);
+  const prevLow = trailingPlateauLow(pts, cCents, priceOf);
+  if (prevLow === null) return stored;
   return { previousLow: prevLow, isNewRecord: prevLow > 0 && cCents < priceToCents(prevLow) };
 }
