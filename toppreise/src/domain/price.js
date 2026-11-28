@@ -412,25 +412,7 @@ export function analyzePriceTimeSeries(series, currentPrice = null, horizonOverr
     : (typeof CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS === 'number'
       ? CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS
       : 365);
-  // Thin windows (< 3 points) fall back to the full history — flagged via
-  // medianFallback so labels stay honest ("Lifetime", never "1J").
-  let windowPrices = prices;
-  let medianFallback = false;
-  if (horizonDays > 0) {
-    const cutoffTime = nowMs - horizonDays * 86400 * 1000;
-    const windowPoints = points.filter(p => p[0] >= cutoffTime);
-    if (windowPoints.length >= 3) {
-      windowPrices = windowPoints.map(p => p[1]);
-    } else {
-      medianFallback = true;
-    }
-  }
-
-  // Chart sampling is daily & uniform (verified live: 607–3825 pts per
-  // product, max gap 1.0d) — equal-weight median == time-weighted median,
-  // so no duration weighting is needed.
-  const sortedWindow = [...windowPrices].sort((a, b) => a - b);
-  const medianPrice = medianOf(sortedWindow);
+  const { medianPrice, roundedMedian, medianFallback } = computeHorizonMedian(points, horizonDays, nowMs);
 
   const isNewAllTimeLow = previousLow > 0 && priceToCents(curr) < priceToCents(previousLow);
 
@@ -446,7 +428,7 @@ export function analyzePriceTimeSeries(series, currentPrice = null, horizonOverr
     tiefstpreis: allTimeLow,
     hoechstpreis: allTimeHigh,
     previousLow: previousLow > 0 ? previousLow : null,
-    medianPrice: Math.round(medianPrice * 100) / 100,
+    medianPrice: roundedMedian,
     medianFallback,
     horizonDays,
     filteredOutliers,
@@ -458,6 +440,28 @@ export function analyzePriceTimeSeries(series, currentPrice = null, horizonOverr
     anchorPrice: curr,
     ...(sanitizeResult.filteredOutliers.length ? { rawTimeSeries: normPoints } : null),
     rawTiefstpreis: sanitizeResult.rawMin ?? minOf(normPoints, p => p[1])
+  };
+}
+
+export function computeHorizonMedian(points, horizonDays, nowMs = Date.now()) {
+  let windowPoints = points || [];
+  let medianFallback = false;
+  if (horizonDays > 0) {
+    const cutoffTime = nowMs - horizonDays * 86400 * 1000;
+    const w = windowPoints.filter(p => p[0] >= cutoffTime);
+    if (w.length >= 3) {
+      windowPoints = w;
+    } else {
+      medianFallback = true;
+    }
+  }
+  const sorted = windowPoints.map(p => p[1]).sort((a, b) => a - b);
+  const medianPrice = medianOf(sorted);
+  return {
+    medianPrice,
+    roundedMedian: Math.round(medianPrice * 100) / 100,
+    windowCount: windowPoints.length,
+    medianFallback
   };
 }
 

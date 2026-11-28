@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.580
+// @version      2.18.581
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -309,9 +309,6 @@ const STYLES_CARDS = `
     padding-top: 4px !important;
     padding-bottom: 4px !important;
     min-height: 0 !important;
-  }
-  .tp-card-dealer-row > .tp-dealer-name {
-    max-width: 100% !important;
   }
   :is(.mixedBrowsingBox, .mixedBrowsingExpert) a.product-name.bold:has(+ .tp-review-search-btn) {
     display: inline !important;
@@ -713,7 +710,7 @@ const STYLES_BADGES = `
   .tp-card-dealer-row > .tp-dealer-name {
     display: inline-flex !important;
     justify-content: flex-end !important;
-    max-width: 100% !important;
+    max-width: none !important;
     margin-right: 0 !important;
     flex: 1 1 auto !important;
     text-align: right !important;
@@ -775,7 +772,7 @@ const STYLES_BADGES = `
     margin-right: 4px !important;
   }
   :is(.mixedBrowsingList, .mixedList, .priceAvailabilityContainer, .price-availability) .tp-card-dealer-row :is(span.tp-dealer-name, a.tp-dealer-name) {
-    max-width: 100% !important;
+    max-width: none !important;
     margin-right: 0 !important;
   }
   a.tp-dealer-name:hover {
@@ -4727,25 +4724,7 @@ const SHADOW_MODAL_STYLES = `
       : (typeof CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS === 'number'
         ? CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS
         : 365);
-    // Thin windows (< 3 points) fall back to the full history — flagged via
-    // medianFallback so labels stay honest ("Lifetime", never "1J").
-    let windowPrices = prices;
-    let medianFallback = false;
-    if (horizonDays > 0) {
-      const cutoffTime = nowMs - horizonDays * 86400 * 1000;
-      const windowPoints = points.filter(p => p[0] >= cutoffTime);
-      if (windowPoints.length >= 3) {
-        windowPrices = windowPoints.map(p => p[1]);
-      } else {
-        medianFallback = true;
-      }
-    }
-
-    // Chart sampling is daily & uniform (verified live: 607–3825 pts per
-    // product, max gap 1.0d) — equal-weight median == time-weighted median,
-    // so no duration weighting is needed.
-    const sortedWindow = [...windowPrices].sort((a, b) => a - b);
-    const medianPrice = medianOf(sortedWindow);
+    const { medianPrice, roundedMedian, medianFallback } = computeHorizonMedian(points, horizonDays, nowMs);
 
     const isNewAllTimeLow = previousLow > 0 && priceToCents(curr) < priceToCents(previousLow);
 
@@ -4761,7 +4740,7 @@ const SHADOW_MODAL_STYLES = `
       tiefstpreis: allTimeLow,
       hoechstpreis: allTimeHigh,
       previousLow: previousLow > 0 ? previousLow : null,
-      medianPrice: Math.round(medianPrice * 100) / 100,
+      medianPrice: roundedMedian,
       medianFallback,
       horizonDays,
       filteredOutliers,
@@ -4773,6 +4752,28 @@ const SHADOW_MODAL_STYLES = `
       anchorPrice: curr,
       ...(sanitizeResult.filteredOutliers.length ? { rawTimeSeries: normPoints } : null),
       rawTiefstpreis: sanitizeResult.rawMin ?? minOf(normPoints, p => p[1])
+    };
+  }
+
+  function computeHorizonMedian(points, horizonDays, nowMs = Date.now()) {
+    let windowPoints = points || [];
+    let medianFallback = false;
+    if (horizonDays > 0) {
+      const cutoffTime = nowMs - horizonDays * 86400 * 1000;
+      const w = windowPoints.filter(p => p[0] >= cutoffTime);
+      if (w.length >= 3) {
+        windowPoints = w;
+      } else {
+        medianFallback = true;
+      }
+    }
+    const sorted = windowPoints.map(p => p[1]).sort((a, b) => a - b);
+    const medianPrice = medianOf(sorted);
+    return {
+      medianPrice,
+      roundedMedian: Math.round(medianPrice * 100) / 100,
+      windowCount: windowPoints.length,
+      medianFallback
     };
   }
 
@@ -6520,13 +6521,15 @@ const SHADOW_MODAL_STYLES = `
             const input = shadow.getElementById('tp-review-keyword-input');
             if (input) {
               input.value = val;
-              updateKeywordPreview({
-                reviewKeywordInput: input,
-                reviewKeywordPreview: shadow.getElementById('tp-review-keyword-preview'),
-                reviewKeywordPreviewNoPrice: shadow.getElementById('tp-review-keyword-preview-noprice'),
-                reviewKeywordPreviewNoPriceRow: shadow.getElementById('tp-review-keyword-preview-noprice-row'),
-                reviewKeywordPreviewWarn: shadow.getElementById('tp-review-keyword-preview-warn')
-              });
+              if (!opts.silent) {
+                updateKeywordPreview({
+                  reviewKeywordInput: input,
+                  reviewKeywordPreview: shadow.getElementById('tp-review-keyword-preview'),
+                  reviewKeywordPreviewNoPrice: shadow.getElementById('tp-review-keyword-preview-noprice'),
+                  reviewKeywordPreviewNoPriceRow: shadow.getElementById('tp-review-keyword-preview-noprice-row'),
+                  reviewKeywordPreviewWarn: shadow.getElementById('tp-review-keyword-preview-warn')
+                });
+              }
             }
             break;
           }
@@ -6534,12 +6537,14 @@ const SHADOW_MODAL_STYLES = `
             const input = shadow.getElementById('tp-batch-compare-prompt-input');
             if (input) {
               input.value = val || DEFAULTS.BATCH_COMPARE_PROMPT;
-              updateComparePreview({
-                batchComparePromptInput: input,
-                batchCompareItemInput: shadow.getElementById('tp-batch-compare-item-input'),
-                batchComparePreview: shadow.getElementById('tp-batch-compare-preview'),
-                batchComparePreviewWarn: shadow.getElementById('tp-batch-compare-preview-warn')
-              });
+              if (!opts.silent) {
+                updateComparePreview({
+                  batchComparePromptInput: input,
+                  batchCompareItemInput: shadow.getElementById('tp-batch-compare-item-input'),
+                  batchComparePreview: shadow.getElementById('tp-batch-compare-preview'),
+                  batchComparePreviewWarn: shadow.getElementById('tp-batch-compare-preview-warn')
+                });
+              }
             }
             break;
           }
@@ -6548,12 +6553,14 @@ const SHADOW_MODAL_STYLES = `
             if (input) {
               input.value = val || DEFAULTS.BATCH_COMPARE_ITEM_TEMPLATE;
               delete input.dataset.tpCursorReady;
-              updateComparePreview({
-                batchComparePromptInput: shadow.getElementById('tp-batch-compare-prompt-input'),
-                batchCompareItemInput: input,
-                batchComparePreview: shadow.getElementById('tp-batch-compare-preview'),
-                batchComparePreviewWarn: shadow.getElementById('tp-batch-compare-preview-warn')
-              });
+              if (!opts.silent) {
+                updateComparePreview({
+                  batchComparePromptInput: shadow.getElementById('tp-batch-compare-prompt-input'),
+                  batchCompareItemInput: input,
+                  batchComparePreview: shadow.getElementById('tp-batch-compare-preview'),
+                  batchComparePreviewWarn: shadow.getElementById('tp-batch-compare-preview-warn')
+                });
+              }
             }
             break;
           }
@@ -13951,12 +13958,15 @@ const SHADOW_MODAL_STYLES = `
   // Preisbasis abhängt.
   const dealerCache = new Map();
   const dealerPending = new Set();
+  const dealerPromises = new Map();
   const dealerHydrated = new Set();
   // Auto-Fetch (DEALER_AUTOFETCH): pro pid:Modus und Pageload — bei transienten
   // Fehlern (429/5xx/Timeout) 1× verzögert erneut versuchen, sonst stoppen.
   const dealerAutoTries = new Map();
   function clearDealerMemory() {
     dealerCache.clear();
+    dealerPending.clear();
+    dealerPromises.clear();
     dealerHydrated.clear();
     dealerAutoTries.clear();
     bumpCacheGeneration();
@@ -14205,10 +14215,12 @@ const SHADOW_MODAL_STYLES = `
       // the host badge instead of printing the previous product's number.
       if (badgeDifEl.dataset.tpOriginalPid !== (pid ?? '') || !('tpOriginalDiscount' in badgeDifEl.dataset) || badgeDifEl.dataset.tpOriginalDiscount === '') {
         const initialDiscount = extractCardDiscount(card);
-        badgeDifEl.dataset.tpOriginalDiscount = (initialDiscount !== null && !isNaN(initialDiscount)) ? String(initialDiscount) : '';
+        badgeDifEl.dataset.tpOriginalDiscount = (initialDiscount !== null && !isNaN(initialDiscount)) ? String(initialDiscount) : 'none';
         badgeDifEl.dataset.tpOriginalPid = pid ?? '';
       }
-      const rawDiscount = badgeDifEl.dataset.tpOriginalDiscount !== '' ? parseFloat(badgeDifEl.dataset.tpOriginalDiscount) : null;
+      const rawDiscount = (badgeDifEl.dataset.tpOriginalDiscount !== '' && badgeDifEl.dataset.tpOriginalDiscount !== 'none')
+        ? parseFloat(badgeDifEl.dataset.tpOriginalDiscount)
+        : null;
       // rawDiscount is the site DISCOUNT (positive = "-X%" deal, negative = "+X%"
       // markup). Render it sign-aware so markup badges never print "--X%".
       const sitePctText = (rawDiscount !== null && !isNaN(rawDiscount))
@@ -14429,6 +14441,7 @@ const SHADOW_MODAL_STYLES = `
       return;
     }
     const { badgeDifEl, isListView, sitePctText, rawDiscount } = setup;
+    ctx.badgeDifEl = badgeDifEl;
     renderDealVerdict(ctx, filters, isNeueFeed, badgeDifEl, isListView, sitePctText, rawDiscount, !!CONFIG.BESTPREISE_MODE_ACTIVE);
 
     if (badgeDifEl.isConnected) {
@@ -15599,8 +15612,6 @@ const SHADOW_MODAL_STYLES = `
 
 
 
-  const dealerPromises = new Map();
-
   async function ensureDealerInfo(card, pid, useShipping) {
     if (!pid || !card) return null;
     const dKey = `${pid}:${useShipping ? 's' : 'p'}`;
@@ -15693,7 +15704,7 @@ const SHADOW_MODAL_STYLES = `
       }
       const cached = dealerCache.get(dKey);
       if (!dealer && cached?.dealer) dealer = cached.dealer;
-      const { url: productUrl } = extractShareData(card);
+      const { url: productUrl } = ctx.getShareData ? ctx.getShareData() : extractShareData(card);
       const directUrl = cached?.url || (dealer ? extractDealerUrl(card, useShipping) : '');
       const targetUrl = directUrl || productUrl || '';
       const hasUrl = /^https?:\/\//i.test(targetUrl);
@@ -16032,7 +16043,7 @@ const SHADOW_MODAL_STYLES = `
     const { card } = ctx;
     // 9. Review-Suche (🌐) am Produktnamen: Ansicht, immer wenn aktiviert.
     // Titelquelle ist extractShareData (single source of truth, kein 2. Parser).
-    const reviewName = (extractShareData(card).title || '').replace(/\s+/g, ' ').trim();
+    const reviewName = ((ctx.getShareData ? ctx.getShareData() : extractShareData(card)).title || '').replace(/\s+/g, ' ').trim();
     if (CONFIG.REVIEW_SEARCH_ENABLED !== false && reviewName) {
       const rawKw = sanitizeReviewKeyword(CONFIG.REVIEW_SEARCH_KEYWORD);
       const priceText = (ctx.cardPrice > 0 && hasUsablePriceStats(ctx.stats)) ? `CHF ${ctx.cardPrice.toFixed(2)}` : '';
@@ -16102,7 +16113,9 @@ const SHADOW_MODAL_STYLES = `
     const { card, pid, stats } = ctx;
     // Fresh-deal glow: only newly verified good deals pulse. The badge verdict
     // above is the single source of truth for "good deal" — no duplicate math.
-    const freshBadge = card.querySelector('.tp-deal-new-record, .tp-deal-alltime-low');
+    const freshBadge = ctx.badgeDifEl
+      ? ((ctx.badgeDifEl.classList?.contains('tp-deal-new-record') || ctx.badgeDifEl.classList?.contains('tp-deal-alltime-low')) ? ctx.badgeDifEl : null)
+      : card.querySelector('.tp-deal-new-record, .tp-deal-alltime-low');
     const isFresh = hasUsablePriceStats(stats) && scanState.freshPids.has(pid) && !!freshBadge;
     card.classList.toggle('tp-deal-fresh', isFresh);
   }
@@ -16174,7 +16187,12 @@ const SHADOW_MODAL_STYLES = `
     const heatMode = CONFIG.BESTPREISE_MODE_ACTIVE ? 'bestpreise' : 'browse';
     const heatInfo = getHeatInput(cardPrice, vStats, diffVal, heatMode, dealData);
     const effectiveDiff = heatInfo.value;
-    const ctx = { card, pid, cardPrice, cardPriceEl, stats: vStats, diffVal, dealData, displayDelta, heatInfo, effectiveDiff };
+    let _shareData;
+    const ctx = {
+      card, pid, cardPrice, cardPriceEl, stats: vStats, diffVal, dealData, displayDelta, heatInfo, effectiveDiff,
+      badgeDifEl: null,
+      getShareData: () => (_shareData ??= extractShareData(card))
+    };
     renderBadgeVerdict(ctx, filters, isNeueFeed);
     renderHeat(ctx);
     renderFilterVerdict(ctx, filters, activeStores);
@@ -18753,23 +18771,7 @@ const SHADOW_MODAL_STYLES = `
     const tiefstpreis = prices.length ? Math.min(...prices) : 0;
     const hoechstpreis = prices.length ? Math.max(...prices) : 0;
 
-    let windowPrices = prices;
-    let windowCount = prices.length;
-    let medianFallback = false;
-    if (horizonDays > 0) {
-      const cutoff = now - horizonDays * DAY_MS;
-      const w = clean.filter(p => p[0] >= cutoff);
-      if (w.length >= 3) {
-        windowPrices = w.map(p => p[1]);
-        windowCount = w.length;
-      } else {
-        medianFallback = true;
-      }
-    }
-    const sorted = [...windowPrices].sort((a, b) => a - b);
-    const n = sorted.length;
-    const rawMedian = n === 0 ? 0 : (n % 2 ? sorted[n >> 1] : (sorted[(n >> 1) - 1] + sorted[n >> 1]) / 2);
-    const median = Math.round(rawMedian * 100) / 100;
+    const { roundedMedian: median, windowCount, medianFallback } = computeHorizonMedian(clean, horizonDays, now);
 
     const mockStats = { tiefstpreis, hoechstpreis, medianPrice: median, timeSeries: clean };
     const score = computeDealScore(mockStats, cardPrice, { minPoints, weightRecord });
@@ -22206,7 +22208,6 @@ const SHADOW_MODAL_STYLES = `
           if (nextVal !== current) {
             updateConfig('REAL_DEAL_MIN_DISCOUNT', nextVal);
             showToast(`Nur Differenzen ab ${nextVal}% werden geprüft`);
-            triggerProcessListings();
             syncFloatingCTA();
             return;
           }
@@ -23203,7 +23204,7 @@ let styleEl = document.getElementById('tp-unified-settings-styles');
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.580';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.581';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     const isFileFixture = typeof location !== 'undefined' && location.protocol === 'file:';
     if (isDebugHost) {

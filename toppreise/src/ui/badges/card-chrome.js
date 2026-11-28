@@ -160,7 +160,7 @@ export function renderReviewButton(ctx) {
   const { card } = ctx;
   // 9. Review-Suche (🌐) am Produktnamen: Ansicht, immer wenn aktiviert.
   // Titelquelle ist extractShareData (single source of truth, kein 2. Parser).
-  const reviewName = (extractShareData(card).title || '').replace(/\s+/g, ' ').trim();
+  const reviewName = ((ctx.getShareData ? ctx.getShareData() : extractShareData(card)).title || '').replace(/\s+/g, ' ').trim();
   if (CONFIG.REVIEW_SEARCH_ENABLED !== false && reviewName) {
     const rawKw = sanitizeReviewKeyword(CONFIG.REVIEW_SEARCH_KEYWORD);
     const priceText = (ctx.cardPrice > 0 && hasUsablePriceStats(ctx.stats)) ? `CHF ${ctx.cardPrice.toFixed(2)}` : '';
@@ -230,7 +230,9 @@ export function applyFreshGlow(ctx) {
   const { card, pid, stats } = ctx;
   // Fresh-deal glow: only newly verified good deals pulse. The badge verdict
   // above is the single source of truth for "good deal" — no duplicate math.
-  const freshBadge = card.querySelector('.tp-deal-new-record, .tp-deal-alltime-low');
+  const freshBadge = ctx.badgeDifEl
+    ? ((ctx.badgeDifEl.classList?.contains('tp-deal-new-record') || ctx.badgeDifEl.classList?.contains('tp-deal-alltime-low')) ? ctx.badgeDifEl : null)
+    : card.querySelector('.tp-deal-new-record, .tp-deal-alltime-low');
   const isFresh = hasUsablePriceStats(stats) && scanState.freshPids.has(pid) && !!freshBadge;
   card.classList.toggle('tp-deal-fresh', isFresh);
 }
@@ -302,7 +304,12 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
   const heatMode = CONFIG.BESTPREISE_MODE_ACTIVE ? 'bestpreise' : 'browse';
   const heatInfo = getHeatInput(cardPrice, vStats, diffVal, heatMode, dealData);
   const effectiveDiff = heatInfo.value;
-  const ctx = { card, pid, cardPrice, cardPriceEl, stats: vStats, diffVal, dealData, displayDelta, heatInfo, effectiveDiff };
+  let _shareData;
+  const ctx = {
+    card, pid, cardPrice, cardPriceEl, stats: vStats, diffVal, dealData, displayDelta, heatInfo, effectiveDiff,
+    badgeDifEl: null,
+    getShareData: () => (_shareData ??= extractShareData(card))
+  };
   renderBadgeVerdict(ctx, filters, isNeueFeed);
   renderHeat(ctx);
   renderFilterVerdict(ctx, filters, activeStores);

@@ -1,4 +1,4 @@
-import { sanitizeTimeSeries, recordRefForPrice, pctDrop, priceToCents, parsePrice, rollingMedians, extractCanonicalPrice } from "../domain/price.js";
+import { sanitizeTimeSeries, recordRefForPrice, pctDrop, priceToCents, parsePrice, rollingMedians, extractCanonicalPrice, computeHorizonMedian } from "../domain/price.js";
 import { computeDealScore } from "../domain/deal-score.js";
 import { getCardProductId, getCardStats } from "../page/cards.js";
 import { extractShareData } from "../page/product-offers.js";
@@ -31,23 +31,7 @@ export function previewStats(points, o) {
   const tiefstpreis = prices.length ? Math.min(...prices) : 0;
   const hoechstpreis = prices.length ? Math.max(...prices) : 0;
 
-  let windowPrices = prices;
-  let windowCount = prices.length;
-  let medianFallback = false;
-  if (horizonDays > 0) {
-    const cutoff = now - horizonDays * DAY_MS;
-    const w = clean.filter(p => p[0] >= cutoff);
-    if (w.length >= 3) {
-      windowPrices = w.map(p => p[1]);
-      windowCount = w.length;
-    } else {
-      medianFallback = true;
-    }
-  }
-  const sorted = [...windowPrices].sort((a, b) => a - b);
-  const n = sorted.length;
-  const rawMedian = n === 0 ? 0 : (n % 2 ? sorted[n >> 1] : (sorted[(n >> 1) - 1] + sorted[n >> 1]) / 2);
-  const median = Math.round(rawMedian * 100) / 100;
+  const { roundedMedian: median, windowCount, medianFallback } = computeHorizonMedian(clean, horizonDays, now);
 
   const mockStats = { tiefstpreis, hoechstpreis, medianPrice: median, timeSeries: clean };
   const score = computeDealScore(mockStats, cardPrice, { minPoints, weightRecord });

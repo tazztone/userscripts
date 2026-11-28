@@ -380,7 +380,7 @@ export const STYLES_BADGES = `
   .tp-card-dealer-row > .tp-dealer-name {
     display: inline-flex !important;
     justify-content: flex-end !important;
-    max-width: 100% !important;
+    max-width: none !important;
     margin-right: 0 !important;
     flex: 1 1 auto !important;
     text-align: right !important;
@@ -442,7 +442,7 @@ export const STYLES_BADGES = `
     margin-right: 4px !important;
   }
   :is(.mixedBrowsingList, .mixedList, .priceAvailabilityContainer, .price-availability) .tp-card-dealer-row :is(span.tp-dealer-name, a.tp-dealer-name) {
-    max-width: 100% !important;
+    max-width: none !important;
     margin-right: 0 !important;
   }
   a.tp-dealer-name:hover {

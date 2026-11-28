@@ -232,7 +232,6 @@ function ensureCta() {
         if (nextVal !== current) {
           updateConfig('REAL_DEAL_MIN_DISCOUNT', nextVal);
           showToast(`Nur Differenzen ab ${nextVal}% werden geprüft`);
-          triggerProcessListings();
           syncFloatingCTA();
           return;
         }

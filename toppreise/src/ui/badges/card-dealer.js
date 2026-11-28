@@ -11,9 +11,7 @@ import { extractShareData, extractDealer, extractDealerUrl, fetchProductInfoDeta
 import { isShippingPriceActive, scheduleProcessListings } from '../../page/adapter.js';
 import { setTextIfChanged, setTitleIfChanged } from './dom-helpers.js';
 import { boundedSetAdd } from '../../utils/common.js';
-import { dealerCache, dealerPending, dealerHydrated, dealerAutoTries } from './deal-badge.js';
-
-const dealerPromises = new Map();
+import { dealerCache, dealerPending, dealerPromises, dealerHydrated, dealerAutoTries } from './deal-badge.js';
 
 export async function ensureDealerInfo(card, pid, useShipping) {
   if (!pid || !card) return null;
@@ -107,7 +105,7 @@ export function renderDealerName(ctx, filters) {
     }
     const cached = dealerCache.get(dKey);
     if (!dealer && cached?.dealer) dealer = cached.dealer;
-    const { url: productUrl } = extractShareData(card);
+    const { url: productUrl } = ctx.getShareData ? ctx.getShareData() : extractShareData(card);
     const directUrl = cached?.url || (dealer ? extractDealerUrl(card, useShipping) : '');
     const targetUrl = directUrl || productUrl || '';
     const hasUrl = /^https?:\/\//i.test(targetUrl);

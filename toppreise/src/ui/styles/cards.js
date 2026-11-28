@@ -233,9 +233,6 @@ export const STYLES_CARDS = `
     padding-bottom: 4px !important;
     min-height: 0 !important;
   }
-  .tp-card-dealer-row > .tp-dealer-name {
-    max-width: 100% !important;
-  }
   :is(.mixedBrowsingBox, .mixedBrowsingExpert) a.product-name.bold:has(+ .tp-review-search-btn) {
     display: inline !important;
     min-height: 0 !important;

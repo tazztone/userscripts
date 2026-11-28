@@ -187,6 +187,7 @@ export function renderBadgeVerdict(ctx, filters, isNeueFeed) {
     return;
   }
   const { badgeDifEl, isListView, sitePctText, rawDiscount } = setup;
+  ctx.badgeDifEl = badgeDifEl;
   renderDealVerdict(ctx, filters, isNeueFeed, badgeDifEl, isListView, sitePctText, rawDiscount, !!CONFIG.BESTPREISE_MODE_ACTIVE);
 
   if (badgeDifEl.isConnected) {

@@ -858,5 +858,27 @@ describe('Price Domain Module', () => {
       assert.equal(objRes.dataPointCount, 2);
       assert.equal(objRes.tiefstpreis, 80);
     });
+
+    it('computeHorizonMedian windows points when >= 3 in horizon and falls back otherwise', async () => {
+      const { computeHorizonMedian } = await import('../../src/domain/price.js');
+      const day = 86400 * 1000;
+      const now = 1000 * day;
+      const pts = [
+        [now - 400 * day, 200],
+        [now - 350 * day, 200],
+        [now - 5 * day, 100],
+        [now - 3 * day, 110],
+        [now - 1 * day, 120]
+      ];
+      const w30 = computeHorizonMedian(pts, 30, now);
+      assert.equal(w30.medianFallback, false);
+      assert.equal(w30.windowCount, 3);
+      assert.equal(w30.roundedMedian, 110);
+
+      const w2 = computeHorizonMedian(pts, 2, now);
+      assert.equal(w2.medianFallback, true);
+      assert.equal(w2.windowCount, 5);
+      assert.equal(w2.roundedMedian, 120);
+    });
   });
 });

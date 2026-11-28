@@ -30,12 +30,15 @@ import { setHtmlIfChanged } from './dom-helpers.js';
 // Preisbasis abhängt.
 export const dealerCache = new Map();
 export const dealerPending = new Set();
+export const dealerPromises = new Map();
 export const dealerHydrated = new Set();
 // Auto-Fetch (DEALER_AUTOFETCH): pro pid:Modus und Pageload — bei transienten
 // Fehlern (429/5xx/Timeout) 1× verzögert erneut versuchen, sonst stoppen.
 export const dealerAutoTries = new Map();
 export function clearDealerMemory() {
   dealerCache.clear();
+  dealerPending.clear();
+  dealerPromises.clear();
   dealerHydrated.clear();
   dealerAutoTries.clear();
   bumpCacheGeneration();
@@ -284,10 +287,12 @@ export function renderBadgeSetup(ctx, isNeueFeed) {
     // the host badge instead of printing the previous product's number.
     if (badgeDifEl.dataset.tpOriginalPid !== (pid ?? '') || !('tpOriginalDiscount' in badgeDifEl.dataset) || badgeDifEl.dataset.tpOriginalDiscount === '') {
       const initialDiscount = extractCardDiscount(card);
-      badgeDifEl.dataset.tpOriginalDiscount = (initialDiscount !== null && !isNaN(initialDiscount)) ? String(initialDiscount) : '';
+      badgeDifEl.dataset.tpOriginalDiscount = (initialDiscount !== null && !isNaN(initialDiscount)) ? String(initialDiscount) : 'none';
       badgeDifEl.dataset.tpOriginalPid = pid ?? '';
     }
-    const rawDiscount = badgeDifEl.dataset.tpOriginalDiscount !== '' ? parseFloat(badgeDifEl.dataset.tpOriginalDiscount) : null;
+    const rawDiscount = (badgeDifEl.dataset.tpOriginalDiscount !== '' && badgeDifEl.dataset.tpOriginalDiscount !== 'none')
+      ? parseFloat(badgeDifEl.dataset.tpOriginalDiscount)
+      : null;
     // rawDiscount is the site DISCOUNT (positive = "-X%" deal, negative = "+X%"
     // markup). Render it sign-aware so markup badges never print "--X%".
     const sitePctText = (rawDiscount !== null && !isNaN(rawDiscount))

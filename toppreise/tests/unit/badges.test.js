@@ -910,4 +910,39 @@ describe('dom-helpers setHtmlIfChanged / setTextIfChanged', () => {
       if (prevDoc === undefined) delete globalThis.document; else globalThis.document = prevDoc;
     }
   });
+
+  it('clearDealerMemory clears dealerPending & dealerPromises and renderBadgeSetup caches none sentinel', async () => {
+    const {
+      dealerPending,
+      dealerPromises,
+      clearDealerMemory,
+      renderBadgeSetup
+    } = await import('../../src/ui/badges/deal-badge.js');
+    dealerPending.add('p1:s');
+    dealerPromises.set('p1:s', Promise.resolve(null));
+    clearDealerMemory();
+    assert.equal(dealerPending.size, 0);
+    assert.equal(dealerPromises.size, 0);
+
+    const badge = {
+      dataset: {},
+      textContent: 'Prüfen',
+      classList: { contains: () => false, add() {}, remove() {} },
+      setAttribute() {},
+      addEventListener() {},
+      parentElement: null,
+      isConnected: true
+    };
+    const card = {
+      dataset: {},
+      classList: { contains: () => false },
+      closest: () => null,
+      querySelector: sel => (sel.includes('badge-dif') ? badge : null),
+      appendChild() {}
+    };
+    badge.parentElement = card;
+    const setup = renderBadgeSetup({ card, pid: 'p-nodisc' }, false);
+    assert.equal(badge.dataset.tpOriginalDiscount, 'none');
+    assert.equal(setup.rawDiscount, null);
+  });
 });

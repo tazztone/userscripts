@@ -163,13 +163,15 @@ export function syncUiControl(key, val, opts = {}, shadowRoot = null) {
           const input = shadow.getElementById('tp-review-keyword-input');
           if (input) {
             input.value = val;
-            updateKeywordPreview({
-              reviewKeywordInput: input,
-              reviewKeywordPreview: shadow.getElementById('tp-review-keyword-preview'),
-              reviewKeywordPreviewNoPrice: shadow.getElementById('tp-review-keyword-preview-noprice'),
-              reviewKeywordPreviewNoPriceRow: shadow.getElementById('tp-review-keyword-preview-noprice-row'),
-              reviewKeywordPreviewWarn: shadow.getElementById('tp-review-keyword-preview-warn')
-            });
+            if (!opts.silent) {
+              updateKeywordPreview({
+                reviewKeywordInput: input,
+                reviewKeywordPreview: shadow.getElementById('tp-review-keyword-preview'),
+                reviewKeywordPreviewNoPrice: shadow.getElementById('tp-review-keyword-preview-noprice'),
+                reviewKeywordPreviewNoPriceRow: shadow.getElementById('tp-review-keyword-preview-noprice-row'),
+                reviewKeywordPreviewWarn: shadow.getElementById('tp-review-keyword-preview-warn')
+              });
+            }
           }
           break;
         }
@@ -177,12 +179,14 @@ export function syncUiControl(key, val, opts = {}, shadowRoot = null) {
           const input = shadow.getElementById('tp-batch-compare-prompt-input');
           if (input) {
             input.value = val || DEFAULTS.BATCH_COMPARE_PROMPT;
-            updateComparePreview({
-              batchComparePromptInput: input,
-              batchCompareItemInput: shadow.getElementById('tp-batch-compare-item-input'),
-              batchComparePreview: shadow.getElementById('tp-batch-compare-preview'),
-              batchComparePreviewWarn: shadow.getElementById('tp-batch-compare-preview-warn')
-            });
+            if (!opts.silent) {
+              updateComparePreview({
+                batchComparePromptInput: input,
+                batchCompareItemInput: shadow.getElementById('tp-batch-compare-item-input'),
+                batchComparePreview: shadow.getElementById('tp-batch-compare-preview'),
+                batchComparePreviewWarn: shadow.getElementById('tp-batch-compare-preview-warn')
+              });
+            }
           }
           break;
         }
@@ -191,12 +195,14 @@ export function syncUiControl(key, val, opts = {}, shadowRoot = null) {
           if (input) {
             input.value = val || DEFAULTS.BATCH_COMPARE_ITEM_TEMPLATE;
             delete input.dataset.tpCursorReady;
-            updateComparePreview({
-              batchComparePromptInput: shadow.getElementById('tp-batch-compare-prompt-input'),
-              batchCompareItemInput: input,
-              batchComparePreview: shadow.getElementById('tp-batch-compare-preview'),
-              batchComparePreviewWarn: shadow.getElementById('tp-batch-compare-preview-warn')
-            });
+            if (!opts.silent) {
+              updateComparePreview({
+                batchComparePromptInput: shadow.getElementById('tp-batch-compare-prompt-input'),
+                batchCompareItemInput: input,
+                batchComparePreview: shadow.getElementById('tp-batch-compare-preview'),
+                batchComparePreviewWarn: shadow.getElementById('tp-batch-compare-preview-warn')
+              });
+            }
           }
           break;
         }

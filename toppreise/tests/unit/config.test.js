@@ -558,6 +558,22 @@ describe('FILTER_CYCLE deal discount mapping', () => {
       assert.equal(effectiveAiProvider({ AI_SEARCH_PROVIDER: 'google', TAVILY_ENABLED: true }), 'tavily');
       assert.equal(effectiveAiProvider({ AI_SEARCH_PROVIDER: 'openrouter', TAVILY_ENABLED: true }), 'openrouter');
     });
+
+    it('syncUiControl skips preview recompute when opts.silent is true', async () => {
+      const { syncUiControl } = await import('../../src/state/config-sync.js');
+      const previewEl = { innerHTML: 'keep', textContent: 'keep' };
+      const kwInput = { value: '' };
+      const shadow = {
+        getElementById: id => {
+          if (id === 'tp-review-keyword-input') return kwInput;
+          if (id === 'tp-review-keyword-preview') return previewEl;
+          return null;
+        }
+      };
+      syncUiControl('REVIEW_SEARCH_KEYWORD', 'Test', { silent: true }, shadow);
+      assert.equal(kwInput.value, 'Test');
+      assert.equal(previewEl.innerHTML, 'keep');
+    });
   });
 });
 
