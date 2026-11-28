@@ -4,9 +4,9 @@ import {
   formatAlarmToast,
   clampAlarmTarget,
   normalizeAlarmDuration,
-  resolveAlarmFormUrl,
-  isSafeImportedUrl
+  resolveAlarmFormUrl
 } from '../../src/features/price-alarm.js';
+import { isSafeImportedUrl, sanitizeImportedNode } from '../../src/page/sanitize.js';
 import { CONFIG } from '../../src/state/config.js';
 import { SELECTORS } from '../../src/page/selectors.js';
 import { clearActivityLog, getActivityLog } from '../../src/state/activity-log.js';
@@ -136,8 +136,7 @@ describe('Price alarm fallback URL hardening', () => {
     assert.equal(isSafeImportedUrl('//imgsrv/x 2x, javascript:alert(1) 1x', { srcset: true }), false);
   });
 
-  it('returns null from sanitizeImportedNode for top-level unsafe elements including STYLE', async () => {
-    const { sanitizeImportedNode } = await import('../../src/features/price-alarm.js');
+  it('returns null from sanitizeImportedNode for top-level unsafe elements including STYLE', () => {
     for (const tag of ['SCRIPT', 'IFRAME', 'OBJECT', 'EMBED', 'BASE', 'META', 'LINK', 'STYLE']) {
       const node = { nodeType: 1, tagName: tag, attributes: [], remove() {} };
       assert.equal(sanitizeImportedNode(node), null);
@@ -580,8 +579,7 @@ describe('Price alarm fallback URL hardening', () => {
     }
   });
 
-  it('sanitizeImportedNode strips SVG/MathML scripting tags while preserving harmless <svg><path/></svg>', async () => {
-    const { sanitizeImportedNode } = await import('../../src/features/price-alarm.js');
+  it('sanitizeImportedNode strips SVG/MathML scripting tags while preserving harmless <svg><path/></svg>', () => {
     const removed = [];
     const pathNode = { nodeType: 1, tagName: 'path', attributes: [], children: [], remove() { removed.push('path'); } };
     const animateNode = { nodeType: 1, tagName: 'animate', attributes: [], children: [], remove() { removed.push('animate'); } };

@@ -16,3 +16,22 @@ export function boundedSetAdd(set, key, limit = 500) {
     set.delete(set.values().next().value);
   }
 }
+
+export function openTabUrl(url, { active = false } = {}) {
+  if (!url || !/^https?:\/\//i.test(url)) return false;
+  if (typeof GM_openInTab === 'function') {
+    try {
+      GM_openInTab(url, { active: !!active, insert: true });
+      return true;
+    } catch {}
+  }
+  if (typeof window !== 'undefined' && typeof window.open === 'function') {
+    try {
+      const w = window.open(url, '_blank', 'noopener');
+      return !!w;
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}

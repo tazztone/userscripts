@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.577
+// @version      2.18.578
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -4297,6 +4297,25 @@ const SHADOW_MODAL_STYLES = `
     while (set.size > limit) {
       set.delete(set.values().next().value);
     }
+  }
+
+  function openTabUrl(url, { active = false } = {}) {
+    if (!url || !/^https?:\/\//i.test(url)) return false;
+    if (typeof GM_openInTab === 'function') {
+      try {
+        GM_openInTab(url, { active: !!active, insert: true });
+        return true;
+      } catch {}
+    }
+    if (typeof window !== 'undefined' && typeof window.open === 'function') {
+      try {
+        const w = window.open(url, '_blank', 'noopener');
+        return !!w;
+      } catch {
+        return false;
+      }
+    }
+    return false;
   }
 
   // ─── MODULE: src/domain/price.js ────────────────────────────────────────────
@@ -10162,7 +10181,8 @@ const SHADOW_MODAL_STYLES = `
   }
 
   function createPopoutDialog({ id, label, title = '', panelClass = '', closeLabel = 'Schliessen', actions = [], onClose = null } = {}) {
-    const prevFocus = typeof document.activeElement !== 'undefined' ? document.activeElement : null;
+    const rawActive = typeof document.activeElement !== 'undefined' ? document.activeElement : null;
+    const prevFocus = rawActive?.shadowRoot?.activeElement || rawActive;
 
     const backdrop = document.createElement('div');
     if (id) backdrop.id = id;
@@ -10233,7 +10253,7 @@ const SHADOW_MODAL_STYLES = `
     function close() {
       if (closed) return;
       closed = true;
-      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('keydown', onKey, true);
       try { onClose?.(); } catch {}
       backdrop.remove();
       try {
@@ -10251,7 +10271,7 @@ const SHADOW_MODAL_STYLES = `
     });
 
     function mount() {
-      document.addEventListener('keydown', onKey);
+      document.addEventListener('keydown', onKey, true);
       document.body.appendChild(backdrop);
       closeBtn.focus?.();
       return backdrop;
@@ -10275,15 +10295,49 @@ const SHADOW_MODAL_STYLES = `
 
   function renderSparkline(timeSeries, width, height, opts = {}) {
     if (!timeSeries || !Array.isArray(timeSeries) || timeSeries.length < 2) return null;
+    if (!Number.isFinite(width) || !(width > 0) || !Number.isFinite(height) || !(height > 0)) return null;
     const axes = opts && opts.axes === true;
     const topPad = (opts && typeof opts.topPad === 'number') ? opts.topPad : 0;
     const valid = timeSeries.filter(p => Array.isArray(p) && Number.isFinite(+p[1]) && +p[1] > 0);
     if (valid.length < 2) return null;
     const prices = valid.map(p => +p[1]);
 
-    const min = Math.min(...prices);
-    const max = Math.max(...prices);
+    let min = prices[0];
+    let max = prices[0];
+    for (let i = 1; i < prices.length; i++) {
+      if (prices[i] < min) min = prices[i];
+      if (prices[i] > max) max = prices[i];
+    }
     const range = max - min || 1;
+
+    // Bare mini omits grid/axes only; endpoint dot shared with Discord path.
+    const buildPoints = (x0, x1, y0, y1) => {
+      let lx = 0;
+      let ly = 0;
+      const pts = prices.map((p, i) => {
+        const x = (x0 + (i / (prices.length - 1)) * (x1 - x0)).toFixed(1);
+        const y = (y1 - ((p - min) / range) * (y1 - y0)).toFixed(1);
+        lx = x;
+        ly = y;
+        return `${x},${y}`;
+      }).join(' ');
+      return { pts, lx, ly };
+    };
+
+    let built;
+    if (!axes) {
+      const pad = 2.5;
+      if (width <= pad * 2 || height <= pad * 2) return null;
+      built = buildPoints(pad, width - pad, pad, height - pad);
+    } else {
+      const margin = { left: 38, right: 10, top: 6 + topPad, bottom: 16 };
+      const x0 = margin.left;
+      const x1 = width - margin.right;
+      const y0 = margin.top;
+      const y1 = height - margin.bottom;
+      if (x1 <= x0 || y1 <= y0) return null;
+      built = buildPoints(x0, x1, y0, y1);
+    }
 
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('width', String(width));
@@ -10300,13 +10354,6 @@ const SHADOW_MODAL_STYLES = `
     const titleEl = document.createElementNS('http://www.w3.org/2000/svg', 'title');
     titleEl.textContent = `Preisverlauf: CHF ${firstPrice.toFixed(2)} → CHF ${lastPrice.toFixed(2)} (Min: ${min.toFixed(2)}, Max: ${max.toFixed(2)})`;
     svg.appendChild(titleEl);
-
-    // Bare mini omits grid/axes only; endpoint dot shared with Discord path.
-    const buildPoints = (x0, x1, y0, y1) => prices.map((p, i) => {
-      const x = (x0 + (i / (prices.length - 1)) * (x1 - x0)).toFixed(1);
-      const y = (y1 - ((p - min) / range) * (y1 - y0)).toFixed(1);
-      return `${x},${y}`;
-    }).join(' ');
 
     const line = (x1, y1, x2, y2, opacity) => {
       const el = document.createElementNS('http://www.w3.org/2000/svg', 'line');
@@ -10334,25 +10381,12 @@ const SHADOW_MODAL_STYLES = `
 
     const fmtPrice = v => (v >= 100 ? String(Math.round(v)) : v.toFixed(2));
 
-    let points;
-    let lastX = 0;
-    let lastY = 0;
-    if (!axes) {
-      const pad = 2.5;
-      const usableWidth = width - pad * 2;
-      const usableHeight = height - pad * 2;
-      points = prices.map((p, i) => {
-        const x = (pad + (i / (prices.length - 1)) * usableWidth).toFixed(1);
-        const y = (height - pad - ((p - min) / range) * usableHeight).toFixed(1);
-        return `${x},${y}`;
-      }).join(' ');
-    } else {
+    if (axes) {
       const margin = { left: 38, right: 10, top: 6 + topPad, bottom: 16 };
       const x0 = margin.left;
       const x1 = width - margin.right;
       const y0 = margin.top;
       const y1 = height - margin.bottom;
-      points = buildPoints(x0, x1, y0, y1);
 
       // Y price grid: min / mid / max (single line when flat).
       const mid = (min + max) / 2;
@@ -10373,7 +10407,13 @@ const SHADOW_MODAL_STYLES = `
       const finiteTs = tsMs.filter(Number.isFinite);
       if (finiteTs.length >= 2) {
         const DAY_MS = 86400000;
-        const span = Math.max(...finiteTs) - Math.min(...finiteTs);
+        let minTs = finiteTs[0];
+        let maxTs = finiteTs[0];
+        for (let i = 1; i < finiteTs.length; i++) {
+          if (finiteTs[i] < minTs) minTs = finiteTs[i];
+          if (finiteTs[i] > maxTs) maxTs = finiteTs[i];
+        }
+        const span = maxTs - minTs;
         const mode = span >= 60 * DAY_MS ? 'month' : span >= 14 * DAY_MS ? 'week' : 'day';
         const bucketKey = d => mode === 'month'
           ? `${d.getFullYear()}-${d.getMonth()}`
@@ -10409,10 +10449,7 @@ const SHADOW_MODAL_STYLES = `
       }
     }
 
-    const pts = points.split(' ');
-    const last = pts[pts.length - 1].split(',');
-    lastX = last[0];
-    lastY = last[1];
+    const { pts: points, lx: lastX, ly: lastY } = built;
 
     const polyline = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
     polyline.setAttribute('points', points);
@@ -10470,32 +10507,61 @@ const SHADOW_MODAL_STYLES = `
     return `https://graph.keepa.com/pricehistory.png?asin=${encodeURIComponent(asin.trim())}&domain=de&amazon=1&new=1&bb=1&range=${days}&width=${width}&height=${height}`;
   }
 
+  function rasterizeSvgToPngBlob(svgEl, width, height, { timeoutMs = 3000 } = {}) {
+    return new Promise(resolve => {
+      let done = false;
+      let svgUrl = null;
+      const finish = v => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        if (svgUrl) try { URL.revokeObjectURL(svgUrl); } catch {}
+        resolve(v);
+      };
+      const timer = timeoutMs > 0 ? setTimeout(() => finish(null), timeoutMs) : null;
+      try {
+        if (!svgEl || typeof document === 'undefined' || !Number.isFinite(width) || !(width > 0) || !Number.isFinite(height) || !(height > 0)) {
+          return finish(null);
+        }
+        const svgText = new XMLSerializer().serializeToString(svgEl);
+        svgUrl = URL.createObjectURL(new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' }));
+        const rasterize = source => () => {
+          try {
+            if (!(source?.naturalWidth > 0 && source?.naturalHeight > 0)) return finish(null);
+            const canvas = document.createElement('canvas');
+            canvas.width = width * 2;
+            canvas.height = height * 2;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return finish(null);
+            ctx.drawImage(source, 0, 0, width * 2, height * 2);
+            canvas.toBlob(b => finish(b || null), 'image/png');
+          } catch {
+            finish(null);
+          }
+        };
+        const img = new Image();
+        img.onload = rasterize(img);
+        // blob:-URL gescheitert (CSP): data-URI als Rastervorlage retryen.
+        img.onerror = () => {
+          const retry = new Image();
+          retry.onload = rasterize(retry);
+          retry.onerror = () => finish(null);
+          retry.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgText);
+        };
+        img.src = svgUrl;
+      } catch {
+        finish(null);
+      }
+    });
+  }
+
   async function copySvgToClipboard(svgEl, width = 560, height = 220) {
     try {
-      if (!svgEl || typeof document === 'undefined') return false;
-      const svgText = new XMLSerializer().serializeToString(svgEl);
-      const svgUrl = URL.createObjectURL(new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' }));
-      try {
-        const img = new Image();
-        await new Promise((res, rej) => {
-          img.onload = res;
-          img.onerror = rej;
-          img.src = svgUrl;
-        });
-        const canvas = document.createElement('canvas');
-        canvas.width = width * 2;
-        canvas.height = height * 2;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return false;
-        ctx.drawImage(img, 0, 0, width * 2, height * 2);
-        const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
-        if (blob && typeof navigator?.clipboard?.write === 'function') {
-          await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-          showToast('📋 Diagramm in Zwischenablage kopiert');
-          return true;
-        }
-      } finally {
-        URL.revokeObjectURL(svgUrl);
+      const blob = await rasterizeSvgToPngBlob(svgEl, width, height);
+      if (blob && typeof navigator?.clipboard?.write === 'function') {
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+        showToast('📋 Diagramm in Zwischenablage kopiert');
+        return true;
       }
     } catch (err) {
       console.debug('[Toppreise-Suite] SVG-Copy-Fehler', err);
@@ -10515,9 +10581,10 @@ const SHADOW_MODAL_STYLES = `
             url: fallbackUrl,
             responseType: 'blob'
           }, { timeoutMs: 8000, source: 'sparkline', label: 'keepa' });
-          if (!r?.response) throw new Error('no blob');
-          const blob = r.response;
-          objectUrl = URL.createObjectURL(blob);
+          if (!(r?.status >= 200 && r.status < 300) || !(r.response instanceof Blob)) {
+            throw new Error('invalid keepa blob');
+          }
+          objectUrl = URL.createObjectURL(r.response);
           const tempImg = new Image();
           await new Promise((res, rej) => {
             tempImg.onload = res;
@@ -10528,8 +10595,11 @@ const SHADOW_MODAL_STYLES = `
         } catch (e) {}
       }
 
-      const w = sourceImg?.naturalWidth || 560;
-      const h = sourceImg?.naturalHeight || 220;
+      if (!sourceImg || !sourceImg.complete || !(sourceImg.naturalWidth > 0 && sourceImg.naturalHeight > 0)) {
+        throw new Error('keepa image not ready');
+      }
+      const w = sourceImg.naturalWidth;
+      const h = sourceImg.naturalHeight;
       const bannerHeight = 36;
       const canvas = document.createElement('canvas');
       canvas.width = w;
@@ -10546,9 +10616,7 @@ const SHADOW_MODAL_STYLES = `
       const displayTitle = titleText ? `Amazon.de: ${titleText} (ASIN: ${asin})` : `Amazon.de: ASIN ${asin}`;
       ctx.fillText(displayTitle, 12, bannerHeight / 2, canvas.width - 24);
 
-      if (sourceImg) {
-        ctx.drawImage(sourceImg, 0, bannerHeight, w, h);
-      }
+      ctx.drawImage(sourceImg, 0, bannerHeight, w, h);
 
       const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
       if (blob && typeof navigator?.clipboard?.write === 'function') {
@@ -10680,29 +10748,32 @@ const SHADOW_MODAL_STYLES = `
       keepaSection.appendChild(keepaBody);
       panel.appendChild(keepaSection);
 
+      const clearChildren = el => {
+        if (el.replaceChildren) el.replaceChildren();
+        else while (el.firstChild) el.removeChild(el.firstChild);
+      };
+
       // Resolve ASIN and display Keepa image
       resolveAmazonAsin(chartCtx.directUrl, chartCtx.pid).then(asin => {
         if (popoutClosed) return;
         if (!asin) {
-          if (keepaBody.replaceChildren) {
-            keepaBody.replaceChildren();
-          } else {
-            while (keepaBody.firstChild) keepaBody.removeChild(keepaBody.firstChild);
-          }
+          clearChildren(keepaBody);
           const errNotice = document.createElement('div');
           errNotice.className = 'tp-keepa-status';
           const msgSpan = document.createElement('span');
           msgSpan.textContent = 'Amazon-ASIN konnte nicht ermittelt werden.';
           errNotice.appendChild(msgSpan);
-          errNotice.appendChild(document.createElement('br'));
-          const safeUrl = /^https?:\/\//i.test(chartCtx.directUrl || '') ? chartCtx.directUrl : '#';
-          const a = document.createElement('a');
-          a.href = safeUrl;
-          a.target = '_blank';
-          a.rel = 'noopener';
-          a.className = 'tp-popout-link';
-          a.textContent = 'Zum Amazon-Angebot ↗';
-          errNotice.appendChild(a);
+          const safeUrl = /^https?:\/\//i.test(chartCtx.directUrl || '') ? chartCtx.directUrl : '';
+          if (safeUrl) {
+            errNotice.appendChild(document.createElement('br'));
+            const a = document.createElement('a');
+            a.href = safeUrl;
+            a.target = '_blank';
+            a.rel = 'noopener';
+            a.className = 'tp-popout-link';
+            a.textContent = 'Zum Amazon-Angebot ↗';
+            errNotice.appendChild(a);
+          }
           keepaBody.appendChild(errNotice);
           return;
         }
@@ -10715,15 +10786,6 @@ const SHADOW_MODAL_STYLES = `
         const img = document.createElement('img');
         img.className = 'tp-keepa-img';
         img.alt = `Keepa Preisverlauf für ${asin}`;
-        img.src = keepaUrlFor(currentDays);
-
-        copyKeepaBtn.onclick = () => {
-          copyKeepaChartToClipboard(img, productTitle, asin, keepaUrlFor(currentDays));
-        };
-
-        keepaBody._tpUpdateRange = days => {
-          img.src = keepaUrlFor(days);
-        };
 
         const linksRow = document.createElement('div');
         linksRow.className = 'tp-keepa-links';
@@ -10743,12 +10805,39 @@ const SHADOW_MODAL_STYLES = `
         linksRow.appendChild(keepaLink);
         linksRow.appendChild(amzLink);
 
-        if (keepaBody.replaceChildren) keepaBody.replaceChildren();
+        img.onload = () => {
+          if (!popoutClosed) copyKeepaBtn.hidden = false;
+        };
+        img.onerror = () => {
+          if (popoutClosed) return;
+          copyKeepaBtn.hidden = true;
+          clearChildren(keepaBody);
+          const errNotice = document.createElement('div');
+          errNotice.className = 'tp-keepa-status';
+          errNotice.textContent = 'Amazon Keepa-Verlauf konnte nicht geladen werden.';
+          keepaBody.appendChild(errNotice);
+          keepaBody.appendChild(linksRow);
+        };
+        img.src = keepaUrlFor(currentDays);
+
+        copyKeepaBtn.onclick = () => {
+          copyKeepaChartToClipboard(img, productTitle, asin, keepaUrlFor(currentDays));
+        };
+
+        keepaBody._tpUpdateRange = days => {
+          copyKeepaBtn.hidden = false;
+          clearChildren(keepaBody);
+          keepaBody.appendChild(img);
+          keepaBody.appendChild(linksRow);
+          img.src = keepaUrlFor(days);
+        };
+
+        clearChildren(keepaBody);
         keepaBody.appendChild(img);
         keepaBody.appendChild(linksRow);
       }).catch(() => {
         if (popoutClosed) return;
-        if (keepaBody.replaceChildren) keepaBody.replaceChildren();
+        clearChildren(keepaBody);
         const errNotice = document.createElement('div');
         errNotice.className = 'tp-keepa-status';
         errNotice.textContent = 'Amazon Keepa-Verlauf konnte nicht geladen werden.';
@@ -10804,7 +10893,7 @@ const SHADOW_MODAL_STYLES = `
       let cls = '';
       const prefix = line.match(/^(##|#|-#)\s?/);
       if (prefix) {
-        cls = prefix[1] === '##' ? 'tp-md-lg' : prefix[1] === '#' ? 'tp-md-md' : 'tp-md-sm';
+        cls = prefix[1] === '#' ? 'tp-md-lg' : prefix[1] === '##' ? 'tp-md-md' : 'tp-md-sm';
         line = line.slice(prefix[0].length);
       } else {
         const quote = line.match(/^>\s?/);
@@ -11024,7 +11113,7 @@ const SHADOW_MODAL_STYLES = `
     };
     const out = [];
     for (const rawLine of recipe.split('\n')) {
-      const line = rawLine.replace(/\s*\+\{offers\}/g, ctx.offerCount ? ` +${ctx.offerCount}` : '').replace(/\{([a-z]+)\}/g, (m, name) => LAYOUT_TOKENS.has(name) ? tokenText(name, ctx) : '').replace(/\s*·\s*·\s*/g, ' · ').replace(/^([#-]+)\s*·\s*/g, '$1 ').replace(/^\s*·\s*|\s*·\s*$/g, '').replace(/^([#-]+)\s+/g, '$1 ');
+      const line = rawLine.replace(/\s*\+\{offers\}/g, ctx.offerCount ? ` +${ctx.offerCount}` : '').replace(/\{([a-z]+)\}/g, (m, name) => LAYOUT_TOKENS.has(name) ? tokenText(name, ctx) : '').replace(/(?:\s*·){2,}\s*/g, ' · ').replace(/^([#-]+)\s*·\s*/g, '$1 ').replace(/^\s*·\s*|\s*·\s*$/g, '').replace(/^([#-]+)\s+/g, '$1 ');
       if (line.replace(/^[#> \s-]+/, '').trim() === '') continue;
       out.push(line);
     }
@@ -11263,10 +11352,10 @@ const SHADOW_MODAL_STYLES = `
 
   function expandKeywordWithPrice(keyword, priceText = '') {
     let kw = String(keyword || '').replace(/\s+/g, ' ').trim();
-    if (!kw.includes('{preis}')) return kw;
+    if (!/\{preis\}/i.test(kw)) return kw;
 
     if (priceText) {
-      return kw.replace(/\{preis\}/g, () => priceText).replace(/\s+/g, ' ').trim();
+      return kw.replace(/\{preis\}/gi, () => priceText).replace(/\s+/g, ' ').trim();
     }
 
     // Gracefully drop sentence or clause asking about {preis} when no price is available
@@ -11309,6 +11398,11 @@ const SHADOW_MODAL_STYLES = `
       return Promise.reject(new Error('Suchanfrage ist leer'));
     }
 
+    const signal = options.signal || null;
+    if (signal?.aborted) {
+      return Promise.reject(Object.assign(new Error('Abgebrochen'), { cancelled: true }));
+    }
+
     const timeoutMs = typeof options.timeoutMs === 'number' ? options.timeoutMs : 60000;
     const searchDepth = options.searchDepth || (typeof CONFIG !== 'undefined' ? CONFIG.TAVILY_SEARCH_DEPTH : 'basic') || 'basic';
     const maxResults = typeof options.maxResults === 'number'
@@ -11327,7 +11421,7 @@ const SHADOW_MODAL_STYLES = `
     // 2. In-flight request deduplication
     const flightKey = `${trimmedKey}:${normalized.toLowerCase()}:${searchDepth}:${maxResults}`;
     const existing = inFlight.get(flightKey);
-    if (existing && existing.timeoutMs >= timeoutMs) {
+    if (existing && existing.timeoutMs >= timeoutMs && !signal) {
       return existing.promise;
     }
 
@@ -11344,11 +11438,13 @@ const SHADOW_MODAL_STYLES = `
         try {
           const data = JSON.parse(rawText || '{}');
           const answer = (data.answer || '').trim();
+          const fallbackSnippet = Array.isArray(data.results) && data.results.length > 0
+            ? String(data.results[0]?.content || '').trim()
+            : '';
           if (answer) {
             setCachedTavily(cacheQueryKey, answer);
             resolve(answer);
-          } else if (Array.isArray(data.results) && data.results.length > 0 && data.results[0].content) {
-            const fallbackSnippet = data.results[0].content.trim();
+          } else if (fallbackSnippet) {
             setCachedTavily(cacheQueryKey, fallbackSnippet);
             resolve(fallbackSnippet);
           } else {
@@ -11359,58 +11455,30 @@ const SHADOW_MODAL_STYLES = `
         }
       };
 
-      if (typeof GM_xmlhttpRequest !== 'undefined') {
-        gmRequestWithTimeout({
-          method: 'POST',
-          url: TAVILY_API_ENDPOINT,
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'Authorization': `Bearer ${trimmedKey}`
-          },
-          data: payload,
-        }, { timeoutMs, source: 'tavily', label: 'search' })
-          .then((res) => {
-            if (res.status >= 200 && res.status < 300) {
-              handleSuccess(res.responseText);
-            } else if (res.status === 401 || res.status === 403) {
-              reject(new Error('Tavily API-Key ungültig'));
-            } else if (res.status === 429) {
-              reject(new Error('Tavily Monatslimit oder Rate-Limit erreicht'));
-            } else {
-              reject(new Error(`Tavily HTTP-Fehler ${res.status}`));
-            }
-          })
-          .catch((err) => {
-            reject(new Error(err?.timeout ? 'Zeitüberschreitung bei Tavily' : 'Netzwerkfehler bei Verbindung zu Tavily'));
-          });
-      } else if (typeof fetch !== 'undefined') {
-        fetchWithTimeout(TAVILY_API_ENDPOINT, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'Authorization': `Bearer ${trimmedKey}`
-          },
-          body: payload,
-        }, { timeoutMs, source: 'tavily', label: 'search', readAs: 'text' })
-          .then(({ res, body }) => {
-            if (res.ok) {
-              handleSuccess(body);
-            } else if (res.status === 401 || res.status === 403) {
-              reject(new Error('Tavily API-Key ungültig'));
-            } else if (res.status === 429) {
-              reject(new Error('Tavily Monatslimit oder Rate-Limit erreicht'));
-            } else {
-              reject(new Error(`Tavily HTTP-Fehler ${res.status}`));
-            }
-          })
-          .catch((err) => {
-            reject(new Error(err?.timeout ? 'Zeitüberschreitung bei Tavily' : 'Netzwerkfehler bei Verbindung zu Tavily'));
-          });
-      } else {
-        reject(new Error('Kein HTTP-Transport für Tavily verfügbar'));
-      }
+      postJsonTransport({
+        url: TAVILY_API_ENDPOINT,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${trimmedKey}`
+        },
+        body: payload,
+        timeoutMs,
+        signal,
+        source: 'tavily',
+        label: 'search'
+      })
+        .then(({ status, ok, text }) => {
+          if (ok) handleSuccess(text);
+          else if (status === 401 || status === 403) reject(new Error('Tavily API-Key ungültig'));
+          else if (status === 429) reject(new Error('Tavily Monatslimit oder Rate-Limit erreicht'));
+          else reject(new Error(`Tavily HTTP-Fehler ${status}`));
+        })
+        .catch((err) => {
+          if (err?.noTransport) reject(new Error('Kein HTTP-Transport für Tavily verfügbar'));
+          else if (err?.cancelled) reject(Object.assign(new Error('Abgebrochen'), { cancelled: true }));
+          else reject(new Error(err?.timeout ? 'Zeitüberschreitung bei Tavily' : 'Netzwerkfehler bei Verbindung zu Tavily'));
+        });
     }).finally(() => {
       if (inFlight.get(flightKey)?.promise === promise) {
         inFlight.delete(flightKey);
@@ -11476,7 +11544,9 @@ const SHADOW_MODAL_STYLES = `
   function openRouterCacheKey(prompt, model, engine, maxResults, searchContextSize = 'medium') {
     const norm = normalizeOpenRouterPrompt(prompt).toLowerCase();
     if (!norm) return '';
-    return `${model || DEFAULT_OPENROUTER_MODEL}::${engine || 'auto'}::${maxResults || 5}::${searchContextSize || 'medium'}::${hashCacheStr(norm)}`;
+    const m = String(model || '').trim() || DEFAULT_OPENROUTER_MODEL;
+    const eng = String(engine || '').trim() || 'auto';
+    return `${m}::${eng}::${maxResults || 5}::${searchContextSize || 'medium'}::${hashCacheStr(norm)}`;
   }
 
   function extractOpenRouterCitations(annotations) {
@@ -11617,53 +11687,41 @@ const SHADOW_MODAL_STYLES = `
           'X-Title': 'Toppreise.ch Suite'
         };
         const transportSignal = abortCtrl?.signal;
-
-        if (typeof GM_xmlhttpRequest !== 'undefined') {
-          gmRequestWithTimeout({
-            method: 'POST',
-            url: OPENROUTER_API_ENDPOINT,
-            headers,
-            data: payload,
-          }, { timeoutMs, signal: transportSignal, source: 'openrouter', label: 'web_search' })
-            .then((res) => {
-              if (res.status >= 200 && res.status < 300) handleSuccess(res.responseText);
-              else reject(new Error(mapOpenRouterHttpError(res.status)));
-            })
-            .catch((err) => {
-              if (err?.cancelled) reject(Object.assign(new Error('Abgebrochen'), { cancelled: true }));
-              else reject(new Error(err?.timeout ? 'Zeitüberschreitung bei OpenRouter' : 'Netzwerkfehler bei Verbindung zu OpenRouter'));
-            });
-        } else if (typeof fetch !== 'undefined') {
-          fetchWithTimeout(OPENROUTER_API_ENDPOINT, {
-            method: 'POST',
-            headers,
-            body: payload,
-          }, { timeoutMs, signal: transportSignal, source: 'openrouter', label: 'web_search', readAs: 'text' })
-            .then(({ res, body }) => {
-              if (res.ok) handleSuccess(body);
-              else reject(new Error(mapOpenRouterHttpError(res.status)));
-            })
-            .catch((err) => {
-              if (err?.cancelled) reject(Object.assign(new Error('Abgebrochen'), { cancelled: true }));
-              else reject(new Error(err?.timeout ? 'Zeitüberschreitung bei OpenRouter' : 'Netzwerkfehler bei Verbindung zu OpenRouter'));
-            });
-        } else {
-          reject(new Error('Kein HTTP-Transport für OpenRouter verfügbar'));
-        }
+        postJsonTransport({
+          url: OPENROUTER_API_ENDPOINT,
+          headers,
+          body: payload,
+          timeoutMs,
+          signal: transportSignal,
+          source: 'openrouter',
+          label: 'web_search'
+        })
+          .then(({ status, ok, text }) => {
+            if (ok) handleSuccess(text);
+            else reject(new Error(mapOpenRouterHttpError(status)));
+          })
+          .catch((err) => {
+            if (err?.noTransport) reject(new Error('Kein HTTP-Transport für OpenRouter verfügbar'));
+            else if (err?.cancelled) reject(Object.assign(new Error('Abgebrochen'), { cancelled: true }));
+            else reject(new Error(err?.timeout ? 'Zeitüberschreitung bei OpenRouter' : 'Netzwerkfehler bei Verbindung zu OpenRouter'));
+          });
       }).finally(() => {
+        if (entry) entry.settled = true;
         if (orInFlight.get(flightKey)?.promise === transportPromise) {
           orInFlight.delete(flightKey);
         }
       });
 
-      entry = { promise: transportPromise, timeoutMs, abortCtrl, refs: 0 };
+      entry = { promise: transportPromise, timeoutMs, abortCtrl, refs: 0, settled: false };
       orInFlight.set(flightKey, entry);
     }
 
     entry.refs++;
     const cleanupConsumer = () => {
       if (--entry.refs === 0) {
-        try { entry.abortCtrl?.abort(); } catch {}
+        if (!entry.settled) {
+          try { entry.abortCtrl?.abort(); } catch {}
+        }
         if (orInFlight.get(flightKey) === entry) orInFlight.delete(flightKey);
       }
     };
@@ -11724,7 +11782,8 @@ const SHADOW_MODAL_STYLES = `
       return fetchTavilySummary(cfg?.TAVILY_API_KEY, query, {
         timeoutMs: opts.timeoutMs ?? 60000,
         searchDepth: opts.searchDepth || cfg?.TAVILY_SEARCH_DEPTH,
-        maxResults: opts.maxResults ?? cfg?.TAVILY_MAX_RESULTS
+        maxResults: opts.maxResults ?? cfg?.TAVILY_MAX_RESULTS,
+        signal: opts.signal
       }).then(answer => ({ answer, citations: [] }));
     }
     return Promise.reject(new Error('Kein KI-Anbieter aktiviert'));
@@ -11744,6 +11803,11 @@ const SHADOW_MODAL_STYLES = `
 
 
   const COMPARISON_BTN_SEL = '.Plugin_AddToProductComparisonButton';
+  const isVerifiedDealCard = cd => Boolean(
+    cd?.dealScore ||
+    cd?.displayDelta?.kind === 'new-low' ||
+    cd?.displayDelta?.kind === 'at-low'
+  );
 
   function extractCardSpecs(card) {
     if (!card?.querySelector) return '';
@@ -11809,11 +11873,7 @@ const SHADOW_MODAL_STYLES = `
       discountText = `-${Math.round(cd.discountVal)}%`;
     }
 
-    const isVerifiedDeal = Boolean(
-      cd.dealScore ||
-      cd.displayDelta?.kind === 'new-low' ||
-      cd.displayDelta?.kind === 'at-low'
-    );
+    const isVerifiedDeal = isVerifiedDealCard(cd);
     const compBtn = card.querySelector?.(COMPARISON_BTN_SEL) || null;
 
     return {
@@ -11823,7 +11883,7 @@ const SHADOW_MODAL_STYLES = `
       url,
       imageUrl,
       cardPrice: cd.cardPrice || 0,
-      cardPriceBasis: cd.cardPriceBasis || 'product',
+      cardPriceBasis: cd.cardPriceBasis || (useShipping ? 'shipping' : 'product'),
       priceText,
       specs: extractCardSpecs(card),
       dealer,
@@ -11840,18 +11900,13 @@ const SHADOW_MODAL_STYLES = `
 
   function collectScopedCards(scope = 'non-dimmed', root = undefined) {
     const cards = getProductCards(root);
-    const useShipping = isShippingPriceActive();
     const out = [];
     for (const card of cards) {
       if (isCardFilteredOut(card)) continue;
       if (scope === 'non-dimmed' && card.classList?.contains('tp-dimmed')) continue;
       const cd = extractCardData(card);
-      const isDeal = Boolean(
-        cd.dealScore ||
-        cd.displayDelta?.kind === 'new-low' ||
-        cd.displayDelta?.kind === 'at-low'
-      );
-      if (scope === 'deals' && !isDeal) continue;
+      if (scope === 'deals' && !isVerifiedDealCard(cd)) continue;
+      const useShipping = cd.cardPriceBasis ? cd.cardPriceBasis === 'shipping' : isShippingPriceActive(card);
       out.push(buildItemFromCard(card, cd, useShipping));
     }
     return out;
@@ -11867,7 +11922,7 @@ const SHADOW_MODAL_STYLES = `
       visible++;
       if (!card.classList?.contains('tp-dimmed')) nonDimmed++;
       const cd = extractCardData(card);
-      if (cd.dealScore || cd.displayDelta?.kind === 'new-low' || cd.displayDelta?.kind === 'at-low') {
+      if (isVerifiedDealCard(cd)) {
         deals++;
       }
     }
@@ -11958,11 +12013,6 @@ const SHADOW_MODAL_STYLES = `
       .join('\r\n');
   }
 
-  const FALLBACK_COMPARE_PROMPT =
-    'Vergleiche folgende {anzahl} Angebote von Toppreise.ch (Preise in CHF) und bewerte Preis-Leistung, Stärken/Schwächen sowie welches Angebot der beste Deal ist (kurz auf Deutsch):';
-  const FALLBACK_COMPARE_ITEM_TEMPLATE =
-    '{nr}. {titel} | Preis: {preis} | Rabatt: {rabatt} | Bisheriges Tief: {tief} | {median} | Händler: {haendler} | Specs: {specs}';
-
   const COMPARE_PROMPT_TOKENS = Object.freeze(['anzahl', 'angebote']);
   const COMPARE_ITEM_TOKENS = Object.freeze(['nr', 'titel', 'preis', 'rabatt', 'tief', 'median', 'haendler', 'offerten', 'specs', 'url']);
 
@@ -11998,13 +12048,13 @@ const SHADOW_MODAL_STYLES = `
 
   function resolveCompareTemplate(promptTemplate) {
     const custom = String(promptTemplate ?? CONFIG?.BATCH_COMPARE_PROMPT ?? '').trim();
-    const def = String(DEFAULTS?.BATCH_COMPARE_PROMPT || FALLBACK_COMPARE_PROMPT).trim();
+    const def = String(DEFAULTS.BATCH_COMPARE_PROMPT).trim();
     return custom || def;
   }
 
   function resolveCompareItemTemplate(itemTemplate) {
     const custom = String(itemTemplate ?? CONFIG?.BATCH_COMPARE_ITEM_TEMPLATE ?? '').trim();
-    const def = String(DEFAULTS?.BATCH_COMPARE_ITEM_TEMPLATE || FALLBACK_COMPARE_ITEM_TEMPLATE).trim();
+    const def = String(DEFAULTS.BATCH_COMPARE_ITEM_TEMPLATE).trim();
     return custom || def;
   }
 
@@ -12133,10 +12183,10 @@ const SHADOW_MODAL_STYLES = `
     }
     if (Array.isArray(items) && items.length > 0) {
       const tpl = resolveCompareTemplate(opts.promptTemplate);
-      const def = String(DEFAULTS?.BATCH_COMPARE_PROMPT || FALLBACK_COMPARE_PROMPT).trim();
+      const def = String(DEFAULTS.BATCH_COMPARE_PROMPT).trim();
       const isCustom = tpl !== def;
       const itemTpl = resolveCompareItemTemplate(opts.itemTemplate);
-      const defItemTpl = String(DEFAULTS?.BATCH_COMPARE_ITEM_TEMPLATE || FALLBACK_COMPARE_ITEM_TEMPLATE).trim();
+      const defItemTpl = String(DEFAULTS.BATCH_COMPARE_ITEM_TEMPLATE).trim();
       const isCustomItem = itemTpl !== defItemTpl;
 
       const fits = candidate => (candidate && encodeURIComponent(candidate).length <= MAX_AI_URL_QUERY_ENCODED ? candidate : '');
@@ -12295,39 +12345,24 @@ const SHADOW_MODAL_STYLES = `
   // Preischart als PNG für Discord: vorhandenes SVG gross rendern, rastern, als
   // Webhook-Attachment hochladen. Reine Browser-APIs — ohne DOM kein Bild (null).
   function renderSparklinePng(timeSeries, width = 360, height = 100, title = '') {
-    return new Promise(resolve => {
-      let done = false;
-      let svgUrl = null;
-      const finish = v => { if (!done) { done = true; clearTimeout(timer); if (svgUrl) try { URL.revokeObjectURL(svgUrl); } catch {} resolve(v); } };
-      const timer = setTimeout(() => finish(null), 3000);
-      try {
-        if (typeof document === 'undefined') return finish(null);
-        const svg = renderDiscordChart(timeSeries, width, height, title);
-        if (!svg) return finish(null);
-        const svgText = new XMLSerializer().serializeToString(svg);
-        svgUrl = URL.createObjectURL(new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' }));
-        const img = new Image();
-        const rasterize = source => () => {
-          try {
-            const canvas = document.createElement('canvas');
-            canvas.width = width * 2;
-            canvas.height = height * 2;
-            canvas.getContext('2d').drawImage(source, 0, 0, width * 2, height * 2);
-            canvas.toBlob(b => finish(b || null), 'image/png');
-          } catch { finish(null); }
-        };
-        img.onload = rasterize(img);
-        // blob:-URL gescheitert (CSP): data-URI als Rastervorlage retryen.
-        img.onerror = () => {
-          const retry = new Image();
-          retry.onload = rasterize(retry);
-          retry.onerror = () => finish(null);
-          retry.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgText);
-        };
-        img.src = svgUrl;
-      } catch { finish(null); }
-    });
+    if (typeof document === 'undefined' || !Number.isFinite(width) || !(width > 0) || !Number.isFinite(height) || !(height > 0)) {
+      return Promise.resolve(null);
+    }
+    try {
+      const svg = renderDiscordChart(timeSeries, width, height, title);
+      if (!svg) return Promise.resolve(null);
+      return rasterizeSvgToPngBlob(svg, width, height);
+    } catch {
+      return Promise.resolve(null);
+    }
   }
+
+  const validateImageBlob = blob => {
+    if (!blob?.size) throw new Error('Leeres Bild');
+    if (blob.size > 8 * 1024 * 1024) throw new Error('Bild zu gross');
+    if (blob.type && !blob.type.startsWith('image/')) throw new Error('Ungültiges Bild');
+    return blob;
+  };
 
   // PNG als Attachment (multipart mit payload_json). Scheitert der Upload,
   // postet der Caller ohne Bild nach (Text-Sparkline trägt den Trend).
@@ -12345,34 +12380,25 @@ const SHADOW_MODAL_STYLES = `
           const isAllowedHost = h === own || h === 'toppreise.ch' || h.endsWith('.toppreise.ch') || h === 'graph.keepa.com' || h.endsWith('.keepa.com');
           if (!isAllowedHost) return reject(new Error('Ungültige Bild-URL'));
         } catch { return reject(new Error('Ungültige Bild-URL')); }
+        const url = imageUrl.trim();
         if (typeof GM_xmlhttpRequest !== 'undefined') {
-          gmRequestWithTimeout({
-            method: 'GET',
-            url: imageUrl.trim(),
-            responseType: 'blob',
-          }, { timeoutMs, source: 'discord', label: 'image' })
+          gmRequestWithTimeout({ method: 'GET', url, responseType: 'blob' }, { timeoutMs, source: 'discord', label: 'image' })
             .then(res => {
-              const data = res?.response;
-              if (res.status >= 200 && res.status < 300 && data) {
-                const blob = data instanceof Blob ? data : new Blob([data]);
-                if (!blob.size) return reject(new Error('Leeres Bild'));
-                if (blob.size > 8 * 1024 * 1024) return reject(new Error('Bild zu gross'));
-                if (blob.type && !blob.type.startsWith('image/')) return reject(new Error('Ungültiges Bild'));
-                resolve(blob);
-              } else reject(new Error(`Bild-Download ${res.status}`));
+              if (res.status >= 200 && res.status < 300 && res?.response) {
+                const blob = res.response instanceof Blob ? res.response : new Blob([res.response]);
+                resolve(validateImageBlob(blob));
+              } else {
+                reject(new Error(`Bild-Download ${res.status}`));
+              }
             })
-            .catch(err => reject(new Error(err?.timeout ? 'Timeout' : 'Netzwerkfehler')));
+            .catch(err => reject(err?.message?.includes('Bild') ? err : new Error(err?.timeout ? 'Timeout' : 'Netzwerkfehler')));
         } else if (typeof fetch !== 'undefined') {
-          fetchWithTimeout(imageUrl.trim(), {}, { timeoutMs, source: 'discord', label: 'image', readAs: 'blob' })
+          fetchWithTimeout(url, {}, { timeoutMs, source: 'discord', label: 'image', readAs: 'blob' })
             .then(({ res, body: blob }) => {
-              if (res.status >= 200 && res.status < 300) {
-                if (!blob.size) return reject(new Error('Leeres Bild'));
-                if (blob.size > 8 * 1024 * 1024) return reject(new Error('Bild zu gross'));
-                if (blob.type && !blob.type.startsWith('image/')) return reject(new Error('Ungültiges Bild'));
-                resolve(blob);
-              } else reject(new Error(`Bild-Download ${res.status}`));
+              if (res.status >= 200 && res.status < 300) resolve(validateImageBlob(blob));
+              else reject(new Error(`Bild-Download ${res.status}`));
             })
-            .catch(err => reject(new Error(err?.timeout ? 'Timeout' : 'Netzwerkfehler')));
+            .catch(err => reject(err?.message?.includes('Bild') ? err : new Error(err?.timeout ? 'Timeout' : 'Netzwerkfehler')));
         } else {
           reject(new Error('Kein HTTP-Transport verfügbar'));
         }
@@ -12391,20 +12417,18 @@ const SHADOW_MODAL_STYLES = `
     return m ? m[1].trim() : null;
   };
   const discordRetryAfterMs = headers => {
-    const ra = discordHeaderVal(headers, 'Retry-After');
-    if (ra != null && ra !== '') {
-      const secs = Number(ra);
-      if (Number.isFinite(secs)) return Math.max(0, Math.min(60000, secs * 1000));
-      const at = Date.parse(ra);
-      if (Number.isFinite(at)) return Math.max(0, Math.min(60000, at - Date.now()));
-    }
+    const ra = parseRetryHeaderMs(discordHeaderVal(headers, 'Retry-After'));
+    if (ra != null) return ra;
     const resetAfter = Number(discordHeaderVal(headers, 'X-RateLimit-Reset-After'));
     if (Number.isFinite(resetAfter)) return Math.max(0, Math.min(60000, resetAfter * 1000));
     return 0;
   };
   const discordError = (status, body, headers) =>
-    Object.assign(new Error(status ? `Discord ${status}` : 'Netzwerkfehler'),
-      { status: status ?? 0, body: discordBodyExcerpt(body), retryAfterMs: discordRetryAfterMs(headers) });
+    Object.assign(new Error(status ? `Discord ${status}` : 'Netzwerkfehler'), {
+      status: status ?? 0,
+      body: discordBodyExcerpt(body),
+      retryAfterMs: (status === 429 || status === 503) ? discordRetryAfterMs(headers) : 0
+    });
 
   const withWaitQuery = url => {
     try {
@@ -12419,22 +12443,42 @@ const SHADOW_MODAL_STYLES = `
     try { return JSON.parse(res?.responseText || '{}'); } catch { return {}; }
   };
 
-  function gmPost({ url, data, headers, timeoutMs }) {
-    return gmRequestWithTimeout({
-      method: 'POST',
-      url,
-      ...(headers ? { headers } : {}),
-      data,
-    }, { timeoutMs, source: 'discord', label: 'post' })
-      .then(
-        (res) => {
-          if (res.status >= 200 && res.status < 300) return res;
+  function discordPost({ url, data, headers, timeoutMs, label = 'post', parseJson = true }) {
+    if (typeof GM_xmlhttpRequest !== 'undefined') {
+      return gmRequestWithTimeout({
+        method: 'POST',
+        url,
+        ...(headers ? { headers } : {}),
+        data,
+      }, { timeoutMs, source: 'discord', label }).then(
+        res => {
+          if (res.status >= 200 && res.status < 300) return parseJson ? parseDiscordJson(res) : undefined;
           throw discordError(res.status, res?.responseText, res?.responseHeaders);
         },
-        (err) => {
+        err => {
           throw Object.assign(new Error(err?.timeout ? 'Timeout' : 'Netzwerkfehler'), { status: 0, retryAfterMs: 0 });
         }
       );
+    }
+    if (typeof fetch !== 'undefined') {
+      return fetchWithTimeout(
+        url,
+        { method: 'POST', ...(headers ? { headers } : {}), body: data },
+        { timeoutMs, source: 'discord', label }
+      ).then(
+        async res => {
+          if (res.ok) {
+            if (!parseJson) return undefined;
+            return typeof res.json === 'function' ? await res.json().catch(() => ({})) : {};
+          }
+          throw discordError(res.status, await res.text().catch(() => ''), res.headers);
+        },
+        err => {
+          throw Object.assign(new Error(err?.timeout ? 'Timeout' : 'Netzwerkfehler'), { status: 0, retryAfterMs: 0 });
+        }
+      );
+    }
+    return Promise.reject(new Error('Kein HTTP-Transport verfügbar'));
   }
 
   function postDealImageToDiscord(webhookUrl, content, pngBlob, options = {}) {
@@ -12461,79 +12505,48 @@ const SHADOW_MODAL_STYLES = `
         if (typeof options.threadName === 'string' && options.threadName) body.thread_name = options.threadName;
         form.append('payload_json', JSON.stringify(body));
         if (files.length > 1) {
-          files.forEach((f, idx) => {
-            form.append(`files[${idx}]`, f.blob, f.name);
-          });
+          files.forEach((f, idx) => form.append(`files[${idx}]`, f.blob, f.name));
         } else {
           form.append('file', pngBlob, 'preisverlauf.png');
         }
-        const url = withWaitQuery(webhookUrl);
-        if (typeof GM_xmlhttpRequest !== 'undefined') {
-          gmPost({ url, data: form, timeoutMs: 20000 }).then(res => resolve(parseDiscordJson(res)), reject);
-        } else if (typeof fetch !== 'undefined') {
-          fetchWithTimeout(url, { method: 'POST', body: form }, { timeoutMs: 20000, source: 'discord', label: 'multipart' })
-            .then(async res => {
-              if (res.ok) return resolve(typeof res.json === 'function' ? await res.json().catch(() => ({})) : {});
-              reject(discordError(res.status, await res.text().catch(() => ''), res.headers));
-            })
-            .catch(err => reject(Object.assign(new Error(err?.timeout ? 'Timeout' : 'Netzwerkfehler'), { status: 0, retryAfterMs: 0 })));
-        } else {
-          reject(new Error('Kein Multipart-Transport'));
-        }
+        discordPost({ url: withWaitQuery(webhookUrl), data: form, timeoutMs: 20000, label: 'multipart' })
+          .then(resolve, err => reject(err?.message === 'Kein HTTP-Transport verfügbar' ? new Error('Kein Multipart-Transport') : err));
       } catch { reject(new Error('Upload fehlgeschlagen')); }
     });
   }
 
   function postDealToDiscord(webhookUrl, content, options = {}) {
-    return new Promise((resolve, reject) => {
-      if (!isDiscordWebhookUrl(webhookUrl)) return reject(new Error('Ungültige Webhook-URL'));
-      const url = withWaitQuery(webhookUrl);
-      const body = { content, allowed_mentions: { parse: [] } };
-      if (typeof options.productImageUrl === 'string' && options.productImageUrl) body.embeds = [{ image: { url: options.productImageUrl } }];
-      if (typeof options.threadName === 'string' && options.threadName) body.thread_name = options.threadName;
-      const payload = JSON.stringify(body);
-      if (typeof GM_xmlhttpRequest !== 'undefined') {
-        gmPost({ url, data: payload, headers: { 'Content-Type': 'application/json' }, timeoutMs: 15000 }).then(res => resolve(parseDiscordJson(res)), reject);
-      } else if (typeof fetch !== 'undefined') {
-        fetchWithTimeout(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload }, { timeoutMs: 15000, source: 'discord', label: 'post' })
-          .then(async res => {
-            if (res.ok) return resolve(typeof res.json === 'function' ? await res.json().catch(() => ({})) : {});
-            reject(discordError(res.status, await res.text().catch(() => ''), res.headers));
-          })
-          .catch(err => reject(Object.assign(new Error(err?.timeout ? 'Timeout' : 'Netzwerkfehler'), { status: 0, retryAfterMs: 0 })));
-      } else {
-        reject(new Error('Kein HTTP-Transport verfügbar'));
-      }
+    if (!isDiscordWebhookUrl(webhookUrl)) return Promise.reject(new Error('Ungültige Webhook-URL'));
+    const body = { content, allowed_mentions: { parse: [] } };
+    if (typeof options.productImageUrl === 'string' && options.productImageUrl) body.embeds = [{ image: { url: options.productImageUrl } }];
+    if (typeof options.threadName === 'string' && options.threadName) body.thread_name = options.threadName;
+    return discordPost({
+      url: withWaitQuery(webhookUrl),
+      data: JSON.stringify(body),
+      headers: { 'Content-Type': 'application/json' },
+      timeoutMs: 15000
     });
   }
 
   function postFollowUp(webhookUrl, threadId, text) {
-    return new Promise((resolve, reject) => {
-      if (!isDiscordWebhookUrl(webhookUrl)) return reject(new Error('Ungültige Webhook-URL'));
-      const base = webhookUrl.trim();
-      let url = base;
-      if (threadId) {
-        try {
-          const u = new URL(base);
-          u.searchParams.set('thread_id', String(threadId));
-          url = u.toString();
-        } catch {
-          url = `${base}${base.includes('?') ? '&' : '?'}thread_id=${encodeURIComponent(threadId)}`;
-        }
+    if (!isDiscordWebhookUrl(webhookUrl)) return Promise.reject(new Error('Ungültige Webhook-URL'));
+    const base = webhookUrl.trim();
+    let url = base;
+    if (threadId) {
+      try {
+        const u = new URL(base);
+        u.searchParams.set('thread_id', String(threadId));
+        url = u.toString();
+      } catch {
+        url = `${base}${base.includes('?') ? '&' : '?'}thread_id=${encodeURIComponent(threadId)}`;
       }
-      const payload = JSON.stringify({ content: text, allowed_mentions: { parse: [] } });
-      if (typeof GM_xmlhttpRequest !== 'undefined') {
-        gmPost({ url, data: payload, headers: { 'Content-Type': 'application/json' }, timeoutMs: 15000 }).then(() => resolve(), reject);
-      } else if (typeof fetch !== 'undefined') {
-        fetchWithTimeout(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload }, { timeoutMs: 15000, source: 'discord', label: 'post' })
-          .then(async res => {
-            if (res.ok) return resolve();
-            reject(discordError(res.status, await res.text().catch(() => ''), res.headers));
-          })
-          .catch(err => reject(Object.assign(new Error(err?.timeout ? 'Timeout' : 'Netzwerkfehler'), { status: 0, retryAfterMs: 0 })));
-      } else {
-        reject(new Error('Kein HTTP-Transport verfügbar'));
-      }
+    }
+    return discordPost({
+      url,
+      data: JSON.stringify({ content: text, allowed_mentions: { parse: [] } }),
+      headers: { 'Content-Type': 'application/json' },
+      timeoutMs: 15000,
+      parseJson: false
     });
   }
 
@@ -19977,7 +19990,6 @@ const SHADOW_MODAL_STYLES = `
 
 
 
-
   const ALARM_DURATIONS = ['90', '180', '365', '730'];
   const DURATION_LABELS = { 90: '3 Monate', 180: '6 Monate', 365: '1 Jahr', 730: '2 Jahre' };
   const clampAlarmTarget = v =>
@@ -20152,17 +20164,20 @@ const SHADOW_MODAL_STYLES = `
     return el;
   };
 
-  function processPriceAlarmModal() {
+  function processPriceAlarmModal(targetForm = null) {
     refreshAlarmBellDecor();
-    const modalContainer = document.querySelector(SELECTORS.alarm.form);
+    const modalContainer = targetForm || document.querySelector(SELECTORS.alarm.form);
     if (!modalContainer) return;
     const batchOpts = modalContainer._tpBatchAlarmOpts || null;
     if (!CONFIG.ALARM_ENABLED && !batchOpts) return;
-    const failBatch = reason => {
-      if (!batchOpts) return;
+    let batchSettled = false;
+    const settleBatch = payload => {
+      if (batchSettled || !batchOpts) return;
+      batchSettled = true;
       delete modalContainer._tpBatchAlarmOpts;
-      batchOpts.onResult?.({ status: 'error', reason });
+      batchOpts.onResult?.(payload);
     };
+    const failBatch = reason => settleBatch({ status: 'error', reason });
     // Attempt machine: a fresh fill only from idle-like states — in-flight
     // (filled/scheduled/submitted) or confirmed attempts never refill, so a
     // replaced modal can never paint another attempt's status.
@@ -20225,9 +20240,18 @@ const SHADOW_MODAL_STYLES = `
         try { observer?.disconnect(); } catch {}
         reqModal._tpAlarmObserver = null;
         if (reqModal.dataset.tpAlarmAttempt === reqAttempt) reqModal.dataset.tpAlarmState = 'cancelled';
-        delete reqModal._tpBatchAlarmOpts;
         delete reqModal._tpDismissDialog;
-        batchOpts?.onResult?.({ status: 'cancelled', targetPrice: reqSnap.target });
+        delete reqModal._tpCancelBatchAlarm;
+        settleBatch({ status: 'cancelled', targetPrice: reqSnap.target });
+      };
+      reqModal._tpCancelBatchAlarm = () => {
+        clearAlarmTimers(reqModal);
+        if (reqModal.dataset.tpAlarmState && reqModal.dataset.tpAlarmState !== 'confirmed') {
+          reqModal.dataset.tpAlarmState = 'cancelled';
+        }
+        delete reqModal._tpDismissDialog;
+        delete reqModal._tpCancelBatchAlarm;
+        settleBatch({ status: 'cancelled', targetPrice: reqSnap.target });
       };
       const flagUnconfirmed = () => {
         // Attempt-scoped paint: a replaced modal never gets another
@@ -20239,8 +20263,8 @@ const SHADOW_MODAL_STYLES = `
         // textContent assignment would re-trigger it into a microtask loop.
         if (el.textContent !== unconfirmedMsg) el.textContent = unconfirmedMsg;
         showToast(unconfirmedMsg);
-        delete reqModal._tpBatchAlarmOpts;
-        batchOpts?.onResult?.({ status: 'unconfirmed', targetPrice: reqSnap.target });
+        delete reqModal._tpCancelBatchAlarm;
+        settleBatch({ status: 'unconfirmed', targetPrice: reqSnap.target });
       };
       try {
         const dialogRoot = modalContainer.closest('.AbstractDialog, .AbstractDialog_NewInfoMailFormDialog') || document.querySelector('#tmpAbstractDialogContainer') || document.body;
@@ -20258,6 +20282,8 @@ const SHADOW_MODAL_STYLES = `
             reqModal._tpAlarmObserver = null;
             if (reqModal.dataset.tpAlarmAttempt === reqAttempt) reqModal.dataset.tpAlarmState = 'confirmed';
             showToast(formatAlarmToast(reqSnap.target, reqSnap.duration));
+            delete reqModal._tpCancelBatchAlarm;
+            settleBatch({ status: 'confirmed', targetPrice: reqSnap.target });
             const closeBtn = reqModal.closest('.AbstractDialog, .AbstractDialog_NewInfoMailFormDialog')?.querySelector('.AbstractDialog_CloseButton') ||
                              reqModal.closest('.AbstractDialog, .AbstractDialog_NewInfoMailFormDialog, .modal')?.querySelector('.close, .btn-close, [data-dismiss="modal"], [data-bs-dismiss="modal"]') ||
                              document.querySelector('#tmpAbstractDialogContainer .AbstractDialog_CloseButton, .AbstractDialog.show .AbstractDialog_CloseButton, .AbstractDialog_NewInfoMailFormDialog.show .AbstractDialog_CloseButton');
@@ -20266,17 +20292,15 @@ const SHADOW_MODAL_STYLES = `
             if (closeBtn) closeBtn.click();
             else if (typeof dismissFn === 'function') dismissFn();
             else logActivity('warn', 'price-alarm', 'Preisalarm: kein Close-Button gefunden');
-            delete reqModal._tpBatchAlarmOpts;
-            batchOpts?.onResult?.({ status: 'confirmed', targetPrice: reqSnap.target });
           } else if (!reqModal.isConnected || !document.querySelector(SELECTORS.alarm.form)) {
             try { observer.disconnect(); } catch {}
             clearTimeout(submitTimer);
             clearTimeout(fallbackTimer);
             reqModal._tpAlarmObserver = null;
             if (reqModal.dataset.tpAlarmAttempt === reqAttempt) reqModal.dataset.tpAlarmState = 'cancelled';
-            delete reqModal._tpBatchAlarmOpts;
             delete reqModal._tpDismissDialog;
-            batchOpts?.onResult?.({ status: 'cancelled', targetPrice: reqSnap.target });
+            delete reqModal._tpCancelBatchAlarm;
+            settleBatch({ status: 'cancelled', targetPrice: reqSnap.target });
           }
         });
         observer.observe(dialogRoot, { childList: true, subtree: true });
@@ -20352,6 +20376,7 @@ const SHADOW_MODAL_STYLES = `
 
     if (!sanitizeImportedNode(dialogNode)) return false;
 
+    let formEl = null;
     const dismissDialog = () => {
       activeAlarmDismissers.delete(dismissDialog);
       if (dialogId && typeof window !== 'undefined' && typeof window.AbstractDialog_hide === 'function') {
@@ -20361,6 +20386,16 @@ const SHADOW_MODAL_STYLES = `
       dialogNode.classList.remove('show');
       dialogNode.remove();
       document.removeEventListener('keydown', handleKeydown);
+      if (formEl) {
+        if (typeof formEl._tpCancelBatchAlarm === 'function') {
+          formEl._tpCancelBatchAlarm();
+        } else if (formEl._tpBatchAlarmOpts) {
+          clearAlarmTimers(formEl);
+          const opts = formEl._tpBatchAlarmOpts;
+          delete formEl._tpBatchAlarmOpts;
+          if (formEl.dataset?.tpAlarmState !== 'confirmed') opts.onResult?.({ status: 'cancelled' });
+        }
+      }
     };
     const handleKeydown = e => {
       if (!dialogNode.isConnected) {
@@ -20404,7 +20439,7 @@ const SHADOW_MODAL_STYLES = `
       .filter(Boolean);
     const content = dialogNode.querySelector(SELECTORS.alarm.content);
     if (content) content.replaceChildren(...nodes);
-    const formEl = dialogNode.querySelector(SELECTORS.alarm.form);
+    formEl = dialogNode.querySelector(SELECTORS.alarm.form);
     if (batchOpts && !formEl) return false;
     if (formEl) {
       formEl._tpDismissDialog = dismissDialog;
@@ -20420,9 +20455,7 @@ const SHADOW_MODAL_STYLES = `
     document.body.appendChild(dialogNode);
     activeAlarmDismissers.add(dismissDialog);
     document.addEventListener('keydown', handleKeydown);
-    if (dialogId && typeof window !== 'undefined' && typeof window.AbstractDialog_show === 'function') {
-      window.AbstractDialog_show(dialogId);
-    } else {
+    const showManualFallback = () => {
       dialogNode.style.display = 'block';
       dialogNode.classList.add('show');
       // Bootstrap-style modal wrappers stay display:none until shown.
@@ -20431,9 +20464,35 @@ const SHADOW_MODAL_STYLES = `
         modal.classList.add('show');
         modal.style.display = 'block';
       }
+    };
+    if (dialogId && typeof window !== 'undefined' && typeof window.AbstractDialog_show === 'function') {
+      try {
+        window.AbstractDialog_show(dialogId);
+      } catch {
+        showManualFallback();
+      }
+    } else {
+      showManualFallback();
     }
-    processPriceAlarmModal();
+    processPriceAlarmModal(formEl);
     return true;
+  }
+
+  async function fetchAlarmButtonHtml(pid, { signal = null, label = 'open' } = {}) {
+    const postBody = new URLSearchParams({
+      im_nimb_ch: '1',
+      im_nimb_pid: String(pid),
+      im_nimb_tmpl: 'btn',
+      lang: getPageLang()
+    });
+    return fetchWithTimeout('/plugins/infomails/NewInfoMailButton', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      body: postBody
+    }, { timeoutMs: 8000, source: 'price-alarm', label, readAs: 'text', signal });
   }
 
   /**
@@ -20458,9 +20517,12 @@ const SHADOW_MODAL_STYLES = `
       const mockDialog = document.querySelector('#mock-alarm-dialog');
       if (mockDialog) {
         mockDialog.style.display = 'block';
-        delete mockDialog.querySelector?.(SELECTORS.alarm.form)?.dataset?.tpAlarmProcessed;
-        delete mockDialog.querySelector?.(SELECTORS.alarm.form)?.dataset?.tpAlarmState;
-        processPriceAlarmModal();
+        const mockForm = mockDialog.querySelector?.(SELECTORS.alarm.form) || null;
+        if (mockForm?.dataset) {
+          delete mockForm.dataset.tpAlarmProcessed;
+          delete mockForm.dataset.tpAlarmState;
+        }
+        processPriceAlarmModal(mockForm);
         return;
       }
 
@@ -20468,20 +20530,7 @@ const SHADOW_MODAL_STYLES = `
       // `openInfoMailForm` helper needs a dialog template inside the clicked
       // wrapper; a synthetic trigger has none, so it always throws on live.
       try {
-        const postBody = new URLSearchParams({
-          im_nimb_ch: '1',
-          im_nimb_pid: pidKey,
-          im_nimb_tmpl: 'btn',
-          lang: getPageLang()
-        });
-        const { res, body: html } = await fetchWithTimeout('/plugins/infomails/NewInfoMailButton', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'X-Requested-With': 'XMLHttpRequest'
-          },
-          body: postBody
-        }, { timeoutMs: 8000, source: 'price-alarm', label: 'open', readAs: 'text' });
+        const { res, body: html } = await fetchAlarmButtonHtml(pidKey, { label: 'open' });
         if (res.ok && await openFetchedAlarmDialog(html)) return;
       } catch (err) {
         logActivity('warn', 'price-alarm', 'Failed to open price alarm modal', err?.message || String(err));
@@ -20534,6 +20583,8 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
+
   async function runSingleBatchAlarm(pid, card = null, { targetPct, durationDays, signal } = {}) {
     if (!pid || signal?.aborted) return { status: 'cancelled' };
     const pidKey = String(pid);
@@ -20568,7 +20619,7 @@ const SHADOW_MODAL_STYLES = `
       try {
         const mockDialog = document.querySelector('#mock-alarm-dialog');
         if (mockDialog) {
-          const formEl = mockDialog.querySelector?.(SELECTORS.alarm.form);
+          const formEl = mockDialog.querySelector?.(SELECTORS.alarm.form) || null;
           if (formEl) {
             formEl.querySelectorAll('.success, .confirmation, .tp-alarm-status').forEach(n => n.remove());
             formEl._tpBatchAlarmOpts = batchOpts;
@@ -20576,24 +20627,11 @@ const SHADOW_MODAL_STYLES = `
             delete formEl.dataset.tpAlarmState;
           }
           mockDialog.style.display = 'block';
-          processPriceAlarmModal();
+          processPriceAlarmModal(formEl);
           return;
         }
 
-        const postBody = new URLSearchParams({
-          im_nimb_ch: '1',
-          im_nimb_pid: pidKey,
-          im_nimb_tmpl: 'btn',
-          lang: getPageLang()
-        });
-        const { res, body: html } = await fetchWithTimeout('/plugins/infomails/NewInfoMailButton', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'X-Requested-With': 'XMLHttpRequest'
-          },
-          body: postBody
-        }, { timeoutMs: 8000, source: 'price-alarm', label: 'batch-open', readAs: 'text', signal });
+        const { res, body: html } = await fetchAlarmButtonHtml(pidKey, { signal, label: 'batch-open' });
         if (signal?.aborted) return finish({ status: 'cancelled' });
         if (!res.ok || !(await openFetchedAlarmDialog(html, batchOpts))) {
           finish({ status: 'error', reason: 'fetch-failed' });
@@ -20640,35 +20678,16 @@ const SHADOW_MODAL_STYLES = `
     return true;
   }
 
-  function openTabUrl(url, { active = false } = {}) {
-    if (!url || !/^https?:\/\//i.test(url)) return false;
-    if (typeof GM_openInTab === 'function') {
-      try {
-        GM_openInTab(url, { active: !!active, insert: true });
-        return true;
-      } catch { /* fallback below */ }
-    }
-    if (typeof window !== 'undefined' && typeof window.open === 'function') {
-      try {
-        const w = window.open(url, '_blank', 'noopener');
-        return !!w;
-      } catch {
-        return false;
-      }
-    }
-    return false;
-  }
-
-  const sleep = ms => new Promise(r => setTimeout(r, ms));
-
   async function runBatchDealerFetch(items, { onProgress, signal, fetchFn = ensureDealerInfo } = {}) {
-    const useShipping = isShippingPriceActive();
-    const pending = items.filter(it => {
-      if (!it?.pid || !it?.card) return false;
-      if (extractDealer(it.card, useShipping)) return false;
+    const pending = [];
+    for (const it of items) {
+      if (!it?.pid || !it?.card) continue;
+      const useShipping = it.cardPriceBasis ? it.cardPriceBasis === 'shipping' : isShippingPriceActive(it.card);
+      if (extractDealer(it.card, useShipping)) continue;
       const cached = getCachedDealer(it.pid, useShipping);
-      return !cached?.dealer;
-    });
+      if (cached?.dealer) continue;
+      pending.push({ it, useShipping });
+    }
 
     const total = pending.length;
     let done = 0;
@@ -20687,7 +20706,7 @@ const SHADOW_MODAL_STYLES = `
           stoppedByCooldown = true;
           return;
         }
-        const it = pending[cursor++];
+        const { it, useShipping } = pending[cursor++];
         try {
           const res = await fetchFn(it.card, it.pid, useShipping);
           if (res?.dealer) loaded++;
@@ -20717,12 +20736,11 @@ const SHADOW_MODAL_STYLES = `
       if (signal?.aborted) break;
       const it = eligible[i];
       const res = await alarmFn(it.pid, it.card, { targetPct, durationDays, signal });
+      if (res?.status === 'cancelled' && signal?.aborted) break;
       done++;
       if (res?.status === 'confirmed') {
         confirmed++;
         consecutiveFailures = 0;
-      } else if (res?.status === 'cancelled' && signal?.aborted) {
-        break;
       } else {
         failed++;
         consecutiveFailures++;
@@ -20733,7 +20751,7 @@ const SHADOW_MODAL_STYLES = `
         break;
       }
       if (i < eligible.length - 1 && !signal?.aborted) {
-        await sleep(250);
+        await interruptibleSleep(250, null, signal);
       }
     }
 
@@ -20756,6 +20774,10 @@ const SHADOW_MODAL_STYLES = `
       return { mode: 'google', total, opened, blockedItems };
     }
 
+    if (!CONFIG.OPENROUTER_API_KEY || !String(CONFIG.OPENROUTER_API_KEY).trim()) {
+      return { mode: 'missing-key', target: 'openrouter', total, done: 0, failed: 0, results: [], cancelled: false };
+    }
+
     const results = new Array(total);
     let cursor = 0;
     let done = 0;
@@ -20768,6 +20790,7 @@ const SHADOW_MODAL_STYLES = `
         const idx = cursor++;
         const it = items[idx];
         const prompt = buildTavilyQuery(it.title, CONFIG.REVIEW_SEARCH_KEYWORD, it.priceText);
+        let counted = true;
         try {
           const res = await searchFn(CONFIG.OPENROUTER_API_KEY, prompt, {
             model: activeModel,
@@ -20777,12 +20800,14 @@ const SHADOW_MODAL_STYLES = `
           });
           results[idx] = { item: it, answer: res.answer, citations: res.citations || [], error: null };
         } catch (err) {
-          if (err?.cancelled) return;
+          if (err?.cancelled) { counted = false; return; }
           failed++;
           results[idx] = { item: it, answer: '', citations: [], error: err?.message || 'Fehler' };
         } finally {
-          done++;
-          onProgress?.(done, total, failed);
+          if (counted) {
+            done++;
+            onProgress?.(done, total, failed);
+          }
         }
       }
     };
@@ -20833,7 +20858,6 @@ const SHADOW_MODAL_STYLES = `
 
   async function runBatchDiscordShare(items, channel, { onProgress, signal } = {}) {
     if (!isDiscordWebhookUrl(channel?.url)) return { total: 0, shared: 0, skippedDuplicates: 0, failed: 0 };
-    const useShipping = isShippingPriceActive();
     const eligible = [];
     let skippedDuplicates = 0;
     for (const it of items) {
@@ -20854,6 +20878,7 @@ const SHADOW_MODAL_STYLES = `
     for (let i = 0; i < eligible.length; i++) {
       if (signal?.aborted) break;
       const { it, priceCents } = eligible[i];
+      const useShipping = it.cardPriceBasis ? it.cardPriceBasis === 'shipping' : isShippingPriceActive(it.card);
       try {
         let dealer = it.dealer;
         let dealerUrl = it.dealerUrl;
@@ -20908,7 +20933,7 @@ const SHADOW_MODAL_STYLES = `
         try {
           await sendDealToChannel(channel, payload, stillFresh);
         } catch (err) {
-          if (err?.status === 429 || err?.retryAfterMs > 0) {
+          if (err?.status === 429) {
             const waitMs = Math.min(30000, Math.max(500, err.retryAfterMs || 5000));
             await interruptibleSleep(waitMs, null, signal);
             if (signal?.aborted) break;
@@ -20920,11 +20945,12 @@ const SHADOW_MODAL_STYLES = `
 
         setSharedDeal(it.pid, priceCents);
         shared++;
-      } catch {
+      } catch (err) {
+        if (err?.stale && signal?.aborted) break;
         failed++;
       }
       onProgress?.(i + 1, total, failed);
-      if (i < eligible.length - 1 && !signal?.aborted) await sleep(600);
+      if (i < eligible.length - 1 && !signal?.aborted) await interruptibleSleep(600, null, signal);
     }
 
     return { total, shared, skippedDuplicates, failed, cancelled: !!signal?.aborted };
@@ -22095,7 +22121,11 @@ const SHADOW_MODAL_STYLES = `
         // Recompute counts → CTA flips to its dimmed empty form when nothing is left.
         triggerProcessListings();
         if (meta?.abortedByCooldown) return;
-        const fresh = new Set(Array.from(document.querySelectorAll('.tp-deal-fresh'), el => getCardProductId(el)).filter(Boolean)).size;
+        const batchPids = new Set((newlyVerified || []).map(i => i?.pid).filter(Boolean));
+        const fresh = new Set(
+          Array.from(document.querySelectorAll('.tp-deal-fresh'), el => getCardProductId(el))
+            .filter(p => p && batchPids.has(p))
+        ).size;
         const checked = (newlyVerified || []).length;
         showToast(batchCompletionToast({ completed, total, fresh, checked, unchecked, minDisc }));
       }
@@ -22281,18 +22311,6 @@ const SHADOW_MODAL_STYLES = `
     const counts = (precomputedBatchCounts && typeof precomputedBatchCounts['non-dimmed'] === 'number')
       ? precomputedBatchCounts
       : (lastBatchCounts || getBatchScopeCounts());
-    const batchBtnEl = el.querySelector('#tp-floating-batch-btn');
-    const batchCountEl = el.querySelector('#tp-floating-batch-count');
-    const activeBatch = getActiveBatchJob();
-    if (batchBtnEl) batchBtnEl.classList.toggle('tp-batch-running', !!activeBatch);
-    if (batchCountEl) {
-      if (activeBatch) {
-        setTextIfChanged(batchCountEl, `⏳ ${activeBatch.done}/${activeBatch.total}`);
-      } else {
-        const scopeKey = CONFIG.BATCH_SCOPE_DEFAULT || 'non-dimmed';
-        setTextIfChanged(batchCountEl, String(counts[scopeKey] ?? 0));
-      }
-    }
     syncBatchPopover(counts);
   }
 
@@ -23182,7 +23200,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.577';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.578';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     const isFileFixture = typeof location !== 'undefined' && location.protocol === 'file:';
     if (isDebugHost) {

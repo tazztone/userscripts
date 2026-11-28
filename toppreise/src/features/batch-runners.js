@@ -6,9 +6,10 @@
  */
 
 import { CONFIG } from '../state/config.js';
-import { getOriginCooldownUntil, fetchWithTimeout } from '../state/net.js';
+import { getOriginCooldownUntil } from '../state/net.js';
 import { SELECTORS } from '../page/selectors.js';
-import { isShippingPriceActive, getPageLang } from '../page/adapter.js';
+import { isShippingPriceActive } from '../page/adapter.js';
+import { openTabUrl } from '../utils/common.js';
 import { interruptibleSleep } from '../scanner/transport.js';
 import { fetchProductInfo, extractDealer } from '../page/product-offers.js';
 import { getCachedDealer, setCachedDealer, getCachedPriceStats, getSharedDeal, setSharedDeal, fullSeries } from '../scanner/cache.js';
@@ -19,8 +20,10 @@ import { sendDealToChannel } from '../ui/badges/card-share.js';
 import { formatSearchQuery, buildTavilyQuery } from './tavily-search.js';
 import { fetchOpenRouterWebSearch, getCachedConfiguredAiSummary } from './openrouter-search.js';
 import { ensureDealerInfo } from '../ui/badges/card-dealer.js';
-import { openFetchedAlarmDialog, closeFetchedAlarmDialogs, processPriceAlarmModal } from './price-alarm.js';
+import { openFetchedAlarmDialog, closeFetchedAlarmDialogs, processPriceAlarmModal, fetchAlarmButtonHtml } from './price-alarm.js';
 import { buildComparisonPrompt, buildExternalAiUrl, selectExternalComparisonQuery, copyTextToClipboard, isComparisonButtonActive } from './batch-actions.js';
+
+export { openTabUrl };
 
 export async function runSingleBatchAlarm(pid, card = null, { targetPct, durationDays, signal } = {}) {
   if (!pid || signal?.aborted) return { status: 'cancelled' };
@@ -56,7 +59,7 @@ export async function runSingleBatchAlarm(pid, card = null, { targetPct, duratio
     try {
       const mockDialog = document.querySelector('#mock-alarm-dialog');
       if (mockDialog) {
-        const formEl = mockDialog.querySelector?.(SELECTORS.alarm.form);
+        const formEl = mockDialog.querySelector?.(SELECTORS.alarm.form) || null;
         if (formEl) {
           formEl.querySelectorAll('.success, .confirmation, .tp-alarm-status').forEach(n => n.remove());
           formEl._tpBatchAlarmOpts = batchOpts;
@@ -64,24 +67,11 @@ export async function runSingleBatchAlarm(pid, card = null, { targetPct, duratio
           delete formEl.dataset.tpAlarmState;
         }
         mockDialog.style.display = 'block';
-        processPriceAlarmModal();
+        processPriceAlarmModal(formEl);
         return;
       }
 
-      const postBody = new URLSearchParams({
-        im_nimb_ch: '1',
-        im_nimb_pid: pidKey,
-        im_nimb_tmpl: 'btn',
-        lang: getPageLang()
-      });
-      const { res, body: html } = await fetchWithTimeout('/plugins/infomails/NewInfoMailButton', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'X-Requested-With': 'XMLHttpRequest'
-        },
-        body: postBody
-      }, { timeoutMs: 8000, source: 'price-alarm', label: 'batch-open', readAs: 'text', signal });
+      const { res, body: html } = await fetchAlarmButtonHtml(pidKey, { signal, label: 'batch-open' });
       if (signal?.aborted) return finish({ status: 'cancelled' });
       if (!res.ok || !(await openFetchedAlarmDialog(html, batchOpts))) {
         finish({ status: 'error', reason: 'fetch-failed' });
@@ -128,35 +118,16 @@ export function cancelActiveBatchJob() {
   return true;
 }
 
-export function openTabUrl(url, { active = false } = {}) {
-  if (!url || !/^https?:\/\//i.test(url)) return false;
-  if (typeof GM_openInTab === 'function') {
-    try {
-      GM_openInTab(url, { active: !!active, insert: true });
-      return true;
-    } catch { /* fallback below */ }
-  }
-  if (typeof window !== 'undefined' && typeof window.open === 'function') {
-    try {
-      const w = window.open(url, '_blank', 'noopener');
-      return !!w;
-    } catch {
-      return false;
-    }
-  }
-  return false;
-}
-
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-
 export async function runBatchDealerFetch(items, { onProgress, signal, fetchFn = ensureDealerInfo } = {}) {
-  const useShipping = isShippingPriceActive();
-  const pending = items.filter(it => {
-    if (!it?.pid || !it?.card) return false;
-    if (extractDealer(it.card, useShipping)) return false;
+  const pending = [];
+  for (const it of items) {
+    if (!it?.pid || !it?.card) continue;
+    const useShipping = it.cardPriceBasis ? it.cardPriceBasis === 'shipping' : isShippingPriceActive(it.card);
+    if (extractDealer(it.card, useShipping)) continue;
     const cached = getCachedDealer(it.pid, useShipping);
-    return !cached?.dealer;
-  });
+    if (cached?.dealer) continue;
+    pending.push({ it, useShipping });
+  }
 
   const total = pending.length;
   let done = 0;
@@ -175,7 +146,7 @@ export async function runBatchDealerFetch(items, { onProgress, signal, fetchFn =
         stoppedByCooldown = true;
         return;
       }
-      const it = pending[cursor++];
+      const { it, useShipping } = pending[cursor++];
       try {
         const res = await fetchFn(it.card, it.pid, useShipping);
         if (res?.dealer) loaded++;
@@ -205,12 +176,11 @@ export async function runBatchPriceAlarms(items, { targetPct, durationDays, onPr
     if (signal?.aborted) break;
     const it = eligible[i];
     const res = await alarmFn(it.pid, it.card, { targetPct, durationDays, signal });
+    if (res?.status === 'cancelled' && signal?.aborted) break;
     done++;
     if (res?.status === 'confirmed') {
       confirmed++;
       consecutiveFailures = 0;
-    } else if (res?.status === 'cancelled' && signal?.aborted) {
-      break;
     } else {
       failed++;
       consecutiveFailures++;
@@ -221,7 +191,7 @@ export async function runBatchPriceAlarms(items, { targetPct, durationDays, onPr
       break;
     }
     if (i < eligible.length - 1 && !signal?.aborted) {
-      await sleep(250);
+      await interruptibleSleep(250, null, signal);
     }
   }
 
@@ -244,6 +214,10 @@ export async function runBatchAiIndividual(items, { provider = 'google', model, 
     return { mode: 'google', total, opened, blockedItems };
   }
 
+  if (!CONFIG.OPENROUTER_API_KEY || !String(CONFIG.OPENROUTER_API_KEY).trim()) {
+    return { mode: 'missing-key', target: 'openrouter', total, done: 0, failed: 0, results: [], cancelled: false };
+  }
+
   const results = new Array(total);
   let cursor = 0;
   let done = 0;
@@ -256,6 +230,7 @@ export async function runBatchAiIndividual(items, { provider = 'google', model, 
       const idx = cursor++;
       const it = items[idx];
       const prompt = buildTavilyQuery(it.title, CONFIG.REVIEW_SEARCH_KEYWORD, it.priceText);
+      let counted = true;
       try {
         const res = await searchFn(CONFIG.OPENROUTER_API_KEY, prompt, {
           model: activeModel,
@@ -265,12 +240,14 @@ export async function runBatchAiIndividual(items, { provider = 'google', model, 
         });
         results[idx] = { item: it, answer: res.answer, citations: res.citations || [], error: null };
       } catch (err) {
-        if (err?.cancelled) return;
+        if (err?.cancelled) { counted = false; return; }
         failed++;
         results[idx] = { item: it, answer: '', citations: [], error: err?.message || 'Fehler' };
       } finally {
-        done++;
-        onProgress?.(done, total, failed);
+        if (counted) {
+          done++;
+          onProgress?.(done, total, failed);
+        }
       }
     }
   };
@@ -321,7 +298,6 @@ export function runBatchOpenTabs(items, { openTabFn = openTabUrl } = {}) {
 
 export async function runBatchDiscordShare(items, channel, { onProgress, signal } = {}) {
   if (!isDiscordWebhookUrl(channel?.url)) return { total: 0, shared: 0, skippedDuplicates: 0, failed: 0 };
-  const useShipping = isShippingPriceActive();
   const eligible = [];
   let skippedDuplicates = 0;
   for (const it of items) {
@@ -342,6 +318,7 @@ export async function runBatchDiscordShare(items, channel, { onProgress, signal 
   for (let i = 0; i < eligible.length; i++) {
     if (signal?.aborted) break;
     const { it, priceCents } = eligible[i];
+    const useShipping = it.cardPriceBasis ? it.cardPriceBasis === 'shipping' : isShippingPriceActive(it.card);
     try {
       let dealer = it.dealer;
       let dealerUrl = it.dealerUrl;
@@ -396,7 +373,7 @@ export async function runBatchDiscordShare(items, channel, { onProgress, signal 
       try {
         await sendDealToChannel(channel, payload, stillFresh);
       } catch (err) {
-        if (err?.status === 429 || err?.retryAfterMs > 0) {
+        if (err?.status === 429) {
           const waitMs = Math.min(30000, Math.max(500, err.retryAfterMs || 5000));
           await interruptibleSleep(waitMs, null, signal);
           if (signal?.aborted) break;
@@ -408,11 +385,12 @@ export async function runBatchDiscordShare(items, channel, { onProgress, signal 
 
       setSharedDeal(it.pid, priceCents);
       shared++;
-    } catch {
+    } catch (err) {
+      if (err?.stale && signal?.aborted) break;
       failed++;
     }
     onProgress?.(i + 1, total, failed);
-    if (i < eligible.length - 1 && !signal?.aborted) await sleep(600);
+    if (i < eligible.length - 1 && !signal?.aborted) await interruptibleSleep(600, null, signal);
   }
 
   return { total, shared, skippedDuplicates, failed, cancelled: !!signal?.aborted };

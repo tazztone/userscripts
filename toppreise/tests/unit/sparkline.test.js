@@ -35,7 +35,10 @@ describe('Interactive SVG Sparkline Component', () => {
           },
           addEventListener() {},
           removeEventListener() {},
-          focus() {}
+          focus() {},
+          attachShadow() {
+            return { innerHTML: '', getElementById: () => null, querySelector: () => null, querySelectorAll: () => [], appendChild: () => {} };
+          }
         };
       },
       createElementNS: (ns, tag) => {
@@ -265,6 +268,34 @@ describe('Interactive SVG Sparkline Component', () => {
     const polyline = svg.children.find(c => c.tagName === 'polyline');
     assert.ok(polyline);
     assert.equal(polyline.getAttribute('points').includes('NaN'), false);
+  });
+
+  it('returns null for zero, negative, NaN, or collapsed chart dimensions', () => {
+    const ts = [[1700000000, 100], [1700086400, 90]];
+    assert.equal(renderSparkline(ts, 0, 20), null);
+    assert.equal(renderSparkline(ts, 60, 0), null);
+    assert.equal(renderSparkline(ts, -10, 20), null);
+    assert.equal(renderSparkline(ts, NaN, 20), null);
+    assert.equal(renderSparkline(ts, 5, 20), null);
+    assert.equal(renderDiscordChart(ts, 40, 100, 'T'), null);
+  });
+
+  it('copyKeepaChartToClipboard falls back to URL copy when imgEl has 0x0 natural size', async () => {
+    const { copyKeepaChartToClipboard } = await import('../../src/ui/sparkline.js');
+    const prevNav = globalThis.navigator;
+    let copiedText = '';
+    Object.defineProperty(globalThis, 'navigator', {
+      configurable: true,
+      value: { clipboard: { writeText: async t => { copiedText = t; }, write: async () => { throw new Error('must not write blank png'); } } }
+    });
+    try {
+      const ok = await copyKeepaChartToClipboard({ complete: false, naturalWidth: 0, naturalHeight: 0 }, 'Title', 'B000000000', 'https://graph.keepa.com/x.png');
+      assert.equal(ok, true);
+      assert.equal(copiedText, 'https://graph.keepa.com/x.png');
+    } finally {
+      if (prevNav === undefined) delete globalThis.navigator;
+      else Object.defineProperty(globalThis, 'navigator', { configurable: true, value: prevNav });
+    }
   });
 });
 

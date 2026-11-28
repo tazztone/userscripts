@@ -15,9 +15,7 @@ import { SELECTORS } from '../page/selectors.js';
 import { showToast } from '../ui/toast.js';
 import { fetchWithTimeout } from '../state/net.js';
 import { logActivity } from '../state/activity-log.js';
-import { sanitizeImportedNode, isSafeImportedUrl } from '../page/sanitize.js';
-
-export { sanitizeImportedNode, isSafeImportedUrl };
+import { sanitizeImportedNode } from '../page/sanitize.js';
 
 const ALARM_DURATIONS = ['90', '180', '365', '730'];
 const DURATION_LABELS = { 90: '3 Monate', 180: '6 Monate', 365: '1 Jahr', 730: '2 Jahre' };
@@ -193,17 +191,20 @@ const ensureAlarmStatus = modal => {
   return el;
 };
 
-export function processPriceAlarmModal() {
+export function processPriceAlarmModal(targetForm = null) {
   refreshAlarmBellDecor();
-  const modalContainer = document.querySelector(SELECTORS.alarm.form);
+  const modalContainer = targetForm || document.querySelector(SELECTORS.alarm.form);
   if (!modalContainer) return;
   const batchOpts = modalContainer._tpBatchAlarmOpts || null;
   if (!CONFIG.ALARM_ENABLED && !batchOpts) return;
-  const failBatch = reason => {
-    if (!batchOpts) return;
+  let batchSettled = false;
+  const settleBatch = payload => {
+    if (batchSettled || !batchOpts) return;
+    batchSettled = true;
     delete modalContainer._tpBatchAlarmOpts;
-    batchOpts.onResult?.({ status: 'error', reason });
+    batchOpts.onResult?.(payload);
   };
+  const failBatch = reason => settleBatch({ status: 'error', reason });
   // Attempt machine: a fresh fill only from idle-like states — in-flight
   // (filled/scheduled/submitted) or confirmed attempts never refill, so a
   // replaced modal can never paint another attempt's status.
@@ -266,9 +267,18 @@ export function processPriceAlarmModal() {
       try { observer?.disconnect(); } catch {}
       reqModal._tpAlarmObserver = null;
       if (reqModal.dataset.tpAlarmAttempt === reqAttempt) reqModal.dataset.tpAlarmState = 'cancelled';
-      delete reqModal._tpBatchAlarmOpts;
       delete reqModal._tpDismissDialog;
-      batchOpts?.onResult?.({ status: 'cancelled', targetPrice: reqSnap.target });
+      delete reqModal._tpCancelBatchAlarm;
+      settleBatch({ status: 'cancelled', targetPrice: reqSnap.target });
+    };
+    reqModal._tpCancelBatchAlarm = () => {
+      clearAlarmTimers(reqModal);
+      if (reqModal.dataset.tpAlarmState && reqModal.dataset.tpAlarmState !== 'confirmed') {
+        reqModal.dataset.tpAlarmState = 'cancelled';
+      }
+      delete reqModal._tpDismissDialog;
+      delete reqModal._tpCancelBatchAlarm;
+      settleBatch({ status: 'cancelled', targetPrice: reqSnap.target });
     };
     const flagUnconfirmed = () => {
       // Attempt-scoped paint: a replaced modal never gets another
@@ -280,8 +290,8 @@ export function processPriceAlarmModal() {
       // textContent assignment would re-trigger it into a microtask loop.
       if (el.textContent !== unconfirmedMsg) el.textContent = unconfirmedMsg;
       showToast(unconfirmedMsg);
-      delete reqModal._tpBatchAlarmOpts;
-      batchOpts?.onResult?.({ status: 'unconfirmed', targetPrice: reqSnap.target });
+      delete reqModal._tpCancelBatchAlarm;
+      settleBatch({ status: 'unconfirmed', targetPrice: reqSnap.target });
     };
     try {
       const dialogRoot = modalContainer.closest('.AbstractDialog, .AbstractDialog_NewInfoMailFormDialog') || document.querySelector('#tmpAbstractDialogContainer') || document.body;
@@ -299,6 +309,8 @@ export function processPriceAlarmModal() {
           reqModal._tpAlarmObserver = null;
           if (reqModal.dataset.tpAlarmAttempt === reqAttempt) reqModal.dataset.tpAlarmState = 'confirmed';
           showToast(formatAlarmToast(reqSnap.target, reqSnap.duration));
+          delete reqModal._tpCancelBatchAlarm;
+          settleBatch({ status: 'confirmed', targetPrice: reqSnap.target });
           const closeBtn = reqModal.closest('.AbstractDialog, .AbstractDialog_NewInfoMailFormDialog')?.querySelector('.AbstractDialog_CloseButton') ||
                            reqModal.closest('.AbstractDialog, .AbstractDialog_NewInfoMailFormDialog, .modal')?.querySelector('.close, .btn-close, [data-dismiss="modal"], [data-bs-dismiss="modal"]') ||
                            document.querySelector('#tmpAbstractDialogContainer .AbstractDialog_CloseButton, .AbstractDialog.show .AbstractDialog_CloseButton, .AbstractDialog_NewInfoMailFormDialog.show .AbstractDialog_CloseButton');
@@ -307,17 +319,15 @@ export function processPriceAlarmModal() {
           if (closeBtn) closeBtn.click();
           else if (typeof dismissFn === 'function') dismissFn();
           else logActivity('warn', 'price-alarm', 'Preisalarm: kein Close-Button gefunden');
-          delete reqModal._tpBatchAlarmOpts;
-          batchOpts?.onResult?.({ status: 'confirmed', targetPrice: reqSnap.target });
         } else if (!reqModal.isConnected || !document.querySelector(SELECTORS.alarm.form)) {
           try { observer.disconnect(); } catch {}
           clearTimeout(submitTimer);
           clearTimeout(fallbackTimer);
           reqModal._tpAlarmObserver = null;
           if (reqModal.dataset.tpAlarmAttempt === reqAttempt) reqModal.dataset.tpAlarmState = 'cancelled';
-          delete reqModal._tpBatchAlarmOpts;
           delete reqModal._tpDismissDialog;
-          batchOpts?.onResult?.({ status: 'cancelled', targetPrice: reqSnap.target });
+          delete reqModal._tpCancelBatchAlarm;
+          settleBatch({ status: 'cancelled', targetPrice: reqSnap.target });
         }
       });
       observer.observe(dialogRoot, { childList: true, subtree: true });
@@ -393,6 +403,7 @@ export async function openFetchedAlarmDialog(html, batchOpts = null) {
 
   if (!sanitizeImportedNode(dialogNode)) return false;
 
+  let formEl = null;
   const dismissDialog = () => {
     activeAlarmDismissers.delete(dismissDialog);
     if (dialogId && typeof window !== 'undefined' && typeof window.AbstractDialog_hide === 'function') {
@@ -402,6 +413,16 @@ export async function openFetchedAlarmDialog(html, batchOpts = null) {
     dialogNode.classList.remove('show');
     dialogNode.remove();
     document.removeEventListener('keydown', handleKeydown);
+    if (formEl) {
+      if (typeof formEl._tpCancelBatchAlarm === 'function') {
+        formEl._tpCancelBatchAlarm();
+      } else if (formEl._tpBatchAlarmOpts) {
+        clearAlarmTimers(formEl);
+        const opts = formEl._tpBatchAlarmOpts;
+        delete formEl._tpBatchAlarmOpts;
+        if (formEl.dataset?.tpAlarmState !== 'confirmed') opts.onResult?.({ status: 'cancelled' });
+      }
+    }
   };
   const handleKeydown = e => {
     if (!dialogNode.isConnected) {
@@ -445,7 +466,7 @@ export async function openFetchedAlarmDialog(html, batchOpts = null) {
     .filter(Boolean);
   const content = dialogNode.querySelector(SELECTORS.alarm.content);
   if (content) content.replaceChildren(...nodes);
-  const formEl = dialogNode.querySelector(SELECTORS.alarm.form);
+  formEl = dialogNode.querySelector(SELECTORS.alarm.form);
   if (batchOpts && !formEl) return false;
   if (formEl) {
     formEl._tpDismissDialog = dismissDialog;
@@ -461,9 +482,7 @@ export async function openFetchedAlarmDialog(html, batchOpts = null) {
   document.body.appendChild(dialogNode);
   activeAlarmDismissers.add(dismissDialog);
   document.addEventListener('keydown', handleKeydown);
-  if (dialogId && typeof window !== 'undefined' && typeof window.AbstractDialog_show === 'function') {
-    window.AbstractDialog_show(dialogId);
-  } else {
+  const showManualFallback = () => {
     dialogNode.style.display = 'block';
     dialogNode.classList.add('show');
     // Bootstrap-style modal wrappers stay display:none until shown.
@@ -472,9 +491,35 @@ export async function openFetchedAlarmDialog(html, batchOpts = null) {
       modal.classList.add('show');
       modal.style.display = 'block';
     }
+  };
+  if (dialogId && typeof window !== 'undefined' && typeof window.AbstractDialog_show === 'function') {
+    try {
+      window.AbstractDialog_show(dialogId);
+    } catch {
+      showManualFallback();
+    }
+  } else {
+    showManualFallback();
   }
-  processPriceAlarmModal();
+  processPriceAlarmModal(formEl);
   return true;
+}
+
+export async function fetchAlarmButtonHtml(pid, { signal = null, label = 'open' } = {}) {
+  const postBody = new URLSearchParams({
+    im_nimb_ch: '1',
+    im_nimb_pid: String(pid),
+    im_nimb_tmpl: 'btn',
+    lang: getPageLang()
+  });
+  return fetchWithTimeout('/plugins/infomails/NewInfoMailButton', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'X-Requested-With': 'XMLHttpRequest'
+    },
+    body: postBody
+  }, { timeoutMs: 8000, source: 'price-alarm', label, readAs: 'text', signal });
 }
 
 /**
@@ -499,9 +544,12 @@ export async function openPriceAlarmForProduct(pid, card = null) {
     const mockDialog = document.querySelector('#mock-alarm-dialog');
     if (mockDialog) {
       mockDialog.style.display = 'block';
-      delete mockDialog.querySelector?.(SELECTORS.alarm.form)?.dataset?.tpAlarmProcessed;
-      delete mockDialog.querySelector?.(SELECTORS.alarm.form)?.dataset?.tpAlarmState;
-      processPriceAlarmModal();
+      const mockForm = mockDialog.querySelector?.(SELECTORS.alarm.form) || null;
+      if (mockForm?.dataset) {
+        delete mockForm.dataset.tpAlarmProcessed;
+        delete mockForm.dataset.tpAlarmState;
+      }
+      processPriceAlarmModal(mockForm);
       return;
     }
 
@@ -509,20 +557,7 @@ export async function openPriceAlarmForProduct(pid, card = null) {
     // `openInfoMailForm` helper needs a dialog template inside the clicked
     // wrapper; a synthetic trigger has none, so it always throws on live.
     try {
-      const postBody = new URLSearchParams({
-        im_nimb_ch: '1',
-        im_nimb_pid: pidKey,
-        im_nimb_tmpl: 'btn',
-        lang: getPageLang()
-      });
-      const { res, body: html } = await fetchWithTimeout('/plugins/infomails/NewInfoMailButton', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'X-Requested-With': 'XMLHttpRequest'
-        },
-        body: postBody
-      }, { timeoutMs: 8000, source: 'price-alarm', label: 'open', readAs: 'text' });
+      const { res, body: html } = await fetchAlarmButtonHtml(pidKey, { label: 'open' });
       if (res.ok && await openFetchedAlarmDialog(html)) return;
     } catch (err) {
       logActivity('warn', 'price-alarm', 'Failed to open price alarm modal', err?.message || String(err));

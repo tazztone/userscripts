@@ -80,6 +80,8 @@ describe('tavily-search: query & normalization', () => {
     assert.ok(!q2.includes('{preis}'));
     assert.ok(!q2.includes('Ist der Preis'));
     assert.ok(q2.includes('Deutsch'));
+
+    assert.equal(expandKeywordWithPrice('Preis {Preis} gut?', 'CHF 42'), 'Preis CHF 42 gut?');
   });
 });
 
@@ -341,5 +343,15 @@ describe('tavily-search: fetchTavilySummary', () => {
     const r2 = await fetchTavilySummary('tvly-key', 'Cache Depth Isolation', { searchDepth: 'advanced', maxResults: 10 });
     assert.equal(calls, 2);
     assert.notEqual(r1, r2);
+  });
+
+  it('rejects whitespace-only fallback snippet instead of caching empty string', async () => {
+    globalThis.fetch = async () => ({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ answer: '   ', results: [{ content: '   \n\t  ' }] })
+    });
+    await assert.rejects(() => fetchTavilySummary('tvly-key', 'Whitespace Snippet'), /Kein Fazit erhalten/);
+    assert.equal(getCachedTavily('Whitespace Snippet'), null);
   });
 });

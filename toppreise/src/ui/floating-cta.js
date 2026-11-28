@@ -153,7 +153,11 @@ export function startBatchCheck() {
       // Recompute counts → CTA flips to its dimmed empty form when nothing is left.
       triggerProcessListings();
       if (meta?.abortedByCooldown) return;
-      const fresh = new Set(Array.from(document.querySelectorAll('.tp-deal-fresh'), el => getCardProductId(el)).filter(Boolean)).size;
+      const batchPids = new Set((newlyVerified || []).map(i => i?.pid).filter(Boolean));
+      const fresh = new Set(
+        Array.from(document.querySelectorAll('.tp-deal-fresh'), el => getCardProductId(el))
+          .filter(p => p && batchPids.has(p))
+      ).size;
       const checked = (newlyVerified || []).length;
       showToast(batchCompletionToast({ completed, total, fresh, checked, unchecked, minDisc }));
     }
@@ -339,18 +343,6 @@ function syncFloatingCTA(precomputedBatchCounts = undefined) {
   const counts = (precomputedBatchCounts && typeof precomputedBatchCounts['non-dimmed'] === 'number')
     ? precomputedBatchCounts
     : (lastBatchCounts || getBatchScopeCounts());
-  const batchBtnEl = el.querySelector('#tp-floating-batch-btn');
-  const batchCountEl = el.querySelector('#tp-floating-batch-count');
-  const activeBatch = getActiveBatchJob();
-  if (batchBtnEl) batchBtnEl.classList.toggle('tp-batch-running', !!activeBatch);
-  if (batchCountEl) {
-    if (activeBatch) {
-      setTextIfChanged(batchCountEl, `⏳ ${activeBatch.done}/${activeBatch.total}`);
-    } else {
-      const scopeKey = CONFIG.BATCH_SCOPE_DEFAULT || 'non-dimmed';
-      setTextIfChanged(batchCountEl, String(counts[scopeKey] ?? 0));
-    }
-  }
   syncBatchPopover(counts);
 }
 

@@ -13,15 +13,49 @@ import { gmRequestWithTimeout } from '../state/net.js';
 
 export function renderSparkline(timeSeries, width, height, opts = {}) {
   if (!timeSeries || !Array.isArray(timeSeries) || timeSeries.length < 2) return null;
+  if (!Number.isFinite(width) || !(width > 0) || !Number.isFinite(height) || !(height > 0)) return null;
   const axes = opts && opts.axes === true;
   const topPad = (opts && typeof opts.topPad === 'number') ? opts.topPad : 0;
   const valid = timeSeries.filter(p => Array.isArray(p) && Number.isFinite(+p[1]) && +p[1] > 0);
   if (valid.length < 2) return null;
   const prices = valid.map(p => +p[1]);
 
-  const min = Math.min(...prices);
-  const max = Math.max(...prices);
+  let min = prices[0];
+  let max = prices[0];
+  for (let i = 1; i < prices.length; i++) {
+    if (prices[i] < min) min = prices[i];
+    if (prices[i] > max) max = prices[i];
+  }
   const range = max - min || 1;
+
+  // Bare mini omits grid/axes only; endpoint dot shared with Discord path.
+  const buildPoints = (x0, x1, y0, y1) => {
+    let lx = 0;
+    let ly = 0;
+    const pts = prices.map((p, i) => {
+      const x = (x0 + (i / (prices.length - 1)) * (x1 - x0)).toFixed(1);
+      const y = (y1 - ((p - min) / range) * (y1 - y0)).toFixed(1);
+      lx = x;
+      ly = y;
+      return `${x},${y}`;
+    }).join(' ');
+    return { pts, lx, ly };
+  };
+
+  let built;
+  if (!axes) {
+    const pad = 2.5;
+    if (width <= pad * 2 || height <= pad * 2) return null;
+    built = buildPoints(pad, width - pad, pad, height - pad);
+  } else {
+    const margin = { left: 38, right: 10, top: 6 + topPad, bottom: 16 };
+    const x0 = margin.left;
+    const x1 = width - margin.right;
+    const y0 = margin.top;
+    const y1 = height - margin.bottom;
+    if (x1 <= x0 || y1 <= y0) return null;
+    built = buildPoints(x0, x1, y0, y1);
+  }
 
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('width', String(width));
@@ -38,13 +72,6 @@ export function renderSparkline(timeSeries, width, height, opts = {}) {
   const titleEl = document.createElementNS('http://www.w3.org/2000/svg', 'title');
   titleEl.textContent = `Preisverlauf: CHF ${firstPrice.toFixed(2)} → CHF ${lastPrice.toFixed(2)} (Min: ${min.toFixed(2)}, Max: ${max.toFixed(2)})`;
   svg.appendChild(titleEl);
-
-  // Bare mini omits grid/axes only; endpoint dot shared with Discord path.
-  const buildPoints = (x0, x1, y0, y1) => prices.map((p, i) => {
-    const x = (x0 + (i / (prices.length - 1)) * (x1 - x0)).toFixed(1);
-    const y = (y1 - ((p - min) / range) * (y1 - y0)).toFixed(1);
-    return `${x},${y}`;
-  }).join(' ');
 
   const line = (x1, y1, x2, y2, opacity) => {
     const el = document.createElementNS('http://www.w3.org/2000/svg', 'line');
@@ -72,25 +99,12 @@ export function renderSparkline(timeSeries, width, height, opts = {}) {
 
   const fmtPrice = v => (v >= 100 ? String(Math.round(v)) : v.toFixed(2));
 
-  let points;
-  let lastX = 0;
-  let lastY = 0;
-  if (!axes) {
-    const pad = 2.5;
-    const usableWidth = width - pad * 2;
-    const usableHeight = height - pad * 2;
-    points = prices.map((p, i) => {
-      const x = (pad + (i / (prices.length - 1)) * usableWidth).toFixed(1);
-      const y = (height - pad - ((p - min) / range) * usableHeight).toFixed(1);
-      return `${x},${y}`;
-    }).join(' ');
-  } else {
+  if (axes) {
     const margin = { left: 38, right: 10, top: 6 + topPad, bottom: 16 };
     const x0 = margin.left;
     const x1 = width - margin.right;
     const y0 = margin.top;
     const y1 = height - margin.bottom;
-    points = buildPoints(x0, x1, y0, y1);
 
     // Y price grid: min / mid / max (single line when flat).
     const mid = (min + max) / 2;
@@ -111,7 +125,13 @@ export function renderSparkline(timeSeries, width, height, opts = {}) {
     const finiteTs = tsMs.filter(Number.isFinite);
     if (finiteTs.length >= 2) {
       const DAY_MS = 86400000;
-      const span = Math.max(...finiteTs) - Math.min(...finiteTs);
+      let minTs = finiteTs[0];
+      let maxTs = finiteTs[0];
+      for (let i = 1; i < finiteTs.length; i++) {
+        if (finiteTs[i] < minTs) minTs = finiteTs[i];
+        if (finiteTs[i] > maxTs) maxTs = finiteTs[i];
+      }
+      const span = maxTs - minTs;
       const mode = span >= 60 * DAY_MS ? 'month' : span >= 14 * DAY_MS ? 'week' : 'day';
       const bucketKey = d => mode === 'month'
         ? `${d.getFullYear()}-${d.getMonth()}`
@@ -147,10 +167,7 @@ export function renderSparkline(timeSeries, width, height, opts = {}) {
     }
   }
 
-  const pts = points.split(' ');
-  const last = pts[pts.length - 1].split(',');
-  lastX = last[0];
-  lastY = last[1];
+  const { pts: points, lx: lastX, ly: lastY } = built;
 
   const polyline = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
   polyline.setAttribute('points', points);
@@ -208,32 +225,61 @@ export function buildKeepaUrl(asin, days = 365, width = 560, height = 220) {
   return `https://graph.keepa.com/pricehistory.png?asin=${encodeURIComponent(asin.trim())}&domain=de&amazon=1&new=1&bb=1&range=${days}&width=${width}&height=${height}`;
 }
 
-export async function copySvgToClipboard(svgEl, width = 560, height = 220) {
-  try {
-    if (!svgEl || typeof document === 'undefined') return false;
-    const svgText = new XMLSerializer().serializeToString(svgEl);
-    const svgUrl = URL.createObjectURL(new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' }));
+export function rasterizeSvgToPngBlob(svgEl, width, height, { timeoutMs = 3000 } = {}) {
+  return new Promise(resolve => {
+    let done = false;
+    let svgUrl = null;
+    const finish = v => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      if (svgUrl) try { URL.revokeObjectURL(svgUrl); } catch {}
+      resolve(v);
+    };
+    const timer = timeoutMs > 0 ? setTimeout(() => finish(null), timeoutMs) : null;
     try {
-      const img = new Image();
-      await new Promise((res, rej) => {
-        img.onload = res;
-        img.onerror = rej;
-        img.src = svgUrl;
-      });
-      const canvas = document.createElement('canvas');
-      canvas.width = width * 2;
-      canvas.height = height * 2;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return false;
-      ctx.drawImage(img, 0, 0, width * 2, height * 2);
-      const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
-      if (blob && typeof navigator?.clipboard?.write === 'function') {
-        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-        showToast('📋 Diagramm in Zwischenablage kopiert');
-        return true;
+      if (!svgEl || typeof document === 'undefined' || !Number.isFinite(width) || !(width > 0) || !Number.isFinite(height) || !(height > 0)) {
+        return finish(null);
       }
-    } finally {
-      URL.revokeObjectURL(svgUrl);
+      const svgText = new XMLSerializer().serializeToString(svgEl);
+      svgUrl = URL.createObjectURL(new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' }));
+      const rasterize = source => () => {
+        try {
+          if (!(source?.naturalWidth > 0 && source?.naturalHeight > 0)) return finish(null);
+          const canvas = document.createElement('canvas');
+          canvas.width = width * 2;
+          canvas.height = height * 2;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) return finish(null);
+          ctx.drawImage(source, 0, 0, width * 2, height * 2);
+          canvas.toBlob(b => finish(b || null), 'image/png');
+        } catch {
+          finish(null);
+        }
+      };
+      const img = new Image();
+      img.onload = rasterize(img);
+      // blob:-URL gescheitert (CSP): data-URI als Rastervorlage retryen.
+      img.onerror = () => {
+        const retry = new Image();
+        retry.onload = rasterize(retry);
+        retry.onerror = () => finish(null);
+        retry.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgText);
+      };
+      img.src = svgUrl;
+    } catch {
+      finish(null);
+    }
+  });
+}
+
+async function copySvgToClipboard(svgEl, width = 560, height = 220) {
+  try {
+    const blob = await rasterizeSvgToPngBlob(svgEl, width, height);
+    if (blob && typeof navigator?.clipboard?.write === 'function') {
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      showToast('📋 Diagramm in Zwischenablage kopiert');
+      return true;
     }
   } catch (err) {
     console.debug('[Toppreise-Suite] SVG-Copy-Fehler', err);
@@ -253,9 +299,10 @@ export async function copyKeepaChartToClipboard(imgEl, titleText, asin, fallback
           url: fallbackUrl,
           responseType: 'blob'
         }, { timeoutMs: 8000, source: 'sparkline', label: 'keepa' });
-        if (!r?.response) throw new Error('no blob');
-        const blob = r.response;
-        objectUrl = URL.createObjectURL(blob);
+        if (!(r?.status >= 200 && r.status < 300) || !(r.response instanceof Blob)) {
+          throw new Error('invalid keepa blob');
+        }
+        objectUrl = URL.createObjectURL(r.response);
         const tempImg = new Image();
         await new Promise((res, rej) => {
           tempImg.onload = res;
@@ -266,8 +313,11 @@ export async function copyKeepaChartToClipboard(imgEl, titleText, asin, fallback
       } catch (e) {}
     }
 
-    const w = sourceImg?.naturalWidth || 560;
-    const h = sourceImg?.naturalHeight || 220;
+    if (!sourceImg || !sourceImg.complete || !(sourceImg.naturalWidth > 0 && sourceImg.naturalHeight > 0)) {
+      throw new Error('keepa image not ready');
+    }
+    const w = sourceImg.naturalWidth;
+    const h = sourceImg.naturalHeight;
     const bannerHeight = 36;
     const canvas = document.createElement('canvas');
     canvas.width = w;
@@ -284,9 +334,7 @@ export async function copyKeepaChartToClipboard(imgEl, titleText, asin, fallback
     const displayTitle = titleText ? `Amazon.de: ${titleText} (ASIN: ${asin})` : `Amazon.de: ASIN ${asin}`;
     ctx.fillText(displayTitle, 12, bannerHeight / 2, canvas.width - 24);
 
-    if (sourceImg) {
-      ctx.drawImage(sourceImg, 0, bannerHeight, w, h);
-    }
+    ctx.drawImage(sourceImg, 0, bannerHeight, w, h);
 
     const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
     if (blob && typeof navigator?.clipboard?.write === 'function') {
@@ -418,29 +466,32 @@ export function openSparklinePopout(timeSeries, chartCtx = null) {
     keepaSection.appendChild(keepaBody);
     panel.appendChild(keepaSection);
 
+    const clearChildren = el => {
+      if (el.replaceChildren) el.replaceChildren();
+      else while (el.firstChild) el.removeChild(el.firstChild);
+    };
+
     // Resolve ASIN and display Keepa image
     resolveAmazonAsin(chartCtx.directUrl, chartCtx.pid).then(asin => {
       if (popoutClosed) return;
       if (!asin) {
-        if (keepaBody.replaceChildren) {
-          keepaBody.replaceChildren();
-        } else {
-          while (keepaBody.firstChild) keepaBody.removeChild(keepaBody.firstChild);
-        }
+        clearChildren(keepaBody);
         const errNotice = document.createElement('div');
         errNotice.className = 'tp-keepa-status';
         const msgSpan = document.createElement('span');
         msgSpan.textContent = 'Amazon-ASIN konnte nicht ermittelt werden.';
         errNotice.appendChild(msgSpan);
-        errNotice.appendChild(document.createElement('br'));
-        const safeUrl = /^https?:\/\//i.test(chartCtx.directUrl || '') ? chartCtx.directUrl : '#';
-        const a = document.createElement('a');
-        a.href = safeUrl;
-        a.target = '_blank';
-        a.rel = 'noopener';
-        a.className = 'tp-popout-link';
-        a.textContent = 'Zum Amazon-Angebot ↗';
-        errNotice.appendChild(a);
+        const safeUrl = /^https?:\/\//i.test(chartCtx.directUrl || '') ? chartCtx.directUrl : '';
+        if (safeUrl) {
+          errNotice.appendChild(document.createElement('br'));
+          const a = document.createElement('a');
+          a.href = safeUrl;
+          a.target = '_blank';
+          a.rel = 'noopener';
+          a.className = 'tp-popout-link';
+          a.textContent = 'Zum Amazon-Angebot ↗';
+          errNotice.appendChild(a);
+        }
         keepaBody.appendChild(errNotice);
         return;
       }
@@ -453,15 +504,6 @@ export function openSparklinePopout(timeSeries, chartCtx = null) {
       const img = document.createElement('img');
       img.className = 'tp-keepa-img';
       img.alt = `Keepa Preisverlauf für ${asin}`;
-      img.src = keepaUrlFor(currentDays);
-
-      copyKeepaBtn.onclick = () => {
-        copyKeepaChartToClipboard(img, productTitle, asin, keepaUrlFor(currentDays));
-      };
-
-      keepaBody._tpUpdateRange = days => {
-        img.src = keepaUrlFor(days);
-      };
 
       const linksRow = document.createElement('div');
       linksRow.className = 'tp-keepa-links';
@@ -481,12 +523,39 @@ export function openSparklinePopout(timeSeries, chartCtx = null) {
       linksRow.appendChild(keepaLink);
       linksRow.appendChild(amzLink);
 
-      if (keepaBody.replaceChildren) keepaBody.replaceChildren();
+      img.onload = () => {
+        if (!popoutClosed) copyKeepaBtn.hidden = false;
+      };
+      img.onerror = () => {
+        if (popoutClosed) return;
+        copyKeepaBtn.hidden = true;
+        clearChildren(keepaBody);
+        const errNotice = document.createElement('div');
+        errNotice.className = 'tp-keepa-status';
+        errNotice.textContent = 'Amazon Keepa-Verlauf konnte nicht geladen werden.';
+        keepaBody.appendChild(errNotice);
+        keepaBody.appendChild(linksRow);
+      };
+      img.src = keepaUrlFor(currentDays);
+
+      copyKeepaBtn.onclick = () => {
+        copyKeepaChartToClipboard(img, productTitle, asin, keepaUrlFor(currentDays));
+      };
+
+      keepaBody._tpUpdateRange = days => {
+        copyKeepaBtn.hidden = false;
+        clearChildren(keepaBody);
+        keepaBody.appendChild(img);
+        keepaBody.appendChild(linksRow);
+        img.src = keepaUrlFor(days);
+      };
+
+      clearChildren(keepaBody);
       keepaBody.appendChild(img);
       keepaBody.appendChild(linksRow);
     }).catch(() => {
       if (popoutClosed) return;
-      if (keepaBody.replaceChildren) keepaBody.replaceChildren();
+      clearChildren(keepaBody);
       const errNotice = document.createElement('div');
       errNotice.className = 'tp-keepa-status';
       errNotice.textContent = 'Amazon Keepa-Verlauf konnte nicht geladen werden.';

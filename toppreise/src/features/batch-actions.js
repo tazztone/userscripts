@@ -12,6 +12,11 @@ import { getCachedDealer, hasUsablePriceStats } from '../scanner/cache.js';
 import { resolveShareFields } from './discord-recipe.js';
 
 const COMPARISON_BTN_SEL = '.Plugin_AddToProductComparisonButton';
+const isVerifiedDealCard = cd => Boolean(
+  cd?.dealScore ||
+  cd?.displayDelta?.kind === 'new-low' ||
+  cd?.displayDelta?.kind === 'at-low'
+);
 
 export function extractCardSpecs(card) {
   if (!card?.querySelector) return '';
@@ -77,11 +82,7 @@ function buildItemFromCard(card, cd, useShipping) {
     discountText = `-${Math.round(cd.discountVal)}%`;
   }
 
-  const isVerifiedDeal = Boolean(
-    cd.dealScore ||
-    cd.displayDelta?.kind === 'new-low' ||
-    cd.displayDelta?.kind === 'at-low'
-  );
+  const isVerifiedDeal = isVerifiedDealCard(cd);
   const compBtn = card.querySelector?.(COMPARISON_BTN_SEL) || null;
 
   return {
@@ -91,7 +92,7 @@ function buildItemFromCard(card, cd, useShipping) {
     url,
     imageUrl,
     cardPrice: cd.cardPrice || 0,
-    cardPriceBasis: cd.cardPriceBasis || 'product',
+    cardPriceBasis: cd.cardPriceBasis || (useShipping ? 'shipping' : 'product'),
     priceText,
     specs: extractCardSpecs(card),
     dealer,
@@ -108,18 +109,13 @@ function buildItemFromCard(card, cd, useShipping) {
 
 export function collectScopedCards(scope = 'non-dimmed', root = undefined) {
   const cards = getProductCards(root);
-  const useShipping = isShippingPriceActive();
   const out = [];
   for (const card of cards) {
     if (isCardFilteredOut(card)) continue;
     if (scope === 'non-dimmed' && card.classList?.contains('tp-dimmed')) continue;
     const cd = extractCardData(card);
-    const isDeal = Boolean(
-      cd.dealScore ||
-      cd.displayDelta?.kind === 'new-low' ||
-      cd.displayDelta?.kind === 'at-low'
-    );
-    if (scope === 'deals' && !isDeal) continue;
+    if (scope === 'deals' && !isVerifiedDealCard(cd)) continue;
+    const useShipping = cd.cardPriceBasis ? cd.cardPriceBasis === 'shipping' : isShippingPriceActive(card);
     out.push(buildItemFromCard(card, cd, useShipping));
   }
   return out;
@@ -135,7 +131,7 @@ export function getBatchScopeCounts(root = undefined) {
     visible++;
     if (!card.classList?.contains('tp-dimmed')) nonDimmed++;
     const cd = extractCardData(card);
-    if (cd.dealScore || cd.displayDelta?.kind === 'new-low' || cd.displayDelta?.kind === 'at-low') {
+    if (isVerifiedDealCard(cd)) {
       deals++;
     }
   }
@@ -226,11 +222,6 @@ export function formatBatchCsv(items) {
     .join('\r\n');
 }
 
-const FALLBACK_COMPARE_PROMPT =
-  'Vergleiche folgende {anzahl} Angebote von Toppreise.ch (Preise in CHF) und bewerte Preis-Leistung, Stärken/Schwächen sowie welches Angebot der beste Deal ist (kurz auf Deutsch):';
-const FALLBACK_COMPARE_ITEM_TEMPLATE =
-  '{nr}. {titel} | Preis: {preis} | Rabatt: {rabatt} | Bisheriges Tief: {tief} | {median} | Händler: {haendler} | Specs: {specs}';
-
 export const COMPARE_PROMPT_TOKENS = Object.freeze(['anzahl', 'angebote']);
 export const COMPARE_ITEM_TOKENS = Object.freeze(['nr', 'titel', 'preis', 'rabatt', 'tief', 'median', 'haendler', 'offerten', 'specs', 'url']);
 
@@ -266,13 +257,13 @@ export function findUnknownSingleSearchTokens(template) {
 
 function resolveCompareTemplate(promptTemplate) {
   const custom = String(promptTemplate ?? CONFIG?.BATCH_COMPARE_PROMPT ?? '').trim();
-  const def = String(DEFAULTS?.BATCH_COMPARE_PROMPT || FALLBACK_COMPARE_PROMPT).trim();
+  const def = String(DEFAULTS.BATCH_COMPARE_PROMPT).trim();
   return custom || def;
 }
 
 function resolveCompareItemTemplate(itemTemplate) {
   const custom = String(itemTemplate ?? CONFIG?.BATCH_COMPARE_ITEM_TEMPLATE ?? '').trim();
-  const def = String(DEFAULTS?.BATCH_COMPARE_ITEM_TEMPLATE || FALLBACK_COMPARE_ITEM_TEMPLATE).trim();
+  const def = String(DEFAULTS.BATCH_COMPARE_ITEM_TEMPLATE).trim();
   return custom || def;
 }
 
@@ -401,10 +392,10 @@ export function selectExternalComparisonQuery(items, fullPrompt = buildCompariso
   }
   if (Array.isArray(items) && items.length > 0) {
     const tpl = resolveCompareTemplate(opts.promptTemplate);
-    const def = String(DEFAULTS?.BATCH_COMPARE_PROMPT || FALLBACK_COMPARE_PROMPT).trim();
+    const def = String(DEFAULTS.BATCH_COMPARE_PROMPT).trim();
     const isCustom = tpl !== def;
     const itemTpl = resolveCompareItemTemplate(opts.itemTemplate);
-    const defItemTpl = String(DEFAULTS?.BATCH_COMPARE_ITEM_TEMPLATE || FALLBACK_COMPARE_ITEM_TEMPLATE).trim();
+    const defItemTpl = String(DEFAULTS.BATCH_COMPARE_ITEM_TEMPLATE).trim();
     const isCustomItem = itemTpl !== defItemTpl;
 
     const fits = candidate => (candidate && encodeURIComponent(candidate).length <= MAX_AI_URL_QUERY_ENCODED ? candidate : '');

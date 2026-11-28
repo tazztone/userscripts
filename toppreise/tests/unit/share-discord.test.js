@@ -699,6 +699,16 @@ describe('postDealToDiscord', () => {
     assert.equal(err.retryAfterMs, 2000);
   });
 
+  it('sets retryAfterMs to 0 on non-429/503 errors even with X-RateLimit-Reset-After', async () => {
+    globalThis.fetch = async () => ({
+      ok: false, status: 400, text: async () => '{"message":"bad"}',
+      headers: { get: name => (name === 'X-RateLimit-Reset-After' ? '12.5' : null) }
+    });
+    const err = await postDealToDiscord(HOOK, 'hi').then(() => null, e => e);
+    assert.equal(err.status, 400);
+    assert.equal(err.retryAfterMs, 0);
+  });
+
   it('marks transport failures status 0 without body (ambiguous: never auto-repost)', async () => {
     globalThis.fetch = async () => { throw new Error('offline'); };
     const net = await postDealToDiscord(HOOK, 'hi').then(() => null, e => e);
@@ -1276,8 +1286,8 @@ describe('renderDiscordMarkdownPreview', () => {
   });
   it('renders headings, bold, links, bare URLs', () => {
     const out = renderDiscordMarkdownPreview('## [T](https://x.io/a?b=1)\n# **CHF 5**\nhttps://www.toppreise.ch/p');
-    assert.ok(out.includes('tp-md-lg'));
-    assert.ok(out.includes('<strong>CHF 5</strong>'));
+    assert.ok(out.includes('<span class="tp-md-md"><span class="tp-md-link">T</span>'));
+    assert.ok(out.includes('<span class="tp-md-lg"><strong>CHF 5</strong></span>'));
     assert.ok(out.includes('tp-md-link'));
     assert.ok(out.includes('tp-md-url'));
     assert.ok(!out.includes('## ['));
@@ -1493,5 +1503,14 @@ describe('splitDiscordChunks', () => {
       const last = c.charCodeAt(c.length - 1);
       assert.equal(last >= 0xD800 && last <= 0xDBFF, false);
     }
+  });
+
+  it('collapses 3+ consecutive empty · separators cleanly', async () => {
+    const { renderLayout } = await import('../../src/features/discord-recipe.js');
+    const out = renderLayout({
+      priceText: 'CHF 99',
+      dealer: 'Digitec',
+    }, '{price} · {prevlow} · {median} · {dealer}');
+    assert.equal(out, '💰 CHF 99 · 🏬 Digitec');
   });
 });

@@ -15,7 +15,8 @@ function visibleFocusables(panel) {
 }
 
 export function createPopoutDialog({ id, label, title = '', panelClass = '', closeLabel = 'Schliessen', actions = [], onClose = null } = {}) {
-  const prevFocus = typeof document.activeElement !== 'undefined' ? document.activeElement : null;
+  const rawActive = typeof document.activeElement !== 'undefined' ? document.activeElement : null;
+  const prevFocus = rawActive?.shadowRoot?.activeElement || rawActive;
 
   const backdrop = document.createElement('div');
   if (id) backdrop.id = id;
@@ -86,7 +87,7 @@ export function createPopoutDialog({ id, label, title = '', panelClass = '', clo
   function close() {
     if (closed) return;
     closed = true;
-    document.removeEventListener('keydown', onKey);
+    document.removeEventListener('keydown', onKey, true);
     try { onClose?.(); } catch {}
     backdrop.remove();
     try {
@@ -104,7 +105,7 @@ export function createPopoutDialog({ id, label, title = '', panelClass = '', clo
   });
 
   function mount() {
-    document.addEventListener('keydown', onKey);
+    document.addEventListener('keydown', onKey, true);
     document.body.appendChild(backdrop);
     closeBtn.focus?.();
     return backdrop;

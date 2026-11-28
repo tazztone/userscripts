@@ -5,7 +5,7 @@
  */
 
 import { CONFIG, DEFAULT_OPENROUTER_MODEL, effectiveAiProvider } from '../state/config.js';
-import { fetchWithTimeout, gmRequestWithTimeout } from '../state/net.js';
+import { postJsonTransport } from '../state/net.js';
 import { createPersistentAiCache } from '../utils/ai-cache.js';
 import {
   buildTavilyQuery,
@@ -46,7 +46,9 @@ export function normalizeOpenRouterPrompt(prompt) {
 export function openRouterCacheKey(prompt, model, engine, maxResults, searchContextSize = 'medium') {
   const norm = normalizeOpenRouterPrompt(prompt).toLowerCase();
   if (!norm) return '';
-  return `${model || DEFAULT_OPENROUTER_MODEL}::${engine || 'auto'}::${maxResults || 5}::${searchContextSize || 'medium'}::${hashCacheStr(norm)}`;
+  const m = String(model || '').trim() || DEFAULT_OPENROUTER_MODEL;
+  const eng = String(engine || '').trim() || 'auto';
+  return `${m}::${eng}::${maxResults || 5}::${searchContextSize || 'medium'}::${hashCacheStr(norm)}`;
 }
 
 export function extractOpenRouterCitations(annotations) {
@@ -187,53 +189,41 @@ export function fetchOpenRouterWebSearch(apiKey, prompt, options = {}) {
         'X-Title': 'Toppreise.ch Suite'
       };
       const transportSignal = abortCtrl?.signal;
-
-      if (typeof GM_xmlhttpRequest !== 'undefined') {
-        gmRequestWithTimeout({
-          method: 'POST',
-          url: OPENROUTER_API_ENDPOINT,
-          headers,
-          data: payload,
-        }, { timeoutMs, signal: transportSignal, source: 'openrouter', label: 'web_search' })
-          .then((res) => {
-            if (res.status >= 200 && res.status < 300) handleSuccess(res.responseText);
-            else reject(new Error(mapOpenRouterHttpError(res.status)));
-          })
-          .catch((err) => {
-            if (err?.cancelled) reject(Object.assign(new Error('Abgebrochen'), { cancelled: true }));
-            else reject(new Error(err?.timeout ? 'Zeitüberschreitung bei OpenRouter' : 'Netzwerkfehler bei Verbindung zu OpenRouter'));
-          });
-      } else if (typeof fetch !== 'undefined') {
-        fetchWithTimeout(OPENROUTER_API_ENDPOINT, {
-          method: 'POST',
-          headers,
-          body: payload,
-        }, { timeoutMs, signal: transportSignal, source: 'openrouter', label: 'web_search', readAs: 'text' })
-          .then(({ res, body }) => {
-            if (res.ok) handleSuccess(body);
-            else reject(new Error(mapOpenRouterHttpError(res.status)));
-          })
-          .catch((err) => {
-            if (err?.cancelled) reject(Object.assign(new Error('Abgebrochen'), { cancelled: true }));
-            else reject(new Error(err?.timeout ? 'Zeitüberschreitung bei OpenRouter' : 'Netzwerkfehler bei Verbindung zu OpenRouter'));
-          });
-      } else {
-        reject(new Error('Kein HTTP-Transport für OpenRouter verfügbar'));
-      }
+      postJsonTransport({
+        url: OPENROUTER_API_ENDPOINT,
+        headers,
+        body: payload,
+        timeoutMs,
+        signal: transportSignal,
+        source: 'openrouter',
+        label: 'web_search'
+      })
+        .then(({ status, ok, text }) => {
+          if (ok) handleSuccess(text);
+          else reject(new Error(mapOpenRouterHttpError(status)));
+        })
+        .catch((err) => {
+          if (err?.noTransport) reject(new Error('Kein HTTP-Transport für OpenRouter verfügbar'));
+          else if (err?.cancelled) reject(Object.assign(new Error('Abgebrochen'), { cancelled: true }));
+          else reject(new Error(err?.timeout ? 'Zeitüberschreitung bei OpenRouter' : 'Netzwerkfehler bei Verbindung zu OpenRouter'));
+        });
     }).finally(() => {
+      if (entry) entry.settled = true;
       if (orInFlight.get(flightKey)?.promise === transportPromise) {
         orInFlight.delete(flightKey);
       }
     });
 
-    entry = { promise: transportPromise, timeoutMs, abortCtrl, refs: 0 };
+    entry = { promise: transportPromise, timeoutMs, abortCtrl, refs: 0, settled: false };
     orInFlight.set(flightKey, entry);
   }
 
   entry.refs++;
   const cleanupConsumer = () => {
     if (--entry.refs === 0) {
-      try { entry.abortCtrl?.abort(); } catch {}
+      if (!entry.settled) {
+        try { entry.abortCtrl?.abort(); } catch {}
+      }
       if (orInFlight.get(flightKey) === entry) orInFlight.delete(flightKey);
     }
   };
@@ -294,7 +284,8 @@ export function fetchConfiguredAiSummary(title, keyword = '', priceText = '', op
     return fetchTavilySummary(cfg?.TAVILY_API_KEY, query, {
       timeoutMs: opts.timeoutMs ?? 60000,
       searchDepth: opts.searchDepth || cfg?.TAVILY_SEARCH_DEPTH,
-      maxResults: opts.maxResults ?? cfg?.TAVILY_MAX_RESULTS
+      maxResults: opts.maxResults ?? cfg?.TAVILY_MAX_RESULTS,
+      signal: opts.signal
     }).then(answer => ({ answer, citations: [] }));
   }
   return Promise.reject(new Error('Kein KI-Anbieter aktiviert'));

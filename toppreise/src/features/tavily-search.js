@@ -5,7 +5,7 @@
  */
 
 import { CONFIG } from '../state/config.js';
-import { fetchWithTimeout, gmRequestWithTimeout } from '../state/net.js';
+import { postJsonTransport } from '../state/net.js';
 import { createPersistentAiCache } from '../utils/ai-cache.js';
 
 export const TAVILY_API_ENDPOINT = 'https://api.tavily.com/search';
@@ -46,10 +46,10 @@ export function clearTavilyCache() {
 
 export function expandKeywordWithPrice(keyword, priceText = '') {
   let kw = String(keyword || '').replace(/\s+/g, ' ').trim();
-  if (!kw.includes('{preis}')) return kw;
+  if (!/\{preis\}/i.test(kw)) return kw;
 
   if (priceText) {
-    return kw.replace(/\{preis\}/g, () => priceText).replace(/\s+/g, ' ').trim();
+    return kw.replace(/\{preis\}/gi, () => priceText).replace(/\s+/g, ' ').trim();
   }
 
   // Gracefully drop sentence or clause asking about {preis} when no price is available
@@ -92,6 +92,11 @@ export function fetchTavilySummary(apiKey, query, options = {}) {
     return Promise.reject(new Error('Suchanfrage ist leer'));
   }
 
+  const signal = options.signal || null;
+  if (signal?.aborted) {
+    return Promise.reject(Object.assign(new Error('Abgebrochen'), { cancelled: true }));
+  }
+
   const timeoutMs = typeof options.timeoutMs === 'number' ? options.timeoutMs : 60000;
   const searchDepth = options.searchDepth || (typeof CONFIG !== 'undefined' ? CONFIG.TAVILY_SEARCH_DEPTH : 'basic') || 'basic';
   const maxResults = typeof options.maxResults === 'number'
@@ -110,7 +115,7 @@ export function fetchTavilySummary(apiKey, query, options = {}) {
   // 2. In-flight request deduplication
   const flightKey = `${trimmedKey}:${normalized.toLowerCase()}:${searchDepth}:${maxResults}`;
   const existing = inFlight.get(flightKey);
-  if (existing && existing.timeoutMs >= timeoutMs) {
+  if (existing && existing.timeoutMs >= timeoutMs && !signal) {
     return existing.promise;
   }
 
@@ -127,11 +132,13 @@ export function fetchTavilySummary(apiKey, query, options = {}) {
       try {
         const data = JSON.parse(rawText || '{}');
         const answer = (data.answer || '').trim();
+        const fallbackSnippet = Array.isArray(data.results) && data.results.length > 0
+          ? String(data.results[0]?.content || '').trim()
+          : '';
         if (answer) {
           setCachedTavily(cacheQueryKey, answer);
           resolve(answer);
-        } else if (Array.isArray(data.results) && data.results.length > 0 && data.results[0].content) {
-          const fallbackSnippet = data.results[0].content.trim();
+        } else if (fallbackSnippet) {
           setCachedTavily(cacheQueryKey, fallbackSnippet);
           resolve(fallbackSnippet);
         } else {
@@ -142,58 +149,30 @@ export function fetchTavilySummary(apiKey, query, options = {}) {
       }
     };
 
-    if (typeof GM_xmlhttpRequest !== 'undefined') {
-      gmRequestWithTimeout({
-        method: 'POST',
-        url: TAVILY_API_ENDPOINT,
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'Authorization': `Bearer ${trimmedKey}`
-        },
-        data: payload,
-      }, { timeoutMs, source: 'tavily', label: 'search' })
-        .then((res) => {
-          if (res.status >= 200 && res.status < 300) {
-            handleSuccess(res.responseText);
-          } else if (res.status === 401 || res.status === 403) {
-            reject(new Error('Tavily API-Key ungültig'));
-          } else if (res.status === 429) {
-            reject(new Error('Tavily Monatslimit oder Rate-Limit erreicht'));
-          } else {
-            reject(new Error(`Tavily HTTP-Fehler ${res.status}`));
-          }
-        })
-        .catch((err) => {
-          reject(new Error(err?.timeout ? 'Zeitüberschreitung bei Tavily' : 'Netzwerkfehler bei Verbindung zu Tavily'));
-        });
-    } else if (typeof fetch !== 'undefined') {
-      fetchWithTimeout(TAVILY_API_ENDPOINT, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'Authorization': `Bearer ${trimmedKey}`
-        },
-        body: payload,
-      }, { timeoutMs, source: 'tavily', label: 'search', readAs: 'text' })
-        .then(({ res, body }) => {
-          if (res.ok) {
-            handleSuccess(body);
-          } else if (res.status === 401 || res.status === 403) {
-            reject(new Error('Tavily API-Key ungültig'));
-          } else if (res.status === 429) {
-            reject(new Error('Tavily Monatslimit oder Rate-Limit erreicht'));
-          } else {
-            reject(new Error(`Tavily HTTP-Fehler ${res.status}`));
-          }
-        })
-        .catch((err) => {
-          reject(new Error(err?.timeout ? 'Zeitüberschreitung bei Tavily' : 'Netzwerkfehler bei Verbindung zu Tavily'));
-        });
-    } else {
-      reject(new Error('Kein HTTP-Transport für Tavily verfügbar'));
-    }
+    postJsonTransport({
+      url: TAVILY_API_ENDPOINT,
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${trimmedKey}`
+      },
+      body: payload,
+      timeoutMs,
+      signal,
+      source: 'tavily',
+      label: 'search'
+    })
+      .then(({ status, ok, text }) => {
+        if (ok) handleSuccess(text);
+        else if (status === 401 || status === 403) reject(new Error('Tavily API-Key ungültig'));
+        else if (status === 429) reject(new Error('Tavily Monatslimit oder Rate-Limit erreicht'));
+        else reject(new Error(`Tavily HTTP-Fehler ${status}`));
+      })
+      .catch((err) => {
+        if (err?.noTransport) reject(new Error('Kein HTTP-Transport für Tavily verfügbar'));
+        else if (err?.cancelled) reject(Object.assign(new Error('Abgebrochen'), { cancelled: true }));
+        else reject(new Error(err?.timeout ? 'Zeitüberschreitung bei Tavily' : 'Netzwerkfehler bei Verbindung zu Tavily'));
+      });
   }).finally(() => {
     if (inFlight.get(flightKey)?.promise === promise) {
       inFlight.delete(flightKey);

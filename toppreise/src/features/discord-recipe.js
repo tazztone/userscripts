@@ -43,7 +43,7 @@ export function renderDiscordMarkdownPreview(markdown) {
     let cls = '';
     const prefix = line.match(/^(##|#|-#)\s?/);
     if (prefix) {
-      cls = prefix[1] === '##' ? 'tp-md-lg' : prefix[1] === '#' ? 'tp-md-md' : 'tp-md-sm';
+      cls = prefix[1] === '#' ? 'tp-md-lg' : prefix[1] === '##' ? 'tp-md-md' : 'tp-md-sm';
       line = line.slice(prefix[0].length);
     } else {
       const quote = line.match(/^>\s?/);
@@ -263,7 +263,7 @@ export function renderLayout(fields = {}, recipe = DEFAULT_LAYOUT) {
   };
   const out = [];
   for (const rawLine of recipe.split('\n')) {
-    const line = rawLine.replace(/\s*\+\{offers\}/g, ctx.offerCount ? ` +${ctx.offerCount}` : '').replace(/\{([a-z]+)\}/g, (m, name) => LAYOUT_TOKENS.has(name) ? tokenText(name, ctx) : '').replace(/\s*·\s*·\s*/g, ' · ').replace(/^([#-]+)\s*·\s*/g, '$1 ').replace(/^\s*·\s*|\s*·\s*$/g, '').replace(/^([#-]+)\s+/g, '$1 ');
+    const line = rawLine.replace(/\s*\+\{offers\}/g, ctx.offerCount ? ` +${ctx.offerCount}` : '').replace(/\{([a-z]+)\}/g, (m, name) => LAYOUT_TOKENS.has(name) ? tokenText(name, ctx) : '').replace(/(?:\s*·){2,}\s*/g, ' · ').replace(/^([#-]+)\s*·\s*/g, '$1 ').replace(/^\s*·\s*|\s*·\s*$/g, '').replace(/^([#-]+)\s+/g, '$1 ');
     if (line.replace(/^[#> \s-]+/, '').trim() === '') continue;
     out.push(line);
   }

@@ -160,6 +160,10 @@ describe('openrouter-search: cache & fetch', () => {
     const kHigh = openRouterCacheKey(longPrompt, 'google/gemini-2.5-flash', 'auto', 5, 'high');
     assert.ok(kMed.length < 90, `expected short key, got ${kMed.length}`);
     assert.notEqual(kMed, kHigh);
+    assert.equal(
+      openRouterCacheKey('Test', '  openai/gpt-4.1-mini  ', '  exa '),
+      openRouterCacheKey('Test', 'openai/gpt-4.1-mini', 'exa')
+    );
   });
 
   it('gmRequestWithTimeout aborts handle and rejects cancelled:true via AbortController', async () => {

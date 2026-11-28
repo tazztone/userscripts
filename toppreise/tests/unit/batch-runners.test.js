@@ -461,4 +461,45 @@ describe('batch-runners: Discord share {ai} injection & 429 retry', () => {
     assert.equal(attempt, 2);
     assert.match(postedPayloads[0].content, /Hervorragender Kontrast/);
   });
+
+  it('does not retry HTTP 400 even when X-RateLimit-Reset-After is present', async () => {
+    let attempts = 0;
+    globalThis.fetch = async () => {
+      attempts++;
+      return {
+        ok: false,
+        status: 400,
+        headers: new Headers({ 'X-RateLimit-Reset-After': '10' }),
+        text: async () => '{"message":"bad payload"}'
+      };
+    };
+    const res = await runBatchDiscordShare([{
+      pid: '778',
+      title: 'Monitor',
+      priceText: 'CHF 199.00',
+      cardPrice: 199,
+      isVerifiedDeal: true
+    }], { url: 'https://discord.com/api/webhooks/123/abc' });
+    assert.equal(attempts, 1);
+    assert.equal(res.failed, 1);
+  });
+
+  it('runBatchAiIndividual returns missing-key upfront and skips done count on abort', async () => {
+    CONFIG.OPENROUTER_API_KEY = '   ';
+    const mk = await runBatchAiIndividual([{ title: 'A', priceText: 'CHF 10' }], { provider: 'openrouter' });
+    assert.equal(mk.mode, 'missing-key');
+
+    CONFIG.OPENROUTER_API_KEY = 'sk-or-test';
+    const ac = new AbortController();
+    const aborted = await runBatchAiIndividual([{ title: 'A', priceText: 'CHF 10' }], {
+      provider: 'openrouter',
+      signal: ac.signal,
+      searchFn: async () => {
+        ac.abort();
+        throw Object.assign(new Error('Aborted'), { cancelled: true });
+      }
+    });
+    assert.equal(aborted.done, 0);
+    assert.equal(aborted.cancelled, true);
+  });
 });
